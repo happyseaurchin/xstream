@@ -26,7 +26,7 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 
 ## Pscale as Universal Organizing Principle
 
-Everything is located by **pscale** rather than explicit relational hierarchies. No `world_id` or `content_scope`—just pscale coordinates.
+Everything is located by **pscale** rather than explicit relational hierarchies. Operational range: **-10 to +16**.
 
 **Spatial pscale mapping:**
 
@@ -50,13 +50,23 @@ Everything is located by **pscale** rather than explicit relational hierarchies.
 | -4 | Q3: Thought, intention (~0.1 sec) |
 | -5 | Q2: Perception, belief (~0.01 sec) |
 | -6 | Q1: Sensation (~0.001 sec) |
+| -10 | Operational floor |
+
+### Cosmology: The +16 Extraction
+
+Different fictional worlds (URB, Lord of the Rings, Star Wars) exist at different addresses within the cosmos (+16). Rather than 16-digit coordinates everywhere, we extract **cosmology** as a separate entity:
+
+```
+cosmology_id + pscale_aperture(-10 to +15)
+```
 
 **Implications:**
-- Content doesn't need parent hierarchies—it has `pscale_aperture`
-- Characters don't need content_scope—they have `pscale_ceiling`
-- Frames define an aperture window (floor to ceiling)
-- At pscale +16, all fictional worlds are part of the same Onen cosmos
-- Different physics/magic = content with different rules, resolved by skills
+- Within a cosmology, just use pscale (-10 to +15)
+- Cross-cosmology operations are rare, explicit, high-level
+- Cosmology = the +16 "digit" extracted for practical use
+- Different physics/magic rules = different cosmologies
+- Frames scope to a single cosmology
+- Content and characters belong to a cosmology
 
 ---
 
@@ -65,13 +75,16 @@ Everything is located by **pscale** rather than explicit relational hierarchies.
 | Entity | Created By | What It Is |
 |--------|------------|------------|
 | **Users** | System | The humans |
+| **Cosmologies** | Authors/Designers | Fictional worlds with distinct rules (URB, LoTR, etc.) |
 | **Characters** | Players | Vessels through which Players act in content |
 | **Content** | Authors | Locations, events, lore, narrative material |
 | **Skills** | Designers | Processing rules, compilation protocols |
 | **Packages** | Designers | Bundles of skills with signatures |
-| **Frames** | Designers | Bindings that tie skills + users + pscale aperture |
+| **Frames** | Designers | Bindings that tie cosmology + skills + users + pscale aperture |
 
-**Frames are Designer constructs.** A Frame says: "These users, within this pscale aperture, governed by these skills." Players and Authors enter Frames; Designers create them.
+**Cosmologies are fictional worlds.** Each has its own physics/magic rules, history, and content. URB is one cosmology; Middle-earth is another; a sci-fi setting is another. All exist within the Onen cosmos at +16.
+
+**Frames are Designer constructs.** A Frame says: "These users, in this cosmology, within this pscale aperture, governed by these skills." Players and Authors enter Frames; Designers create them.
 
 **Characters are Player creations.** A Character is the vessel a Player inhabits to act within content. Characters can also be:
 - NPCs (Author-created, Character-LLM operated)
@@ -130,7 +143,7 @@ interface ShelfEntry {
   state: 'draft' | 'submitted' | 'committed';
   timestamp: string;
   // Added by skills after processing:
-  pscale_aperture?: number;  // narrative aperture (-6 to +16)
+  pscale_aperture?: number;  // narrative aperture (-10 to +15)
   lamina?: Record<string, any>;  // face-specific coordinates
 }
 ```
@@ -391,10 +404,11 @@ When user is in designer face and wants to create a skill:
 
 When user is in designer face and wants to create a frame:
 
-1. Create frame record with pscale_floor and pscale_ceiling
-2. Attach selected packages via frame_packages
-3. Set package priorities for resolution order
-4. Return confirmation with frame id
+1. Select or create cosmology
+2. Create frame record with pscale_floor and pscale_ceiling
+3. Attach selected packages via frame_packages
+4. Set package priorities for resolution order
+5. Return confirmation with frame id
 ```
 
 ---
@@ -411,15 +425,26 @@ CREATE TABLE users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Cosmologies: fictional worlds with distinct rules
+CREATE TABLE cosmologies (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,              -- 'urb', 'middle-earth', 'star-wars'
+  description TEXT,
+  physics_rules TEXT,              -- 'magical', 'realistic', 'sci-fi', 'mixed'
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Characters: vessels for Players to act through
 CREATE TABLE characters (
   id UUID PRIMARY KEY,
-  created_by UUID REFERENCES users(id),     -- the Player who created
-  inhabited_by UUID REFERENCES users(id),   -- who's currently playing (null = auto-PC/NPC)
+  cosmology_id UUID REFERENCES cosmologies(id),  -- which fictional world
+  created_by UUID REFERENCES users(id),          -- the Player who created
+  inhabited_by UUID REFERENCES users(id),        -- who's currently playing (null = auto-PC/NPC)
   name TEXT,
-  data JSONB,                               -- state, capabilities, relationships
-  pscale_ceiling INTEGER DEFAULT 10,        -- scale limit of existence (10 = planetary)
-  is_npc BOOLEAN DEFAULT FALSE,             -- Author-created vs Player-created
+  data JSONB,                                    -- state, capabilities, relationships
+  pscale_ceiling INTEGER DEFAULT 10,             -- scale limit of existence (10 = planetary)
+  is_npc BOOLEAN DEFAULT FALSE,                  -- Author-created vs Player-created
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -430,7 +455,7 @@ CREATE TABLE shelf (
   text TEXT NOT NULL,
   face TEXT CHECK (face IN ('player', 'author', 'designer')),
   state TEXT CHECK (state IN ('draft', 'submitted', 'committed')),
-  pscale_aperture INTEGER,  -- narrative aperture (-6 to +16)
+  pscale_aperture INTEGER,  -- narrative aperture (-10 to +15)
   lamina JSONB,             -- face-specific coordinates
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -438,10 +463,11 @@ CREATE TABLE shelf (
 -- Content: what Authors create (locations, events, lore)
 CREATE TABLE content (
   id UUID PRIMARY KEY,
+  cosmology_id UUID REFERENCES cosmologies(id),  -- which fictional world
   author_id UUID REFERENCES users(id),
   content_type TEXT,        -- e.g., 'location', 'event', 'lore'
   data JSONB NOT NULL,      -- the actual content
-  pscale_aperture INTEGER,  -- where this sits (+16 cosmos, +10 planet, +3 city...)
+  pscale_aperture INTEGER,  -- where this sits (+15 universe, +10 planet, +3 city...)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -468,13 +494,14 @@ CREATE TABLE packages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Frames: Designer constructs that define pscale aperture + skills
+-- Frames: Designer constructs that define cosmology + pscale aperture + skills
 CREATE TABLE frames (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  pscale_floor INTEGER DEFAULT -3,    -- how deep (cognitive/action level)
-  pscale_ceiling INTEGER DEFAULT 10,  -- how broad (planetary default)
+  cosmology_id UUID REFERENCES cosmologies(id),  -- which fictional world
+  pscale_floor INTEGER DEFAULT -3,               -- how deep (cognitive/action level)
+  pscale_ceiling INTEGER DEFAULT 10,             -- how broad (planetary default)
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -497,7 +524,9 @@ CREATE TABLE frame_users (
 );
 ```
 
-**Note:** No `frame_content` table needed—content is accessible based on pscale. If a frame has `pscale_ceiling = 10` (planetary), it can access all content at pscale ≤ 10 within the Onen cosmos.
+**Note on scoping:** Content is accessible within a frame based on:
+1. Same `cosmology_id` as frame
+2. `pscale_aperture` within frame's floor/ceiling range
 
 ---
 
@@ -521,7 +550,7 @@ CREATE TABLE frame_users (
 **That's the entire interface.**
 
 - Face selector: player/author/designer
-- Frame indicator: which frame (Designer's binding of pscale aperture + skills)
+- Frame indicator: which frame (Designer's binding of cosmology + pscale aperture + skills)
 - Synthesis: Medium-LLM output
 - Raw peek: what others just said
 - Input: your text
@@ -558,18 +587,19 @@ CREATE TABLE frame_users (
 
 **Test:** User in designer mode creates skill, switches to player mode, skill affects compilation.
 
-### Phase 4: Packages + Frames
+### Phase 4: Packages + Frames + Cosmologies
 
-1. Package table + creation
-2. Frame table + creation (with pscale_floor/ceiling)
-3. Frame-package composition with priorities
-4. Package resolution order
+1. Cosmology table + creation
+2. Package table + creation
+3. Frame table + creation (with cosmology + pscale_floor/ceiling)
+4. Frame-package composition with priorities
+5. Package resolution order
 
-**Test:** Designer creates frame with pscale aperture and packages, users enter frame, skills resolve correctly.
+**Test:** Designer creates cosmology, creates frame with pscale aperture and packages, users enter frame, skills resolve correctly.
 
 ### Phase 5: Characters + Multi-User
 
-1. Character table + creation
+1. Character table + creation (bound to cosmology)
 2. Character-user binding in frames
 3. Proximity (who sees whose output)
 4. Echo delivery
@@ -602,9 +632,10 @@ Plex 1 is complete when:
 4. Response is stored and displayed
 5. User can create new skills in designer mode
 6. Created skills affect subsequent compilations
-7. Designer can create frames with pscale aperture + packages
-8. Player can create character with pscale_ceiling
-9. Multiple users in same frame share frame skills
+7. Designer can create cosmology
+8. Designer can create frames with cosmology + pscale aperture + packages
+9. Player can create character within cosmology with pscale_ceiling
+10. Multiple users in same frame share frame skills
 
 Everything else is package content, not kernel.
 
