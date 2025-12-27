@@ -147,7 +147,7 @@ Player input volume must match game pscale for *imaginative synchronization*:
 | 0 | ~150 words |
 | +1 | ~500 words |
 
-This is skill-defined, not hard-coded—but the principle that pscale constrains input is a design constraint for imaginative coherence.
+This is skill-defined (constraint category), not hard-coded—but the principle that pscale constrains input is a design constraint for imaginative coherence.
 
 ---
 
@@ -171,6 +171,24 @@ This is skill-defined, not hard-coded—but the principle that pscale constrains
 - NPCs (Author-created, Character-LLM operated)
 - Auto-PCs (Player-created but currently unplayed, Character-LLM can operate)
 - Shared (delivered as content for other Players to inhabit)
+
+---
+
+## Skill Categories
+
+Skills are organized by category, mapping to the processing pipeline:
+
+| Category | Stage | Purpose | Overridable? |
+|----------|-------|---------|--------------|
+| `gathering` | Input | What context to fetch (shelf, content, character state) | Yes |
+| `aperture` | Filter | What pscale range to include | Yes |
+| `weighting` | Order | Priority when context conflicts or exceeds budget | Yes |
+| `format` | Output | How to structure the prompt for LLM | Yes |
+| `routing` | Delivery | Who receives output, how displayed, mutations (Z1) | Yes |
+| `constraint` | Validation | Tunable rules (input limits, pacing, etc.) | Yes |
+| `guard` | Throughout | Immutable platform rules | **No** |
+
+**Key distinction:** `constraint` skills can be overridden by packages (e.g., a combat package might tighten input limits). `guard` skills cannot be overridden by anyone—they're platform-level safety rails.
 
 ---
 
@@ -210,10 +228,11 @@ That's it. Five components. Everything else (what skills exist, what rules apply
   - `face` (player/author/designer)
   - `state` (draft/submitted/committed)
 - Broadcast presence (vapor) via WebSocket
+- Apply constraint skills (input validation)
 
 **NOT hard-coded (skill-defined):**
 - What the text means
-- How to validate it
+- How to validate it (constraint skills)
 - What happens next
 
 ```typescript
@@ -280,7 +299,7 @@ interface Skill {
   name: string;
   package: string;        // which package this belongs to
   level: 'platform' | 'frame' | 'user';
-  category: 'aperture' | 'weighting' | 'gathering' | 'format' | 'guard';
+  category: 'gathering' | 'aperture' | 'weighting' | 'format' | 'routing' | 'constraint' | 'guard';
   content: string;        // markdown content (the actual skill)
   overrides?: string;     // skill id this replaces (if any)
   extends?: string;       // skill id this extends (if any)
@@ -343,15 +362,12 @@ interface CompilerOutput {
    → Filters fragments by pscale_aperture range
 
 3. Apply weighting skill
-   → Orders fragments by priority
+   → Orders fragments by priority + resolves conflicts
 
-4. Apply conflict resolution skill (if conflicts exist)
-   → Resolves contradictions
-
-5. Apply format skill
+4. Apply format skill
    → Assembles into prompt structure
 
-6. Return compiled prompt
+5. Return compiled prompt
 ```
 
 ---
@@ -385,8 +401,8 @@ interface LLMCallerOutput {
 ## Component 5: Output Router
 
 **Hard-coded behavior:**
+- Apply routing skills to determine delivery
 - Store response with pscale_aperture and lamina
-- Determine who receives the output
 - Deliver to appropriate displays
 - If Z1: apply world mutations from response
 
@@ -394,7 +410,7 @@ interface LLMCallerOutput {
 - If X0: store to ephemeral session state only
 - If X1: persist to database
 
-**NOT hard-coded (skill-defined):**
+**NOT hard-coded (skill-defined via routing category):**
 - What pscale_aperture to assign
 - What lamina coordinates to set
 - Who should receive (proximity rules)
@@ -439,7 +455,7 @@ interface RouterOutput {
 
 The only hard-coded package. Contains:
 
-### Guard Rail Skills (cannot be overridden)
+### Guard Skills (cannot be overridden)
 
 ```markdown
 # guard-no-private-access
@@ -462,11 +478,28 @@ All skills must conform to the Skill interface:
 - name: human-readable name
 - package: package provenance
 - level: platform/frame/user
-- category: aperture/weighting/gathering/format/guard
+- category: gathering/aperture/weighting/format/routing/constraint/guard
 - content: markdown content
 ```
 
-### Default Skills (can be overridden)
+### Default Constraint Skills (can be overridden)
+
+```markdown
+# constraint-input-pscale
+
+Pscale-appropriate input limits.
+
+| Pscale | Max Words |
+|--------|-----------|
+| -2 | 20 |
+| -1 | 50 |
+| 0 | 150 |
+| +1 | 500 |
+
+Truncate with warning if exceeded.
+```
+
+### Default Gathering/Aperture/Weighting Skills (can be overridden)
 
 ```markdown
 # default-aperture-standard
@@ -491,6 +524,23 @@ Note: Respects Y dimension—if Y0, only current round.
 ```
 
 ```markdown
+# default-weighting-recency
+
+Weight context by recency and relevance.
+
+Priority order:
+1. Current round entries (highest)
+2. Same proximity group
+3. Same location
+4. Same pscale band
+5. Background context (lowest)
+
+Conflict resolution: Later entry wins at same priority.
+```
+
+### Default Format Skills (can be overridden)
+
+```markdown
 # default-format-claude
 
 Format for Claude API.
@@ -504,19 +554,32 @@ System prompt structure:
 User prompt: The user's submitted text.
 ```
 
+### Default Routing Skills (can be overridden)
+
 ```markdown
-# default-input-constraint
+# default-routing-proximity
 
-Pscale-appropriate input limits.
+Route output based on proximity.
 
-| Pscale | Max Words |
-|--------|-----------|
-| -2 | 20 |
-| -1 | 50 |
-| 0 | 150 |
-| +1 | 500 |
+Delivery rules:
+- Synthesis: All users in same proximity group
+- Echo: Users in adjacent proximity (compressed)
+- Raw: Not delivered outside proximity
 
-Truncate with warning if exceeded.
+Display type determined by relationship to speaker.
+```
+
+```markdown
+# default-routing-mutations
+
+Extract world mutations from LLM response (Z1 only).
+
+Parse response for:
+- Location state changes
+- Character state changes
+- Event occurrences
+
+Apply mutations to content table.
 ```
 
 ### Default Designer Skills (bootstrap)
@@ -613,7 +676,7 @@ CREATE TABLE skills (
   name TEXT NOT NULL,
   package_id UUID REFERENCES packages(id),
   level TEXT CHECK (level IN ('platform', 'frame', 'user')),
-  category TEXT CHECK (category IN ('aperture', 'weighting', 'gathering', 'format', 'guard')),
+  category TEXT CHECK (category IN ('gathering', 'aperture', 'weighting', 'format', 'routing', 'constraint', 'guard')),
   content TEXT NOT NULL,
   overrides UUID REFERENCES skills(id),
   extends UUID REFERENCES skills(id),
