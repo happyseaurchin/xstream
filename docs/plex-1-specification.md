@@ -24,17 +24,59 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 
 ---
 
+## Pscale as Universal Organizing Principle
+
+Everything is located by **pscale** rather than explicit relational hierarchies. No `world_id` or `content_scope`—just pscale coordinates.
+
+**Spatial pscale mapping:**
+
+| Pscale | Spatial Scale |
+|--------|---------------|
+| +16 | Cosmos (multiverse / all fictional worlds) |
+| +15 | Universe |
+| +14 | Supercluster |
+| +13 | Cluster |
+| +12 | Galaxy |
+| +11 | Solar system |
+| +10 | Planetary |
+| +6 | Nation/continent |
+| +3 | City/region |
+| +2 | Neighbourhood |
+| +1 | Building |
+| 0 | Room (magnitude point) |
+| -1 | Furniture / emotional state |
+| -2 | Object / cognitive pattern |
+| -3 | Q4: Action, representation (~1 sec) |
+| -4 | Q3: Thought, intention (~0.1 sec) |
+| -5 | Q2: Perception, belief (~0.01 sec) |
+| -6 | Q1: Sensation (~0.001 sec) |
+
+**Implications:**
+- Content doesn't need parent hierarchies—it has `pscale_aperture`
+- Characters don't need content_scope—they have `pscale_ceiling`
+- Frames define an aperture window (floor to ceiling)
+- At pscale +16, all fictional worlds are part of the same Onen cosmos
+- Different physics/magic = content with different rules, resolved by skills
+
+---
+
 ## The Core Entities
 
 | Entity | Created By | What It Is |
 |--------|------------|------------|
 | **Users** | System | The humans |
+| **Characters** | Players | Vessels through which Players act in content |
 | **Content** | Authors | Locations, events, lore, narrative material |
 | **Skills** | Designers | Processing rules, compilation protocols |
 | **Packages** | Designers | Bundles of skills with signatures |
-| **Frames** | Designers | Bindings that tie content + skills + users together |
+| **Frames** | Designers | Bindings that tie skills + users + pscale aperture |
 
-**Frames are Designer constructs.** A Frame says: "These users, operating in this content, governed by these skills." Players and Authors enter Frames; Designers create them.
+**Frames are Designer constructs.** A Frame says: "These users, within this pscale aperture, governed by these skills." Players and Authors enter Frames; Designers create them.
+
+**Characters are Player creations.** A Character is the vessel a Player inhabits to act within content. Characters can also be:
+- NPCs (Author-created, Character-LLM operated)
+- Auto-PCs (Player-created but currently unplayed, Character-LLM can operate)
+- Shared (delivered as content for other Players to inhabit)
 
 ---
 
@@ -88,7 +130,7 @@ interface ShelfEntry {
   state: 'draft' | 'submitted' | 'committed';
   timestamp: string;
   // Added by skills after processing:
-  pscale_aperture?: number;  // narrative aperture (-6 to +10)
+  pscale_aperture?: number;  // narrative aperture (-6 to +16)
   lamina?: Record<string, any>;  // face-specific coordinates
 }
 ```
@@ -349,7 +391,7 @@ When user is in designer face and wants to create a skill:
 
 When user is in designer face and wants to create a frame:
 
-1. Create frame record
+1. Create frame record with pscale_floor and pscale_ceiling
 2. Attach selected packages via frame_packages
 3. Set package priorities for resolution order
 4. Return confirmation with frame id
@@ -369,6 +411,18 @@ CREATE TABLE users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Characters: vessels for Players to act through
+CREATE TABLE characters (
+  id UUID PRIMARY KEY,
+  created_by UUID REFERENCES users(id),     -- the Player who created
+  inhabited_by UUID REFERENCES users(id),   -- who's currently playing (null = auto-PC/NPC)
+  name TEXT,
+  data JSONB,                               -- state, capabilities, relationships
+  pscale_ceiling INTEGER DEFAULT 10,        -- scale limit of existence (10 = planetary)
+  is_npc BOOLEAN DEFAULT FALSE,             -- Author-created vs Player-created
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Shelf: where all text lives
 CREATE TABLE shelf (
   id UUID PRIMARY KEY,
@@ -376,7 +430,7 @@ CREATE TABLE shelf (
   text TEXT NOT NULL,
   face TEXT CHECK (face IN ('player', 'author', 'designer')),
   state TEXT CHECK (state IN ('draft', 'submitted', 'committed')),
-  pscale_aperture INTEGER,  -- narrative aperture (-6 to +10)
+  pscale_aperture INTEGER,  -- narrative aperture (-6 to +16)
   lamina JSONB,             -- face-specific coordinates
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -385,9 +439,9 @@ CREATE TABLE shelf (
 CREATE TABLE content (
   id UUID PRIMARY KEY,
   author_id UUID REFERENCES users(id),
-  content_type TEXT,        -- e.g., 'location', 'event', 'lore', 'character'
+  content_type TEXT,        -- e.g., 'location', 'event', 'lore'
   data JSONB NOT NULL,      -- the actual content
-  pscale_aperture INTEGER,  -- where this sits in narrative scale
+  pscale_aperture INTEGER,  -- where this sits (+16 cosmos, +10 planet, +3 city...)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -414,12 +468,14 @@ CREATE TABLE packages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Frames: Designer constructs that bind content + skills + users
+-- Frames: Designer constructs that define pscale aperture + skills
 CREATE TABLE frames (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  created_by UUID REFERENCES users(id),  -- the Designer who created this frame
+  pscale_floor INTEGER DEFAULT -3,    -- how deep (cognitive/action level)
+  pscale_ceiling INTEGER DEFAULT 10,  -- how broad (planetary default)
+  created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -431,21 +487,17 @@ CREATE TABLE frame_packages (
   PRIMARY KEY (frame_id, package_id)
 );
 
--- Frame-content binding: which content a frame references
-CREATE TABLE frame_content (
-  frame_id UUID REFERENCES frames(id),
-  content_id UUID REFERENCES content(id),
-  PRIMARY KEY (frame_id, content_id)
-);
-
 -- Frame-users: who is participating in a frame
 CREATE TABLE frame_users (
   frame_id UUID REFERENCES frames(id),
   user_id UUID REFERENCES users(id),
-  face TEXT CHECK (face IN ('player', 'author', 'designer')),  -- which face they're wearing
+  character_id UUID REFERENCES characters(id),  -- which character they're playing (if player)
+  face TEXT CHECK (face IN ('player', 'author', 'designer')),
   PRIMARY KEY (frame_id, user_id)
 );
 ```
+
+**Note:** No `frame_content` table needed—content is accessible based on pscale. If a frame has `pscale_ceiling = 10` (planetary), it can access all content at pscale ≤ 10 within the Onen cosmos.
 
 ---
 
@@ -469,7 +521,7 @@ CREATE TABLE frame_users (
 **That's the entire interface.**
 
 - Face selector: player/author/designer
-- Frame indicator: which frame (Designer's binding of content + skills)
+- Frame indicator: which frame (Designer's binding of pscale aperture + skills)
 - Synthesis: Medium-LLM output
 - Raw peek: what others just said
 - Input: your text
@@ -509,27 +561,29 @@ CREATE TABLE frame_users (
 ### Phase 4: Packages + Frames
 
 1. Package table + creation
-2. Frame table + creation
+2. Frame table + creation (with pscale_floor/ceiling)
 3. Frame-package composition with priorities
 4. Package resolution order
 
-**Test:** Designer creates frame with multiple packages, users enter frame, skills resolve correctly.
+**Test:** Designer creates frame with pscale aperture and packages, users enter frame, skills resolve correctly.
 
-### Phase 5: Multi-User
+### Phase 5: Characters + Multi-User
 
-1. Proximity (who sees whose output)
-2. Echo delivery
-3. Synthesis across multiple inputs
+1. Character table + creation
+2. Character-user binding in frames
+3. Proximity (who sees whose output)
+4. Echo delivery
+5. Synthesis across multiple inputs
 
-**Test:** Two users in same frame, each sees other's committed text.
+**Test:** Two users with characters in same frame, each sees other's committed text.
 
 ---
 
 ## What Plex 1 Does NOT Include
 
-- Character sheets
-- World maps
-- Chat history display
+- Character sheets (skill-defined display)
+- World maps (skill-defined display)
+- Chat history display (skill-defined)
 - Dice rolling UI (skill-defined)
 - NPC display (skill-defined)
 - Any specific game mechanics (package-defined)
@@ -548,8 +602,9 @@ Plex 1 is complete when:
 4. Response is stored and displayed
 5. User can create new skills in designer mode
 6. Created skills affect subsequent compilations
-7. Designer can create frames binding packages
-8. Multiple users in same frame share frame skills
+7. Designer can create frames with pscale aperture + packages
+8. Player can create character with pscale_ceiling
+9. Multiple users in same frame share frame skills
 
 Everything else is package content, not kernel.
 
