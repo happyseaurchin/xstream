@@ -29,7 +29,7 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  1. TEXT INPUT                                           │
-│     User writes → stored on shelf with coordinates       │
+│     User writes → stored on shelf with lamina            │
 ├──────────────────────────────────────────────────────────┤
 │  2. SKILL LOADER                                         │
 │     Determines which packages apply → loads skill-set    │
@@ -41,7 +41,7 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 │     Sends compiled prompt → receives response            │
 ├──────────────────────────────────────────────────────────┤
 │  5. OUTPUT ROUTER                                        │
-│     Response → stored with pscale coords                 │
+│     Response → stored with pscale_aperture + lamina      │
 │     Response → displayed to user                         │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -73,11 +73,16 @@ interface ShelfEntry {
   face: 'player' | 'author' | 'designer';
   state: 'draft' | 'submitted' | 'committed';
   timestamp: string;
-  // pscale coords added by skills after processing
-  pscale?: number;
-  coordinates?: Record<string, any>;
+  // Added by skills after processing:
+  pscale_aperture?: number;  // narrative aperture (-6 to +10)
+  lamina?: Record<string, any>;  // face-specific coordinates
 }
 ```
+
+**Lamina contents by face:**
+- **Player:** `{character_id, location_id, proximity_group}`
+- **Author:** `{content_region, determinancy, temporal_placement}`
+- **Designer:** `{skill_target, stack_depth, affected_faces}`
 
 ---
 
@@ -168,7 +173,7 @@ interface CompilerOutput {
    → Each returns a context fragment
 
 2. Apply aperture skill
-   → Filters fragments by pscale range
+   → Filters fragments by pscale_aperture range
 
 3. Apply weighting skill
    → Orders fragments by priority
@@ -213,12 +218,13 @@ interface LLMCallerOutput {
 ## Component 5: Output Router
 
 **Hard-coded behavior:**
-- Store response with pscale coordinates
+- Store response with pscale_aperture and lamina
 - Determine who receives the output
 - Deliver to appropriate displays
 
 **NOT hard-coded (skill-defined):**
-- What pscale coordinates to assign
+- What pscale_aperture to assign
+- What lamina coordinates to set
 - Who should receive (proximity rules)
 - How to format for display
 
@@ -233,8 +239,8 @@ interface RouterOutput {
   stored: {
     id: string;
     text: string;
-    pscale: number;
-    coordinates: Record<string, any>;
+    pscale_aperture: number;
+    lamina: Record<string, any>;
   };
   deliveries: {
     user_id: string;
@@ -285,9 +291,9 @@ All skills must conform to the Skill interface:
 Pscale aperture for standard gameplay.
 
 Include context from:
-- pscale -2 to +2 for player face
-- pscale +1 to +5 for author face
-- pscale -5 to -3 for designer face
+- pscale_aperture -2 to +2 for player face
+- pscale_aperture +1 to +5 for author face
+- pscale_aperture -5 to -3 for designer face
 ```
 
 ```markdown
@@ -296,7 +302,7 @@ Include context from:
 Gather recent shelf entries.
 
 Query: Last 10 committed entries from users in proximity.
-Return: Array of {user_id, text, timestamp, pscale}
+Return: Array of {user_id, text, timestamp, pscale_aperture}
 ```
 
 ```markdown
@@ -340,8 +346,8 @@ CREATE TABLE shelf (
   text TEXT NOT NULL,
   face TEXT CHECK (face IN ('player', 'author', 'designer')),
   state TEXT CHECK (state IN ('draft', 'submitted', 'committed')),
-  pscale INTEGER,
-  coordinates JSONB,
+  pscale_aperture INTEGER,  -- narrative aperture (-6 to +10)
+  lamina JSONB,             -- face-specific coordinates
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -503,7 +509,7 @@ Everything else is package content, not kernel.
 ## The Plex Sequence
 
 | Plex | State | Characteristics |
-|------|-------|------------------|
+|------|-------|-----------------|
 | **0** | Bootstrap | David + Claude, no system yet, creating conditions for system |
 | **1** | Kernel | Minimal systemic system, faces distinct, others can enter |
 | **2+** | Growth | Additional features, all soft-coded as skills/packages |
