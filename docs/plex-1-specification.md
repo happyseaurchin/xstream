@@ -24,6 +24,20 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 
 ---
 
+## The Core Entities
+
+| Entity | Created By | What It Is |
+|--------|------------|------------|
+| **Users** | System | The humans |
+| **Content** | Authors | Locations, events, lore, narrative material |
+| **Skills** | Designers | Processing rules, compilation protocols |
+| **Packages** | Designers | Bundles of skills with signatures |
+| **Frames** | Designers | Bindings that tie content + skills + users together |
+
+**Frames are Designer constructs.** A Frame says: "These users, operating in this content, governed by these skills." Players and Authors enter Frames; Designers create them.
+
+---
+
 ## The Five Components
 
 ```
@@ -46,7 +60,7 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 └──────────────────────────────────────────────────────────┘
 ```
 
-That's it. Five components. Everything else (what skills exist, what rules apply, what the world contains) is soft-coded in packages.
+That's it. Five components. Everything else (what skills exist, what rules apply, what the content contains) is soft-coded in packages.
 
 ---
 
@@ -82,14 +96,14 @@ interface ShelfEntry {
 **Lamina contents by face:**
 - **Player:** `{character_id, location_id, proximity_group}`
 - **Author:** `{content_region, determinancy, temporal_placement}`
-- **Designer:** `{skill_target, stack_depth, affected_faces}`
+- **Designer:** `{skill_target, stack_depth, affected_faces, frame_id}`
 
 ---
 
 ## Component 2: Skill Loader
 
 **Hard-coded behavior:**
-- Given a context (user + face + campaign/world/ruleset), determine which packages apply
+- Given a context (user + face + frame), determine which packages apply
 - Load skills from those packages in resolution order
 - Return assembled skill-set
 
@@ -102,16 +116,12 @@ interface ShelfEntry {
 interface SkillLoaderInput {
   user_id: string;
   face: 'player' | 'author' | 'designer';
-  campaign_id?: string;
-  world_id?: string;
-  ruleset_id?: string;
+  frame_id?: string;  // the binding that determines which packages apply
 }
 
 interface SkillSet {
   platform: Skill[];      // always loaded, cannot be overridden
-  ruleset: Skill[];       // resolution mechanics
-  world: Skill[];         // world-specific
-  campaign: Skill[];      // session tuning
+  frame: Skill[];         // frame-specific (packages attached to this frame)
   user: Skill[];          // personal preferences
 }
 
@@ -125,13 +135,15 @@ interface Skill {
   id: string;
   name: string;
   package: string;        // which package this belongs to
-  level: 'platform' | 'ruleset' | 'world' | 'campaign' | 'user';
+  level: 'platform' | 'frame' | 'user';
   category: 'aperture' | 'weighting' | 'gathering' | 'format' | 'guard';
   content: string;        // markdown content (the actual skill)
   overrides?: string;     // skill id this replaces (if any)
   extends?: string;       // skill id this extends (if any)
 }
 ```
+
+**Note on levels:** The old hierarchy (platform/ruleset/world/campaign/user) collapsed into three levels. Ruleset, world, and campaign distinctions are now just different *packages* attached to a frame. The frame's `frame_packages` table with priority handles resolution order.
 
 ---
 
@@ -278,7 +290,7 @@ All skills must conform to the Skill interface:
 - id: unique identifier
 - name: human-readable name
 - package: package provenance
-- level: platform/ruleset/world/campaign/user
+- level: platform/frame/user
 - category: aperture/weighting/gathering/format/guard
 - content: markdown content
 ```
@@ -332,6 +344,17 @@ When user is in designer face and wants to create a skill:
 4. Return confirmation with skill id
 ```
 
+```markdown
+# designer-frame-creation
+
+When user is in designer face and wants to create a frame:
+
+1. Create frame record
+2. Attach selected packages via frame_packages
+3. Set package priorities for resolution order
+4. Return confirmation with frame id
+```
+
 ---
 
 ## Data Model (Supabase)
@@ -339,6 +362,13 @@ When user is in designer face and wants to create a skill:
 ### Tables
 
 ```sql
+-- Users: minimal user record
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Shelf: where all text lives
 CREATE TABLE shelf (
   id UUID PRIMARY KEY,
@@ -351,12 +381,22 @@ CREATE TABLE shelf (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Content: what Authors create (locations, events, lore)
+CREATE TABLE content (
+  id UUID PRIMARY KEY,
+  author_id UUID REFERENCES users(id),
+  content_type TEXT,        -- e.g., 'location', 'event', 'lore', 'character'
+  data JSONB NOT NULL,      -- the actual content
+  pscale_aperture INTEGER,  -- where this sits in narrative scale
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Skills: all skill definitions
 CREATE TABLE skills (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
-  package TEXT NOT NULL,
-  level TEXT CHECK (level IN ('platform', 'ruleset', 'world', 'campaign', 'user')),
+  package_id UUID REFERENCES packages(id),
+  level TEXT CHECK (level IN ('platform', 'frame', 'user')),
   category TEXT CHECK (category IN ('aperture', 'weighting', 'gathering', 'format', 'guard')),
   content TEXT NOT NULL,
   overrides UUID REFERENCES skills(id),
@@ -368,35 +408,42 @@ CREATE TABLE skills (
 CREATE TABLE packages (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
-  level TEXT CHECK (level IN ('platform', 'ruleset', 'world', 'campaign', 'user')),
-  signature TEXT,  -- e.g., 'onen-official', 'david', 'urb-official'
+  signature TEXT,           -- e.g., 'onen-official', 'david', 'urb-official'
+  description TEXT,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Package composition: which packages a campaign uses
-CREATE TABLE campaign_packages (
-  campaign_id UUID REFERENCES campaigns(id),
-  package_id UUID REFERENCES packages(id),
-  priority INTEGER,  -- resolution order
-  PRIMARY KEY (campaign_id, package_id)
-);
-
--- Campaigns: the context users enter
-CREATE TABLE campaigns (
+-- Frames: Designer constructs that bind content + skills + users
+CREATE TABLE frames (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
-  world_id UUID,
-  ruleset_id UUID,
-  created_by UUID REFERENCES users(id),
+  description TEXT,
+  created_by UUID REFERENCES users(id),  -- the Designer who created this frame
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Users: minimal user record
-CREATE TABLE users (
-  id UUID PRIMARY KEY,
-  name TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+-- Frame-package composition: which packages a frame uses
+CREATE TABLE frame_packages (
+  frame_id UUID REFERENCES frames(id),
+  package_id UUID REFERENCES packages(id),
+  priority INTEGER,         -- resolution order (lower = loaded first, higher can override)
+  PRIMARY KEY (frame_id, package_id)
+);
+
+-- Frame-content binding: which content a frame references
+CREATE TABLE frame_content (
+  frame_id UUID REFERENCES frames(id),
+  content_id UUID REFERENCES content(id),
+  PRIMARY KEY (frame_id, content_id)
+);
+
+-- Frame-users: who is participating in a frame
+CREATE TABLE frame_users (
+  frame_id UUID REFERENCES frames(id),
+  user_id UUID REFERENCES users(id),
+  face TEXT CHECK (face IN ('player', 'author', 'designer')),  -- which face they're wearing
+  PRIMARY KEY (frame_id, user_id)
 );
 ```
 
@@ -406,7 +453,7 @@ CREATE TABLE users (
 
 ```
 ┌────────────────────────────────────────────────┐
-│  [Player ▼]  Campaign: URB-Alpha               │  ← face selector, context
+│  [Player ▼]  Frame: URB-Alpha                  │  ← face selector, frame
 ├────────────────────────────────────────────────┤
 │                                                │
 │  [Synthesis area - LLM output appears here]    │
@@ -422,7 +469,7 @@ CREATE TABLE users (
 **That's the entire interface.**
 
 - Face selector: player/author/designer
-- Context indicator: which campaign/world
+- Frame indicator: which frame (Designer's binding of content + skills)
 - Synthesis: Medium-LLM output
 - Raw peek: what others just said
 - Input: your text
@@ -459,13 +506,14 @@ CREATE TABLE users (
 
 **Test:** User in designer mode creates skill, switches to player mode, skill affects compilation.
 
-### Phase 4: Packages
+### Phase 4: Packages + Frames
 
 1. Package table + creation
-2. Campaign-package composition
-3. Package resolution order
+2. Frame table + creation
+3. Frame-package composition with priorities
+4. Package resolution order
 
-**Test:** Multiple users in same campaign share campaign skills.
+**Test:** Designer creates frame with multiple packages, users enter frame, skills resolve correctly.
 
 ### Phase 5: Multi-User
 
@@ -473,7 +521,7 @@ CREATE TABLE users (
 2. Echo delivery
 3. Synthesis across multiple inputs
 
-**Test:** Two users in same proximity, each sees other's committed text.
+**Test:** Two users in same frame, each sees other's committed text.
 
 ---
 
@@ -500,7 +548,8 @@ Plex 1 is complete when:
 4. Response is stored and displayed
 5. User can create new skills in designer mode
 6. Created skills affect subsequent compilations
-7. Multiple users in same campaign share campaign skills
+7. Designer can create frames binding packages
+8. Multiple users in same frame share frame skills
 
 Everything else is package content, not kernel.
 
