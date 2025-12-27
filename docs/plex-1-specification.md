@@ -24,6 +24,16 @@ Plex 1 is NOT a minimal viable product. It is a **minimal systemic system**—th
 
 ---
 
+## The Core Insight
+
+> What we're building isn't a text system. It's a **temporal coordination system for shared imagination** that happens to use text as its signaling layer.
+>
+> The text is like musical notation during a jazz improvisation—necessary for coordination, meaningless after.
+
+**The proof criterion**: If 3 players can spend 1 hour in the Mos Eisley cantina and feel synchronized imagination, it works. Everything else is elaboration.
+
+---
+
 ## Pscale as Universal Organizing Principle
 
 Everything is located by **pscale** rather than explicit relational hierarchies. Operational range: **-10 to +16**.
@@ -70,6 +80,77 @@ cosmology_id + pscale_aperture(-10 to +15)
 
 ---
 
+## XYZ: Frame Temporal Configuration
+
+Frames configure three dimensions of temporal experience:
+
+| Dimension | Pole 0 | Pole 1 |
+|-----------|--------|--------|
+| **X** (experience record) | Deleted after session | Persisted |
+| **Y** (world temporality) | Bleeding edge only | Block universe (past/future accessible) |
+| **Z** (narrative substrate) | Inert/fixed | Mutable by players/authors |
+
+### Key Configurations
+
+| Config | Experience |
+|--------|------------|
+| **X0Y0Z0** | Pure ephemeral play. Nothing remains. No world state. Just synchronized imagination. |
+| X0Y1Z0 | Explore fixed universe, no record. Tourism. |
+| X1Y0Z0 | Keep transcript, but no world access beyond now. |
+| X1Y1Z0 | Explore fixed universe, keep diary. Personal history in static world. |
+| X0Y0Z1 | World changes, but no one remembers. Myth-time. |
+| **X1Y1Z1** | Full persistence. Mutable world. Hardest. Worldbuilding MMO. |
+
+**X0Y0Z0 is the proof case.** If ephemeral play works, everything else is elaboration.
+
+### XYZ Implications for System Behavior
+
+**X (Persistence):**
+- X0: Shelf entries deleted after session ends. Character state not saved.
+- X1: Everything persists to database.
+
+**Y (Temporality):**
+- Y0: Gathering skills only access current scene. No world history or future events.
+- Y1: Full content access within pscale aperture. Block universe available.
+
+**Z (Mutability):**
+- Z0: Content is read-only. Players act *within* the world, not *on* it.
+- Z1: Player/Author actions can modify content table. World state changes.
+
+---
+
+## Text States: Vapor, Liquid, Solid
+
+Text exists in three states based on visibility and commitment:
+
+| State | Shelf State | What Others See | Description |
+|-------|-------------|-----------------|-------------|
+| **Vapor** | (not stored) | Presence indicator | "User is typing..." — signal only, not content |
+| **Liquid** | `submitted` | Compressed intent | Visible intention, pre-commit, can be revised |
+| **Solid** | `committed` | Full text | Locked, triggers generation, becomes record |
+
+**The inversion**: Traditional view sees solid (record) as achievement. But:
+- Solid = consolidation = the fun is already over
+- Liquid = exploration = where imagination lives
+- Vapor = projection = the actual game
+
+The record kills the game. A TT RPG transcript is unreadable because the text was never the thing—it was scaffolding for synchronized imagination.
+
+### Pscale Input Constraints
+
+Player input volume must match game pscale for *imaginative synchronization*:
+
+| Pscale | Suggested Max Input |
+|--------|---------------------|
+| -2 | ~20 words |
+| -1 | ~50 words |
+| 0 | ~150 words |
+| +1 | ~500 words |
+
+This is skill-defined, not hard-coded—but the principle that pscale constrains input is a design constraint for imaginative coherence.
+
+---
+
 ## The Core Entities
 
 | Entity | Created By | What It Is |
@@ -80,11 +161,11 @@ cosmology_id + pscale_aperture(-10 to +15)
 | **Content** | Authors | Locations, events, lore, narrative material |
 | **Skills** | Designers | Processing rules, compilation protocols |
 | **Packages** | Designers | Bundles of skills with signatures |
-| **Frames** | Designers | Bindings that tie cosmology + skills + users + pscale aperture |
+| **Frames** | Designers | Bindings: cosmology + skills + users + pscale aperture + XYZ config |
 
 **Cosmologies are fictional worlds.** Each has its own physics/magic rules, history, and content. URB is one cosmology; Middle-earth is another; a sci-fi setting is another. All exist within the Onen cosmos at +16.
 
-**Frames are Designer constructs.** A Frame says: "These users, in this cosmology, within this pscale aperture, governed by these skills." Players and Authors enter Frames; Designers create them.
+**Frames are Designer constructs.** A Frame says: "These users, in this cosmology, within this pscale aperture, governed by these skills, with this XYZ configuration." Players and Authors enter Frames; Designers create them.
 
 **Characters are Player creations.** A Character is the vessel a Player inhabits to act within content. Characters can also be:
 - NPCs (Author-created, Character-LLM operated)
@@ -128,6 +209,7 @@ That's it. Five components. Everything else (what skills exist, what rules apply
   - `timestamp`
   - `face` (player/author/designer)
   - `state` (draft/submitted/committed)
+- Broadcast presence (vapor) via WebSocket
 
 **NOT hard-coded (skill-defined):**
 - What the text means
@@ -145,6 +227,13 @@ interface ShelfEntry {
   // Added by skills after processing:
   pscale_aperture?: number;  // narrative aperture (-10 to +15)
   lamina?: Record<string, any>;  // face-specific coordinates
+}
+
+// Vapor (not stored, WebSocket only)
+interface PresenceSignal {
+  user_id: string;
+  frame_id: string;
+  status: 'typing' | 'idle' | 'away';
 }
 ```
 
@@ -212,6 +301,10 @@ interface Skill {
 - Apply format skills (structure for LLM)
 - Return assembled prompt
 
+**XYZ-aware gathering:**
+- If Y0: gathering limited to current scene only
+- If Y1: full content access within pscale aperture
+
 **NOT hard-coded (skill-defined):**
 - What to gather
 - What aperture to use
@@ -223,6 +316,11 @@ interface CompilerInput {
   skills: SkillSet;
   shelf_entry: ShelfEntry;
   context: ContextBundle;   // gathered by gatherer skills
+  frame_config: {
+    x_persistence: boolean;
+    y_temporality: boolean;
+    z_mutability: boolean;
+  };
 }
 
 interface CompilerOutput {
@@ -238,6 +336,8 @@ interface CompilerOutput {
 ```
 1. Run all gathering skills in parallel
    → Each returns a context fragment
+   → Y0 frames: limit to current scene
+   → Y1 frames: full pscale access
 
 2. Apply aperture skill
    → Filters fragments by pscale_aperture range
@@ -288,18 +388,29 @@ interface LLMCallerOutput {
 - Store response with pscale_aperture and lamina
 - Determine who receives the output
 - Deliver to appropriate displays
+- If Z1: apply world mutations from response
+
+**XYZ-aware storage:**
+- If X0: store to ephemeral session state only
+- If X1: persist to database
 
 **NOT hard-coded (skill-defined):**
 - What pscale_aperture to assign
 - What lamina coordinates to set
 - Who should receive (proximity rules)
 - How to format for display
+- What world mutations to extract (if Z1)
 
 ```typescript
 interface RouterInput {
   response: LLMCallerOutput;
   original_entry: ShelfEntry;
   skills: SkillSet;
+  frame_config: {
+    x_persistence: boolean;
+    y_temporality: boolean;
+    z_mutability: boolean;
+  };
 }
 
 interface RouterOutput {
@@ -308,11 +419,16 @@ interface RouterOutput {
     text: string;
     pscale_aperture: number;
     lamina: Record<string, any>;
+    ephemeral: boolean;  // true if X0
   };
   deliveries: {
     user_id: string;
     display_type: 'synthesis' | 'echo' | 'raw';
     content: string;
+  }[];
+  mutations?: {  // only if Z1
+    content_id: string;
+    changes: Record<string, any>;
   }[];
 }
 ```
@@ -370,6 +486,8 @@ Gather recent shelf entries.
 
 Query: Last 10 committed entries from users in proximity.
 Return: Array of {user_id, text, timestamp, pscale_aperture}
+
+Note: Respects Y dimension—if Y0, only current round.
 ```
 
 ```markdown
@@ -384,6 +502,21 @@ System prompt structure:
 4. Constraints (from guard rails)
 
 User prompt: The user's submitted text.
+```
+
+```markdown
+# default-input-constraint
+
+Pscale-appropriate input limits.
+
+| Pscale | Max Words |
+|--------|-----------|
+| -2 | 20 |
+| -1 | 50 |
+| 0 | 150 |
+| +1 | 500 |
+
+Truncate with warning if exceeded.
 ```
 
 ### Default Designer Skills (bootstrap)
@@ -406,9 +539,10 @@ When user is in designer face and wants to create a frame:
 
 1. Select or create cosmology
 2. Create frame record with pscale_floor and pscale_ceiling
-3. Attach selected packages via frame_packages
-4. Set package priorities for resolution order
-5. Return confirmation with frame id
+3. Configure XYZ dimensions (persistence, temporality, mutability)
+4. Attach selected packages via frame_packages
+5. Set package priorities for resolution order
+6. Return confirmation with frame id
 ```
 
 ---
@@ -452,11 +586,13 @@ CREATE TABLE characters (
 CREATE TABLE shelf (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
+  frame_id UUID REFERENCES frames(id),
   text TEXT NOT NULL,
   face TEXT CHECK (face IN ('player', 'author', 'designer')),
   state TEXT CHECK (state IN ('draft', 'submitted', 'committed')),
   pscale_aperture INTEGER,  -- narrative aperture (-10 to +15)
   lamina JSONB,             -- face-specific coordinates
+  ephemeral BOOLEAN DEFAULT FALSE,  -- true for X0 frames (cleanup on session end)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -494,7 +630,7 @@ CREATE TABLE packages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Frames: Designer constructs that define cosmology + pscale aperture + skills
+-- Frames: Designer constructs that define cosmology + pscale aperture + skills + XYZ
 CREATE TABLE frames (
   id UUID PRIMARY KEY,
   name TEXT NOT NULL,
@@ -502,6 +638,10 @@ CREATE TABLE frames (
   cosmology_id UUID REFERENCES cosmologies(id),  -- which fictional world
   pscale_floor INTEGER DEFAULT -3,               -- how deep (cognitive/action level)
   pscale_ceiling INTEGER DEFAULT 10,             -- how broad (planetary default)
+  -- XYZ Configuration
+  x_persistence BOOLEAN DEFAULT TRUE,   -- false = ephemeral (nothing saved after session)
+  y_temporality BOOLEAN DEFAULT TRUE,   -- false = bleeding edge only (no accessible past/future)
+  z_mutability BOOLEAN DEFAULT FALSE,   -- true = players/authors can mutate world state
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -527,6 +667,7 @@ CREATE TABLE frame_users (
 **Note on scoping:** Content is accessible within a frame based on:
 1. Same `cosmology_id` as frame
 2. `pscale_aperture` within frame's floor/ceiling range
+3. Y dimension: if Y0, only current scene accessible
 
 ---
 
@@ -534,44 +675,62 @@ CREATE TABLE frame_users (
 
 ```
 ┌────────────────────────────────────────────────┐
-│  [Player ▼]  Frame: URB-Alpha                  │  ← face selector, frame
+│  [Player ▼]  Frame: URB-Alpha  [X1Y1Z0]        │  ← face, frame, XYZ config
 ├────────────────────────────────────────────────┤
 │                                                │
-│  [Synthesis area - LLM output appears here]    │
+│  [Synthesis area - LLM output appears here]    │  ← Solid (committed)
 │                                                │
 ├────────────────────────────────────────────────┤
-│  [Raw peek - others' last committed line]      │  ← click to expand
+│  Marcus: "reaches for the door..."             │  ← Liquid (submitted)
+│  Sarah: ● typing...                            │  ← Vapor (presence)
 ├────────────────────────────────────────────────┤
 │  [Your text input]                    [Submit] │
 │                                       [Commit] │
 └────────────────────────────────────────────────┘
 ```
 
+**Interface states:**
+
+- **Vapor**: Others see "● typing..." when you're writing
+- **Liquid**: Others see your submitted intention (can still revise)
+- **Solid**: Committed text triggers generation, becomes record (if X1)
+
 **That's the entire interface.**
 
 - Face selector: player/author/designer
-- Frame indicator: which frame (Designer's binding of cosmology + pscale aperture + skills)
-- Synthesis: Medium-LLM output
-- Raw peek: what others just said
+- Frame indicator: which frame + XYZ configuration
+- Synthesis: Medium-LLM output (solid)
+- Peer area: others' liquid + vapor states
 - Input: your text
-- Submit: saves to shelf as submitted
-- Commit: triggers compilation → LLM → synthesis
+- Submit: saves to shelf as submitted (liquid)
+- Commit: triggers compilation → LLM → synthesis (solid)
 
 ---
 
 ## Implementation Order
 
-### Phase 1: Core Loop (Single User)
+### Phase 1: Core Loop (Single User) — X0Y0Z0
 
-1. Shelf table + basic input UI
-2. Platform skills (hard-coded initially, then migrated to database)
+Start with the proof case: ephemeral, bleeding edge, fixed world.
+
+1. Shelf table + basic input UI (in-memory for X0)
+2. Platform skills (hard-coded initially)
 3. Prompt compiler (simple: concatenate skills + input)
 4. LLM caller (Claude API)
-5. Output router (display response)
+5. Output router (display response, don't persist)
 
-**Test:** User can enter text, system compiles with default skills, LLM responds, response displays.
+**Test:** User can enter text, system compiles, LLM responds, response displays. Nothing persists after refresh.
 
-### Phase 2: Face Switching
+### Phase 2: Text States + Multi-User
+
+1. WebSocket presence (vapor)
+2. Submit/Commit distinction (liquid/solid)
+3. Two users see each other's states
+4. Coordinated commit → generation
+
+**Test:** Two users in same session see each other's vapor/liquid, coordinated commit produces synthesis.
+
+### Phase 3: Face Switching
 
 1. Face selector UI
 2. Face-aware skill loading
@@ -579,25 +738,25 @@ CREATE TABLE frame_users (
 
 **Test:** Switching faces changes how prompts compile.
 
-### Phase 3: Custom Skills
+### Phase 4: Persistence (X1)
 
-1. Skill creation in designer mode
-2. Skill storage in user package
-3. Skill loading from user package
+1. Enable X1 mode
+2. Shelf entries persist to database
+3. Session continuity across page loads
 
-**Test:** User in designer mode creates skill, switches to player mode, skill affects compilation.
+**Test:** Close browser, reopen, previous session available.
 
-### Phase 4: Packages + Frames + Cosmologies
+### Phase 5: Packages + Frames + Cosmologies
 
 1. Cosmology table + creation
 2. Package table + creation
-3. Frame table + creation (with cosmology + pscale_floor/ceiling)
+3. Frame table + creation (with cosmology + pscale + XYZ)
 4. Frame-package composition with priorities
 5. Package resolution order
 
-**Test:** Designer creates cosmology, creates frame with pscale aperture and packages, users enter frame, skills resolve correctly.
+**Test:** Designer creates frame with XYZ config, users enter, behavior matches config.
 
-### Phase 5: Characters + Multi-User
+### Phase 6: Characters + Full Multi-User
 
 1. Character table + creation (bound to cosmology)
 2. Character-user binding in frames
@@ -605,7 +764,7 @@ CREATE TABLE frame_users (
 4. Echo delivery
 5. Synthesis across multiple inputs
 
-**Test:** Two users with characters in same frame, each sees other's committed text.
+**Test (The Mos Eisley Test):** 3 players who've seen Star Wars. One is Han, one is Greedo, one is the bartender. X0Y0Z0 frame. 30 minutes. They feel synchronized imagination. They want to play again.
 
 ---
 
@@ -627,15 +786,18 @@ All of these emerge from skills and packages. Plex 1 is the substrate they run o
 Plex 1 is complete when:
 
 1. A user can enter text as player/author/designer
-2. Text is compiled using loaded skills
-3. LLM generates response
-4. Response is stored and displayed
-5. User can create new skills in designer mode
-6. Created skills affect subsequent compilations
-7. Designer can create cosmology
-8. Designer can create frames with cosmology + pscale aperture + packages
-9. Player can create character within cosmology with pscale_ceiling
-10. Multiple users in same frame share frame skills
+2. Text states (vapor/liquid/solid) work correctly
+3. Text is compiled using loaded skills
+4. LLM generates response
+5. Response is stored and displayed
+6. XYZ configuration controls behavior correctly
+7. User can create new skills in designer mode
+8. Created skills affect subsequent compilations
+9. Designer can create cosmology
+10. Designer can create frames with cosmology + pscale aperture + XYZ + packages
+11. Player can create character within cosmology with pscale_ceiling
+12. Multiple users in same frame share frame skills and see each other's states
+13. **The Mos Eisley Test passes**
 
 Everything else is package content, not kernel.
 
