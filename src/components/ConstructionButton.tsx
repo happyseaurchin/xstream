@@ -87,7 +87,7 @@ export function ConstructionButton() {
           )}
 
           <div className="construction-menu-footer">
-            <span className="version">Plex 1 • X0Y0Z0</span>
+            <span className="version">Plex 0.1 • X0Y0Z0</span>
           </div>
         </div>
       )}
