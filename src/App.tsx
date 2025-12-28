@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ConstructionButton } from './components/ConstructionButton'
 import './App.css'
 
 // Types matching spec
@@ -78,9 +79,7 @@ function App() {
       // For now, echo with system prompt for testing
       const response = `[System would send to LLM]\n\nSystem: ${systemPrompt}\n\nUser (${entry.face}): ${entry.text}\n\n[Awaiting LLM integration...]`
       
-      setEntries(prev => prev.map(e => 
-        e.id === entry.id ? { ...e, state: 'committed' as TextState, response } : e
-      ))
+      setEntries(prev => [...prev.filter(e => e.id !== entry.id), { ...entry, state: 'committed' as TextState, response }])
     } catch (error) {
       console.error('Generation error:', error)
     } finally {
@@ -178,6 +177,9 @@ function App() {
           </button>
         </div>
       </footer>
+
+      {/* Construction button - floating */}
+      <ConstructionButton />
     </div>
   )
 }
