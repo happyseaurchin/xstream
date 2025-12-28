@@ -1,0 +1,167 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #2a2a2a;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.face-selector select {
+  background: #3a3a3a;
+  color: #e0e0e0;
+  border: 1px solid #4a4a4a;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.frame-info {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+/* Main content */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #2a2a2a;
+  overflow: hidden;
+}
+
+/* Synthesis area */
+.synthesis {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.synthesis-entry {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.text-input {
+  font-style: italic;
+  color: #aaa;
+}
+
+.response {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.empty-state {
+  color: #666;
+  text-align: center;
+  padding: 3rem 1rem;
+  line-height: 1.8;
+}
+
+/* Peers area */
+.peers {
+  padding: 0.5rem 1rem;
+  background: #252525;
+  border-top: 1px solid #3a3a3a;
+  min-height: 2.5rem;
+}
+
+.peer-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.peer-entry.liquid {
+  color: #6eb5ff;
+}
+
+.entry-text {
+  flex: 1;
+}
+
+.state-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  background: #3a5a7a;
+  border-radius: 3px;
+}
+
+/* Face badge */
+.face-badge {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  background: #4a4a4a;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+/* Input area */
+.input-area {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #2a2a2a;
+  border-radius: 0 0 8px 8px;
+  border-top: 1px solid #3a3a3a;
+}
+
+.input-area textarea {
+  flex: 1;
+  padding: 0.75rem;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  min-height: 60px;
+}
+
+.input-area textarea:focus {
+  outline: none;
+  border-color: #5a5a5a;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.buttons button {
+  background: #3a3a3a;
+  color: #e0e0e0;
+}
+
+.buttons button:hover:not(:disabled) {
+  background: #4a4a4a;
+}
+
+.buttons .commit-btn {
+  background: #3a5a3a;
+}
+
+.buttons .commit-btn:hover:not(:disabled) {
+  background: #4a6a4a;
+}
