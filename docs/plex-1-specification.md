@@ -243,9 +243,10 @@ interface ShelfEntry {
   face: 'player' | 'author' | 'designer';
   state: 'draft' | 'submitted' | 'committed';
   timestamp: string;
-  // Added by skills after processing:
-  pscale_aperture?: number;  // narrative aperture (-10 to +15)
-  lamina?: Record<string, any>;  // face-specific coordinates
+  // Overall pscale aperture — may be useful for search/filtering
+  // Detailed pscale coordinates are face-specific in lamina
+  pscale_aperture?: number;
+  lamina?: Record<string, any>;  // face-specific coordinates including pscale
 }
 
 // Vapor (not stored, WebSocket only)
@@ -256,10 +257,50 @@ interface PresenceSignal {
 }
 ```
 
-**Lamina contents by face:**
-- **Player:** `{character_id, location_id, proximity_group}`
-- **Author:** `{content_region, determinancy, temporal_placement}`
-- **Designer:** `{skill_target, stack_depth, affected_faces, frame_id}`
+### Lamina Structure by Face
+
+Lamina contains face-specific coordinates. Pscale is multi-dimensional and relative to the face's domain.
+
+**Player lamina:**
+```typescript
+{
+  character_id: string,
+  location_id: string,
+  proximity_group: string,      // human coordination group
+  // Pscale coordinates for this action
+  temporal_pscale: number,      // -3 to +1 typical (action moment to scene)
+  spatial_pscale: number,       // 0 to +3 typical (room to city)
+  purpose_pscale?: number       // +3 to +6 if referencing long-term goals
+}
+```
+
+**Author lamina:**
+```typescript
+{
+  content_region: string,
+  determinancy: number,         // 0-1, how fixed this content is
+  temporal_placement: string,   // when in world history
+  // Pscale coordinates for this content
+  pscale_range: {
+    floor: number,              // smallest scale affected
+    ceiling: number             // largest scale affected
+  }
+}
+```
+
+**Designer lamina:**
+```typescript
+{
+  skill_target: string,         // which skill being modified
+  affected_faces: string[],     // ['player', 'author', 'designer']
+  frame_id?: string,            // if frame-scoped
+  stack_depth: number           // meta-level (skills about skills)
+  // Designer operates meta to content pscale
+  // May not have meaningful pscale coordinates
+}
+```
+
+**Note:** The top-level `pscale_aperture` field provides an overall scale hint for search/filtering. The detailed, multi-dimensional pscale coordinates live in lamina where they can be interpreted per-face.
 
 ---
 
@@ -359,7 +400,7 @@ interface CompilerOutput {
    → Y1 frames: full pscale access
 
 2. Apply aperture skill
-   → Filters fragments by pscale_aperture range
+   → Filters fragments by pscale (uses lamina coordinates, not just overall)
 
 3. Apply weighting skill
    → Orders fragments by priority + resolves conflicts
@@ -433,8 +474,8 @@ interface RouterOutput {
   stored: {
     id: string;
     text: string;
-    pscale_aperture: number;
-    lamina: Record<string, any>;
+    pscale_aperture: number;  // overall aperture for search
+    lamina: Record<string, any>;  // detailed coordinates
     ephemeral: boolean;  // true if X0
   };
   deliveries: {
@@ -506,10 +547,12 @@ Truncate with warning if exceeded.
 
 Pscale aperture for standard gameplay.
 
-Include context from:
-- pscale_aperture -2 to +2 for player face
-- pscale_aperture +1 to +5 for author face
-- pscale_aperture -5 to -3 for designer face
+Filter context using lamina pscale coordinates:
+- Player face: temporal_pscale -2 to +2, spatial_pscale -1 to +3
+- Author face: pscale_range overlapping +1 to +5
+- Designer face: all meta-level content relevant to affected_faces
+
+Note: Uses lamina coordinates, not just overall pscale_aperture.
 ```
 
 ```markdown
@@ -518,7 +561,7 @@ Include context from:
 Gather recent shelf entries.
 
 Query: Last 10 committed entries from users in proximity.
-Return: Array of {user_id, text, timestamp, pscale_aperture}
+Return: Array of {user_id, text, timestamp, lamina}
 
 Note: Respects Y dimension—if Y0, only current round.
 ```
@@ -562,7 +605,7 @@ User prompt: The user's submitted text.
 Route output based on proximity.
 
 Delivery rules:
-- Synthesis: All users in same proximity group
+- Synthesis: All users in same proximity group (from lamina)
 - Echo: Users in adjacent proximity (compressed)
 - Raw: Not delivered outside proximity
 
@@ -653,8 +696,10 @@ CREATE TABLE shelf (
   text TEXT NOT NULL,
   face TEXT CHECK (face IN ('player', 'author', 'designer')),
   state TEXT CHECK (state IN ('draft', 'submitted', 'committed')),
-  pscale_aperture INTEGER,  -- narrative aperture (-10 to +15)
-  lamina JSONB,             -- face-specific coordinates
+  -- Overall pscale aperture for search/filtering; detailed coordinates in lamina
+  pscale_aperture INTEGER,
+  -- Face-specific coordinates including detailed pscale
+  lamina JSONB,
   ephemeral BOOLEAN DEFAULT FALSE,  -- true for X0 frames (cleanup on session end)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -665,8 +710,9 @@ CREATE TABLE content (
   cosmology_id UUID REFERENCES cosmologies(id),  -- which fictional world
   author_id UUID REFERENCES users(id),
   content_type TEXT,        -- e.g., 'location', 'event', 'lore'
-  data JSONB NOT NULL,      -- the actual content
-  pscale_aperture INTEGER,  -- where this sits (+15 universe, +10 planet, +3 city...)
+  data JSONB NOT NULL,      -- the actual content (includes pscale_range)
+  -- Overall pscale aperture for search/filtering
+  pscale_aperture INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -726,6 +772,11 @@ CREATE TABLE frame_users (
   PRIMARY KEY (frame_id, user_id)
 );
 ```
+
+**Note on pscale:**
+- `pscale_aperture` on shelf/content is overall scale for search/filtering
+- Detailed multi-dimensional pscale lives in `lamina` (shelf) or `data` (content)
+- Frame `pscale_floor`/`pscale_ceiling` define the operational window
 
 **Note on scoping:** Content is accessible within a frame based on:
 1. Same `cosmology_id` as frame
