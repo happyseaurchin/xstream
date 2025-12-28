@@ -12,17 +12,45 @@ You (Claude) are participating in Plex 0—the bootstrap phase of building Xstre
 
 ---
 
-## The Three Faces
+## User vs Faces
 
-Every user of Xstream wears one of three faces:
+**User** — The human with an account/profile. Exists in the real world. Has preferences, authentication, stats.
 
-| Face | Operates ON | Output Becomes |
-|------|-------------|----------------|
-| **Player** | Character intentions | Narrative (affects other players) |
-| **Author** | World content | Context for players |
-| **Designer** | Skills/rules | Compilation rules for all levels |
+**Faces** — How a user interfaces with the system:
 
-In Plex 0, David is all three. In conversations, he may shift between faces. Attend to which face is active—it changes what kind of help is needed.
+| Face | User-as-interface-to | Operates ON | Output Becomes |
+|------|---------------------|-------------|----------------|
+| **Player** | Character | Character intentions | Narrative (affects nearby characters) |
+| **Author** | Content | World material | Context for players |
+| **Designer** | Skills/code | Compilation rules | System behavior |
+
+The user doesn't have coordinates. The *character* has coordinates. The *content* has coordinates. The *skills* have scope. The user just wears different faces to interface with these coordinate-bearing entities.
+
+---
+
+## Architectural Constraint: No Sessions
+
+**Anti-pattern (from v3 "openings"):**
+```
+Create lobby → Share code → Join lobby → Play together
+```
+
+This is centralized. Players explicitly coordinate *before* narrative begins. A session becomes a container that must be managed, started, ended. It doesn't scale.
+
+**Correct pattern:**
+```
+User opens app → Enters as character → Character has coordinates →
+Hard-LLM calculates proximity → Nearby characters' prompts combine →
+Each receives perspective-appropriate narrative
+```
+
+Xstream is like Claude/ChatGPT: you don't "start a session." You just open the app. The difference is that your character exists at coordinates, and other characters might be at overlapping coordinates.
+
+**Coordination emerges from proximity, not from explicit grouping.**
+
+Friends who want to play together simply ensure their characters are at the same narrative coordinates. Hard-LLM determines proximity. No lobby required.
+
+This is scalable: there's no central session state. Characters are just coordinates. The system finds overlaps.
 
 ---
 
@@ -37,6 +65,8 @@ In Plex 0, David is all three. In conversations, he may shift between faces. Att
 **Shelf** — Where all text lives before/during/after processing. States: draft → submitted → committed.
 
 **Triple-LLM Stack** — Soft (user-facing), Medium (peer coordination), Hard (background coherence). Each face uses the same stack differently.
+
+**Frames** — Not sessions. Frames define *rules that apply*: which cosmology, what pscale aperture, which packages. A frame is a configuration, not a container of players.
 
 ---
 
@@ -61,7 +91,7 @@ Everything else (game mechanics, characters, worlds) is soft-coded as skills and
 - Think like a Character-LLM would
 
 **When David is in Author mode:**
-- Help with world content, lore consistency, P-scale placement
+- Help with world content, lore consistency, pscale placement
 - Think like an Author-LLM would
 
 **When David is in Designer mode:**
@@ -95,6 +125,7 @@ These documents define the architecture. Reference them when needed:
 
 - `agent-context-architecture.md` — The three faces, context flow vs skill modification, package system
 - `plex-1-specification.md` — The minimal kernel, five components, data model
+- `pscale-spine.md` — Pscale coordinate system
 - `onen_v4_design_document.md` — Full architecture (in project knowledge)
 - `onen_v4_synthesis.md` — Conceptual overview (in project knowledge)
 
@@ -106,11 +137,15 @@ These documents define the architecture. Reference them when needed:
 
 2. **Soft-code everything possible** — Only platform guard rails are hard-coded. Everything else is skills.
 
-3. **Temporal primacy** — Proximity means temporal relevance, not spatial adjacency.
+3. **Coordinate-based, not session-based** — Characters/content/skills have coordinates. Proximity is calculated, not declared. No lobbies, no explicit grouping.
 
-4. **Constraint as enablement** — Limitations generate emergence rather than restricting it.
+4. **Temporal primacy** — Proximity means temporal relevance, not spatial adjacency.
 
-5. **Experience over words** — We're generating experience in the reader's moving moment, not producing documents.
+5. **Constraint as enablement** — Limitations generate emergence rather than restricting it.
+
+6. **Experience over words** — We're generating experience in the reader's moving moment, not producing documents.
+
+7. **Scalability through decentralization** — Each user has their own interface. Coordination emerges from overlapping coordinates, not shared state.
 
 ---
 
