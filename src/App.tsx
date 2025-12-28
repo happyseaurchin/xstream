@@ -5,12 +5,19 @@ import './App.css'
 // Supabase Edge Function URL
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-// Phase 2: Use generate-v2 with skill loading
+// Phase 0.2: Use generate-v2 with skill loading
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 
 // Types matching spec
 type Face = 'player' | 'author' | 'designer'
 type TextState = 'draft' | 'submitted' | 'committed'
+
+// Available frames (Phase 0.3)
+// In future, these would be loaded from database
+const FRAMES = [
+  { id: null, name: 'None (platform defaults)', xyz: 'X0Y0Z0' },
+  { id: 'bbbbbbbb-0000-0000-0000-000000000001', name: 'test-frame', xyz: 'X0Y0Z0' },
+] as const
 
 interface SkillUsed {
   category: string
@@ -21,6 +28,7 @@ interface ShelfEntry {
   id: string
   text: string
   face: Face
+  frameId: string | null
   state: TextState
   timestamp: string
   response?: string
@@ -28,14 +36,18 @@ interface ShelfEntry {
   skillsUsed?: SkillUsed[]
 }
 
-// Phase 1: X0Y0Z0 - ephemeral, bleeding edge, fixed world
-// Phase 2: Skills loaded from database
+// Phase 0.1: Core loop (X0Y0Z0)
+// Phase 0.2: Skills loaded from database
+// Phase 0.3: Frame selection
 function App() {
   const [face, setFace] = useState<Face>('player')
+  const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
+
+  const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
 
   // Submit: draft → submitted (liquid state)
   const handleSubmit = () => {
@@ -45,6 +57,7 @@ function App() {
       id: crypto.randomUUID(),
       text: input.trim(),
       face,
+      frameId,
       state: 'submitted',
       timestamp: new Date().toISOString(),
     }
@@ -63,6 +76,7 @@ function App() {
           id: crypto.randomUUID(),
           text: input.trim(),
           face,
+          frameId,
           state: 'committed',
           timestamp: new Date().toISOString(),
         }
@@ -94,7 +108,7 @@ function App() {
       }
 
       // Call generate-v2 edge function
-      // Direct input mode (no shelf persistence for X0)
+      // Pass frame_id if selected (Phase 0.3)
       const res = await fetch(GENERATE_URL, {
         method: 'POST',
         headers: {
@@ -104,7 +118,7 @@ function App() {
         body: JSON.stringify({
           text: entry.text,
           face: entry.face,
-          // frame_id: null - no frame for X0Y0Z0
+          frame_id: entry.frameId, // null = platform defaults only
         }),
       })
 
@@ -138,15 +152,30 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="face-selector">
-          <select value={face} onChange={(e) => setFace(e.target.value as Face)}>
+        <div className="selectors">
+          <select 
+            value={face} 
+            onChange={(e) => setFace(e.target.value as Face)}
+            className="face-selector"
+          >
             <option value="player">Player</option>
             <option value="author">Author</option>
             <option value="designer">Designer</option>
           </select>
+          <select
+            value={frameId || ''}
+            onChange={(e) => setFrameId(e.target.value || null)}
+            className="frame-selector"
+          >
+            {FRAMES.map(f => (
+              <option key={f.id || 'none'} value={f.id || ''}>
+                {f.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="frame-info">
-          Frame: X0Y0Z0 (ephemeral)
+          {currentFrame.xyz}
           <button 
             className="meta-toggle"
             onClick={() => setShowMeta(!showMeta)}
@@ -164,6 +193,7 @@ function App() {
             <div key={entry.id} className={`synthesis-entry ${entry.error ? 'error' : ''}`}>
               <div className="entry-meta">
                 <span className="face-badge">{entry.face}</span>
+                {entry.frameId && <span className="frame-badge">test-frame</span>}
                 <span className="text-input">{entry.text}</span>
               </div>
               <div className="response">{entry.response}</div>
@@ -178,7 +208,7 @@ function App() {
             <div className="empty-state">
               X0Y0Z0: Pure ephemeral play. Nothing persists.<br/>
               Enter text, commit, see response. Refresh to reset.<br/>
-              <small>Phase 2: Skills loaded from database</small>
+              <small>Phase 0.3: Select frame to test skill overrides</small>
             </div>
           )}
         </section>
