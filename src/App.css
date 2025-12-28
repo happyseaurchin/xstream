@@ -28,8 +28,24 @@
 }
 
 .frame-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.85rem;
   color: var(--color-text-secondary);
+}
+
+.meta-toggle {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.meta-toggle:hover {
+  color: var(--color-accent);
 }
 
 /* Main content */
@@ -71,11 +87,27 @@
   line-height: 1.6;
 }
 
+.skills-meta {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--color-border);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: monospace;
+}
+
 .empty-state {
   color: var(--color-text-muted);
   text-align: center;
   padding: 3rem 1rem;
   line-height: 1.8;
+}
+
+.empty-state small {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
 }
 
 /* Peers area */
