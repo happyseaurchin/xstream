@@ -821,64 +821,104 @@ CREATE TABLE frame_users (
 
 ---
 
-## Implementation Order
+## Implementation Order: Plex 0.x Phases
 
-### Phase 1: Core Loop (Single User) — X0Y0Z0
+Plex 0.x phases are the **bootstrap sequence** — David + Claude building the kernel before others can enter. Each phase must be **complete and testable** before proceeding.
 
-Start with the proof case: ephemeral, bleeding edge, fixed world.
+**Critical Design Constraint:** Multi-user is foundational, not an add-on. Text states (vapor/liquid/solid) exist to show OTHER PEOPLE's states. All phases must be designed with multi-user in mind, even when tested single-user.
 
-1. Shelf table + basic input UI (in-memory for X0)
-2. Platform skills (hard-coded initially)
-3. Prompt compiler (simple: concatenate skills + input)
-4. LLM caller (Claude API)
-5. Output router (display response, don't persist)
+### Phase 0.1: Core Loop ✅ COMPLETE
 
-**Test:** User can enter text, system compiles, LLM responds, response displays. Nothing persists after refresh.
+Single user, X0Y0Z0 configuration.
 
-### Phase 2: Text States + Multi-User
+**What it delivers:**
+- Text input → shelf (in-memory)
+- Hard-coded prompt compilation
+- Claude API call
+- Response displayed
 
-1. WebSocket presence (vapor)
-2. Submit/Commit distinction (liquid/solid)
-3. Two users see each other's states
-4. Coordinated commit → generation
+**Test criterion:** User enters text, system responds. Nothing persists after refresh.
 
-**Test:** Two users in same session see each other's vapor/liquid, coordinated commit produces synthesis.
+---
 
-### Phase 3: Face Switching
+### Phase 0.2: Skill Loading ✅ COMPLETE
 
-1. Face selector UI
-2. Face-aware skill loading
-3. Face-specific default skills
+Skills loaded from database, face-aware.
 
-**Test:** Switching faces changes how prompts compile.
+**What it delivers:**
+- `packages` table with platform package (onen)
+- `skills` table with format skills per face
+- `frame_packages` table for composition
+- `generate-v2` edge function loads skills by face + frame
+- Platform guard skills enforced
 
-### Phase 4: Persistence (X1)
+**Test criterion:** Switching faces loads different format skills. (Requires 0.3 to verify.)
 
-1. Enable X1 mode
-2. Shelf entries persist to database
-3. Session continuity across page loads
+---
 
-**Test:** Close browser, reopen, previous session available.
+### Phase 0.3: Frame Selection 🔄 IN PROGRESS
 
-### Phase 5: Packages + Frames + Cosmologies
+UI to select frame, verify skill overrides work.
 
-1. Cosmology table + creation
-2. Package table + creation
-3. Frame table + creation (with cosmology + pscale + XYZ)
-4. Frame-package composition with priorities
-5. Package resolution order
+**What it delivers:**
+- Frame selector dropdown in UI
+- Test frame with custom package attached
+- Visual confirmation of which skills loaded
 
-**Test:** Designer creates frame with XYZ config, users enter, behavior matches config.
+**Test criterion:** Select test-frame → response includes "[TEST FRAME ACTIVE]" marker. Select no-frame → default response.
 
-### Phase 6: Characters + Full Multi-User
+---
 
-1. Character table + creation (bound to cosmology)
-2. Character-user binding in frames
-3. Proximity (who sees whose output)
-4. Echo delivery
-5. Synthesis across multiple inputs
+### Phase 0.4: Text States (Visual)
 
-**Test (The Mos Eisley Test):** 3 players who've seen Star Wars. One is Han, one is Greedo, one is the bartender. X0Y0Z0 frame. 30 minutes. They feel synchronized imagination. They want to play again.
+Make vapor/liquid/solid visible in single-user mode.
+
+**What it delivers:**
+- Draft state (typing, not yet submitted)
+- Submitted state (liquid, visible, can revise)
+- Committed state (solid, triggers generation)
+- State badges visible in UI
+
+**Test criterion:** User sees their own text transition through states. Prepares for multi-user visibility.
+
+**Design note:** This phase sets up the visual infrastructure. The states become meaningful when others can see them (Phase 0.6).
+
+---
+
+### Phase 0.5: Designer Creates Skills
+
+Designer mode stores skills to database.
+
+**What it delivers:**
+- Designer face prompts include skill-creation capability
+- New skills stored in user's personal package
+- Created skills load on subsequent requests
+- Validation against guard rails
+
+**Test criterion:** As designer, create a custom format skill. Switch to player, see custom skill in effect. This is where "the system builds itself" begins.
+
+---
+
+### Phase 0.6: Multi-User (WebSocket)
+
+The social coordination layer.
+
+**What it delivers:**
+- WebSocket connection for real-time presence
+- Vapor: "● typing..." visible to others in same frame
+- Liquid: submitted intentions visible to others
+- Solid: committed text triggers shared synthesis
+- Proximity-based delivery (who sees whose output)
+
+**Test criterion:** Two browser tabs in same frame. User A types → User B sees "● typing...". User A submits → User B sees liquid text. Both commit → shared synthesis generated.
+
+---
+
+### Plex 1: Kernel Complete
+
+All faces work, skills compose, multiple users coordinate.
+
+**Test criterion (Mos Eisley Test):** 3 players who've seen Star Wars. One is Han, one is Greedo, one is the bartender. X0Y0Z0 frame. 30 minutes. They feel synchronized imagination. They want to play again.
 
 ---
 
