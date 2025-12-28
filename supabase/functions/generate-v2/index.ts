@@ -22,12 +22,8 @@ interface Skill {
   category: string;
   applies_to: string[];
   content: string;
-  package: {
-    id: string;
-    name: string;
-    level: string;
-    signature: string;
-  };
+  package_name?: string;
+  package_level?: string;
 }
 
 interface SkillSet {
@@ -57,7 +53,7 @@ async function loadSkills(
     .from('skills')
     .select(`
       id, name, category, applies_to, content,
-      package:packages!inner(id, name, level, signature)
+      packages!inner(name, level)
     `)
     .eq('packages.level', 'platform')
     .contains('applies_to', [face]);
@@ -66,36 +62,74 @@ async function loadSkills(
     console.error('Error loading platform skills:', platformError);
   } else {
     for (const skill of platformSkills || []) {
-      skillSet[skill.category as keyof SkillSet] = skill;
+      const processed: Skill = {
+        id: skill.id,
+        name: skill.name,
+        category: skill.category,
+        applies_to: skill.applies_to,
+        content: skill.content,
+        package_name: skill.packages?.name,
+        package_level: skill.packages?.level,
+      };
+      skillSet[skill.category as keyof SkillSet] = processed;
     }
   }
 
   // 2. Load frame-specific skills (if frame provided)
+  // Query path: frame_packages → packages → skills
   if (frameId) {
-    const { data: frameSkills, error: frameError } = await supabase
-      .from('skills')
-      .select(`
-        id, name, category, applies_to, content,
-        package:packages!inner(id, name, level, signature),
-        frame_packages!inner(frame_id, priority)
-      `)
-      .eq('frame_packages.frame_id', frameId)
-      .contains('applies_to', [face])
-      .order('priority', { foreignTable: 'frame_packages', ascending: true });
+    // First get the packages attached to this frame
+    const { data: framePackages, error: fpError } = await supabase
+      .from('frame_packages')
+      .select('package_id, priority')
+      .eq('frame_id', frameId)
+      .order('priority', { ascending: true });
 
-    if (frameError) {
-      console.error('Error loading frame skills:', frameError);
-    } else {
-      // Frame skills override platform skills (except guards)
-      for (const skill of frameSkills || []) {
-        if (skill.category !== 'guard') {
-          skillSet[skill.category as keyof SkillSet] = skill;
+    if (fpError) {
+      console.error('Error loading frame packages:', fpError);
+    } else if (framePackages && framePackages.length > 0) {
+      // Get skills from those packages
+      const packageIds = framePackages.map((fp: any) => fp.package_id);
+      
+      const { data: frameSkills, error: fsError } = await supabase
+        .from('skills')
+        .select(`
+          id, name, category, applies_to, content,
+          package_id,
+          packages!inner(name, level)
+        `)
+        .in('package_id', packageIds)
+        .contains('applies_to', [face]);
+
+      if (fsError) {
+        console.error('Error loading frame skills:', fsError);
+      } else {
+        // Sort by frame_packages priority
+        const priorityMap = new Map(framePackages.map((fp: any) => [fp.package_id, fp.priority]));
+        const sortedSkills = (frameSkills || []).sort((a: any, b: any) => {
+          const pA = priorityMap.get(a.package_id) || 0;
+          const pB = priorityMap.get(b.package_id) || 0;
+          return pA - pB;
+        });
+
+        // Frame skills override platform skills (except guards)
+        for (const skill of sortedSkills) {
+          if (skill.category !== 'guard') {
+            const processed: Skill = {
+              id: skill.id,
+              name: skill.name,
+              category: skill.category,
+              applies_to: skill.applies_to,
+              content: skill.content,
+              package_name: skill.packages?.name,
+              package_level: skill.packages?.level,
+            };
+            skillSet[skill.category as keyof SkillSet] = processed;
+          }
         }
       }
     }
   }
-
-  // 3. User skills would go here (future: load from user's personal package)
 
   return skillSet;
 }
@@ -189,7 +223,7 @@ Deno.serve(async (req: Request) => {
       skills: Object.entries(skills).map(([cat, s]) => ({
         category: cat,
         name: (s as Skill).name,
-        package: (s as Skill).package?.name,
+        package: (s as Skill).package_name,
       })),
     });
 
