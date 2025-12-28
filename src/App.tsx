@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { ConstructionButton } from './components/ConstructionButton'
 import './App.css'
 
+// Supabase Edge Function URL
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate` : null
+
 // Types matching spec
 type Face = 'player' | 'author' | 'designer'
 type TextState = 'draft' | 'submitted' | 'committed'
@@ -13,6 +18,7 @@ interface ShelfEntry {
   state: TextState
   timestamp: string
   response?: string
+  error?: string
 }
 
 // Phase 1: X0Y0Z0 - ephemeral, bleeding edge, fixed world
@@ -66,43 +72,59 @@ function App() {
     await generateResponse(lastEntry)
   }
 
-  // LLM generation (placeholder - will call edge function)
+  // LLM generation via Supabase Edge Function
   const generateResponse = async (entry: ShelfEntry) => {
     setIsLoading(true)
     
     try {
-      // Phase 1: Hard-coded prompt compilation
-      // Later this becomes the skill loader → prompt compiler pipeline
-      const systemPrompt = compilePrompt(entry, entries)
-      
-      // TODO: Call Supabase Edge Function for LLM
-      // For now, echo with system prompt for testing
-      const response = `[System would send to LLM]\n\nSystem: ${systemPrompt}\n\nUser (${entry.face}): ${entry.text}\n\n[Awaiting LLM integration...]`
-      
-      setEntries(prev => [...prev.filter(e => e.id !== entry.id), { ...entry, state: 'committed' as TextState, response }])
+      // Check if Supabase is configured
+      if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
+        // Fallback for development without env vars
+        const response = `[Supabase not configured]\n\nTo enable LLM responses, add environment variables:\n- VITE_SUPABASE_URL\n- VITE_SUPABASE_ANON_KEY\n\nYour input (${entry.face}): ${entry.text}`
+        setEntries(prev => [...prev.filter(e => e.id !== entry.id), { ...entry, state: 'committed' as TextState, response }])
+        return
+      }
+
+      // Build context from recent committed entries
+      const context = entries
+        .filter(e => e.state === 'committed' && e.response)
+        .slice(-3)
+        .map(e => `[${e.face}]: ${e.text}`)
+
+      // Call edge function
+      const res = await fetch(GENERATE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          text: entry.text,
+          face: entry.face,
+          context,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
+
+      setEntries(prev => [
+        ...prev.filter(e => e.id !== entry.id), 
+        { ...entry, state: 'committed' as TextState, response: data.response }
+      ])
     } catch (error) {
       console.error('Generation error:', error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      setEntries(prev => [
+        ...prev.filter(e => e.id !== entry.id), 
+        { ...entry, state: 'committed' as TextState, error: errorMsg, response: `[Error: ${errorMsg}]` }
+      ])
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // Hard-coded prompt compiler (Phase 1)
-  // This will become the skill-driven compiler
-  const compilePrompt = (entry: ShelfEntry, history: ShelfEntry[]): string => {
-    const faceContext = {
-      player: 'You are a Character-LLM helping a player navigate a scene. Respond in-character to their action.',
-      author: 'You are an Author-LLM helping create world content. Respond with world-building assistance.',
-      designer: 'You are a Designer-LLM helping define skills and rules. Respond with system design assistance.',
-    }
-
-    const recentContext = history
-      .filter(e => e.state === 'committed' && e.response)
-      .slice(-3)
-      .map(e => `[${e.face}]: ${e.text}`)
-      .join('\n')
-
-    return `${faceContext[entry.face]}\n\nRecent context:\n${recentContext || '(no prior context)'}`
   }
 
   return (
@@ -124,7 +146,7 @@ function App() {
         {/* Synthesis area - LLM output */}
         <section className="synthesis">
           {entries.filter(e => e.response).map(entry => (
-            <div key={entry.id} className="synthesis-entry">
+            <div key={entry.id} className={`synthesis-entry ${entry.error ? 'error' : ''}`}>
               <div className="entry-meta">
                 <span className="face-badge">{entry.face}</span>
                 <span className="text-input">{entry.text}</span>
