@@ -47,6 +47,27 @@ interface SkillCreateRequest {
 }
 
 /**
+ * Ensure user exists in database.
+ * Uses upsert to create if not exists.
+ */
+async function ensureUserExists(
+  supabase: any,
+  userId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .upsert(
+      { id: userId, name: `user-${userId.slice(0, 8)}` },
+      { onConflict: 'id', ignoreDuplicates: true }
+    );
+
+  if (error) {
+    console.error('Error ensuring user exists:', error);
+    throw new Error('Failed to ensure user exists');
+  }
+}
+
+/**
  * Get or create user's personal package.
  * Returns the package_id for the user's default personal package.
  */
@@ -54,6 +75,9 @@ async function getOrCreateUserPackage(
   supabase: any,
   userId: string
 ): Promise<string> {
+  // First ensure user exists (required for foreign keys)
+  await ensureUserExists(supabase, userId);
+
   // Check if user has a personal package
   const { data: existing, error: existError } = await supabase
     .from('user_packages')
