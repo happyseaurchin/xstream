@@ -143,9 +143,6 @@ function App() {
     { id: '2', name: 'Mysterious Stranger', type: 'npc' },
   ])
   
-  // Track if there's been a commit (for Clear button)
-  const [hasCommitted, setHasCommitted] = useState(false)
-  
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   
   const [visibility, setVisibility] = useState<VisibilitySettings>({
@@ -172,6 +169,9 @@ function App() {
 
   const liquidEntries = entries.filter(e => e.state === 'submitted' && filterByFace(e))
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && filterByFace(e))
+  
+  // Check if there's any vapor/liquid content to clear
+  const hasVaporOrLiquid = input.trim() || softResponse || liquidEntries.length > 0
 
   useEffect(() => {
     return () => {
@@ -240,6 +240,11 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     setEntries(prev => [...prev, entry])
     setSolidView('log') // Switch back to log to see the liquid entry
     console.log('[Directory] Loaded skill to liquid:', skill.name)
+  }
+
+  // Dismiss a liquid entry
+  const handleDismissEntry = (entryId: string) => {
+    setEntries(prev => prev.filter(e => e.id !== entryId))
   }
 
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
@@ -414,7 +419,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     setInput('')
     setEntries(prev => [...prev, entry])
     await generateResponse(entry)
-    setHasCommitted(true)
   }
 
   const handleCommitEntry = async (entryId: string) => {
@@ -426,7 +430,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     ))
     
     await generateResponse(entry)
-    setHasCommitted(true)
   }
 
   const handleCommit = async () => {
@@ -444,7 +447,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       setInput('')
       setEntries(prev => [...prev, entry])
       await generateResponse(entry)
-      setHasCommitted(true)
       return
     }
 
@@ -459,7 +461,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     setInput('')
     setSoftResponse(null)
     setEntries(prev => prev.filter(e => e.state === 'committed'))
-    setHasCommitted(false)
   }
 
   const generateResponse = async (entry: ShelfEntry) => {
@@ -779,6 +780,13 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
                     <span className={`state-badge ${entry.isEditing ? 'editing' : 'submitted'}`}>
                       {entry.isEditing ? 'editing' : 'submitted'}
                     </span>
+                    <button
+                      className="dismiss-entry-btn"
+                      onClick={() => handleDismissEntry(entry.id)}
+                      title="Dismiss"
+                    >
+                      x
+                    </button>
                   </div>
                   <textarea
                     className="liquid-text"
@@ -897,22 +905,21 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
           >
             Submit
           </button>
-          {hasCommitted ? (
+          <button 
+            onClick={handleCommit} 
+            disabled={isLoading || isQuerying}
+            className="commit-btn"
+            title="Commit (Cmd+Enter)"
+          >
+            {isLoading ? '...' : 'Commit'}
+          </button>
+          {hasVaporOrLiquid && (
             <button 
               onClick={handleClear}
               className="clear-btn"
               title="Clear vapor and liquid"
             >
               Clear
-            </button>
-          ) : (
-            <button 
-              onClick={handleCommit} 
-              disabled={isLoading || isQuerying}
-              className="commit-btn"
-              title="Commit (Cmd+Enter)"
-            >
-              {isLoading ? '...' : 'Commit'}
             </button>
           )}
         </div>
