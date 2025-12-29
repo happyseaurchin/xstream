@@ -15,8 +15,11 @@ Each phase must be **complete and testable** before proceeding.
 | 0.3 | ✅ COMPLETE | Frame Selection |
 | 0.4 | ✅ COMPLETE | Text States (Visual) |
 | 0.4.5 | ✅ COMPLETE | Soft-LLM Query Flow |
-| 0.5 | 🔄 NEXT | Designer Creates Skills |
-| 0.6 | ⏳ PLANNED | Multi-User (WebSocket) |
+| 0.5 | ✅ COMPLETE | Designer Creates Skills |
+| 0.6 | 🔄 NEXT | Multi-User Foundation |
+| 0.7 | ⏳ PLANNED | Management & Tidy |
+| 0.8 | ⏳ PLANNED | User Registration |
+| 0.9 | ⏳ PLANNED | Integration Testing |
 | 1.0 | ⏳ PLANNED | Kernel Complete |
 
 ---
@@ -92,41 +95,81 @@ Private refinement before public intention.
 
 ---
 
-## Phase 0.5: Designer Creates Skills 🔄
+## Phase 0.5: Designer Creates Skills ✅
 
 Designer mode stores skills to database.
 
-**Will deliver:**
+**Delivered:**
 - Designer face prompts include skill-creation capability
 - New skills stored in user's personal package
 - Created skills load on subsequent requests
 - Validation against guard rails
-
-**Designer-editable domains:**
-
-| Domain | Skill Category | Examples |
-|--------|----------------|----------|
-| LLM Behavior | format, gathering, routing | System prompts, context selection |
-| UI Rendering | display | Default visibility, face filters |
-| Input Parsing | parsing | Typography rules |
-| Mechanics | constraint | Input limits, validation rules |
+- Soft-LLM three response types: artifact, clarify, refine
+- Vapor/liquid persistence (no auto-dismiss)
+- Face selector filters all views
+- Directory shows skills (designer) or artifacts (player/author)
+- Meta toggle shows skill usage on entries
 
 **Test:** As designer, create a custom format skill. Switch to player, see custom skill in effect.
 
+**Summary:** See `docs/phase-0.5-summary.md`
+
 ---
 
-## Phase 0.6: Multi-User (WebSocket) ⏳
+## Phase 0.6: Multi-User Foundation 🔄
 
-The social coordination layer.
+The social coordination layer. Same frame = same location = see each other.
 
 **Will deliver:**
-- WebSocket connection for real-time presence
-- Vapor: "● typing..." visible to others in same frame
-- Liquid: submitted intentions visible to others
-- Solid: committed text triggers shared synthesis
-- Proximity-based delivery
+- Supabase Realtime channel per frame
+- Vapor: typing indicator visible to others
+- Liquid: submitted entries visible to others
+- Solid: committed entries + responses visible to others
+- Shelf persistence to database
+- User display names
 
-**Test:** Two browser tabs in same frame. User A types → User B sees typing indicator.
+**Test:** Two browser tabs in same frame. User A types → User B sees typing indicator. User A submits → User B sees liquid entry. User A commits → User B sees solid entry with response.
+
+**Prompt:** See `docs/phase-0.6-prompt.md`
+
+---
+
+## Phase 0.7: Management & Tidy ⏳
+
+Management UI and polish.
+
+**Will deliver:**
+- Skill visibility in player/author modes
+- Package browsing/management
+- Frame creation/management
+- Platform/frame-level content (characters, world elements)
+- UX polish from testing
+
+**Scope:** See `docs/phase-0.7-scope.md`
+
+---
+
+## Phase 0.8: User Registration ⏳
+
+Proper authentication.
+
+**Will deliver:**
+- Supabase Auth integration
+- User profiles
+- Session management
+- Permission model for frames/packages
+
+---
+
+## Phase 0.9: Integration Testing ⏳
+
+Skills-based content generation and kernel validation.
+
+**Will deliver:**
+- Character sheet generation (skills-based)
+- Chat history display (skills-based)
+- World content templates
+- End-to-end testing of kernel capabilities
 
 ---
 
