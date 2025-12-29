@@ -37,15 +37,6 @@ interface SkillUsed {
   name: string
 }
 
-// Unified directory item interface
-interface DirectoryItem {
-  id: string
-  name: string
-  type: string // skill category, character trait, world element type
-  level: 'platform' | 'frame' | 'user' // ownership level
-  content: Record<string, any> // flexible content based on face
-}
-
 interface FrameSkill {
   id: string
   name: string
@@ -68,6 +59,9 @@ interface ShelfEntry {
   error?: string
   skillsUsed?: SkillUsed[]
   createdSkill?: FrameSkill | null
+  // Parsed artifact metadata (for directory display)
+  artifactName?: string
+  artifactType?: string
 }
 
 interface SoftLLMResponse {
@@ -86,24 +80,11 @@ interface ParsedInput {
   route: 'soft' | 'liquid' | 'solid' | 'hard'
 }
 
-// Character data structure
-interface CharacterItem {
-  id: string
+// Parsed artifact from shelf entry
+interface ParsedArtifact {
   name: string
-  concept: string
-  traits: string[]
-  background: string
-  level: 'platform' | 'frame' | 'user'
-}
-
-// World element data structure
-interface WorldItem {
-  id: string
-  name: string
-  type: 'location' | 'faction' | 'item' | 'npc' | 'lore'
-  description: string
-  details: string
-  level: 'platform' | 'frame' | 'user'
+  type: string // category for skills, 'character' for players, element type for authors
+  level: 'user' // shelf entries are always user-level
 }
 
 const EDIT_DEBOUNCE_MS = 500
@@ -135,38 +116,69 @@ function parseInputTypography(input: string): ParsedInput {
   return { text: trimmed, route: 'soft' }
 }
 
-// Format character as editable document
-function formatCharacterDocument(char: CharacterItem): string {
-  return `CHARACTER_CREATE
-name: ${char.name}
-concept: ${char.concept}
-traits: ${char.traits.join(', ')}
-background: |
-${char.background.split('\n').map(line => '  ' + line).join('\n')}`
+// Parse CHARACTER_CREATE from text
+function parseCharacterFromText(text: string): ParsedArtifact | null {
+  if (!text.includes('CHARACTER_CREATE')) return null
+  
+  const nameMatch = text.match(/name:\s*(.+)/i)
+  const conceptMatch = text.match(/concept:\s*(.+)/i)
+  
+  if (!nameMatch) return null
+  
+  return {
+    name: nameMatch[1].trim(),
+    type: conceptMatch ? conceptMatch[1].trim().slice(0, 40) : 'character',
+    level: 'user',
+  }
 }
 
-// Format world element as editable document
-function formatWorldDocument(item: WorldItem): string {
-  return `WORLD_CREATE
-type: ${item.type}
-name: ${item.name}
-description: |
-${item.description.split('\n').map(line => '  ' + line).join('\n')}
-details: |
-${item.details.split('\n').map(line => '  ' + line).join('\n')}`
+// Parse WORLD_CREATE from text
+function parseWorldFromText(text: string): ParsedArtifact | null {
+  if (!text.includes('WORLD_CREATE')) return null
+  
+  const nameMatch = text.match(/name:\s*(.+)/i)
+  const typeMatch = text.match(/type:\s*(.+)/i)
+  
+  if (!nameMatch) return null
+  
+  return {
+    name: nameMatch[1].trim(),
+    type: typeMatch ? typeMatch[1].trim() : 'element',
+    level: 'user',
+  }
 }
 
-// Format skill as editable document
-function formatSkillDocument(skill: FrameSkill): string {
-  return `SKILL_CREATE
-name: ${skill.name}
-category: ${skill.category}
-applies_to: ${skill.applies_to.join(', ')}
-content: |
-${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
+// Parse SKILL_CREATE from text
+function parseSkillFromText(text: string): ParsedArtifact | null {
+  if (!text.includes('SKILL_CREATE')) return null
+  
+  const nameMatch = text.match(/name:\s*(.+)/i)
+  const categoryMatch = text.match(/category:\s*(.+)/i)
+  
+  if (!nameMatch) return null
+  
+  return {
+    name: nameMatch[1].trim(),
+    type: categoryMatch ? categoryMatch[1].trim() : 'skill',
+    level: 'user',
+  }
 }
 
-// Phase 0.5.7: Uniform directory operations across all faces
+// Parse any artifact from text based on face
+function parseArtifactFromText(text: string, face: Face): ParsedArtifact | null {
+  switch (face) {
+    case 'player':
+      return parseCharacterFromText(text)
+    case 'author':
+      return parseWorldFromText(text)
+    case 'designer':
+      return parseSkillFromText(text)
+    default:
+      return null
+  }
+}
+
+// Phase 0.5.8: Shelf-as-persistence - directory reads from committed entries
 function App() {
   const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
@@ -182,53 +194,6 @@ function App() {
   const [solidView, setSolidView] = useState<SolidView>('log')
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [isLoadingDirectory, setIsLoadingDirectory] = useState(false)
-  
-  // Placeholder directory data (will be database-driven later)
-  const [characters] = useState<CharacterItem[]>([
-    { 
-      id: '1', 
-      name: 'Kira Thornwood', 
-      concept: 'Reluctant hero seeking redemption',
-      traits: ['determined', 'secretive', 'compassionate'],
-      background: 'Once a notorious thief, Kira abandoned that life after a heist went wrong. Now she wanders, taking odd jobs and avoiding her past.',
-      level: 'frame'
-    },
-    { 
-      id: '2', 
-      name: 'Marcus the Bold', 
-      concept: 'Aging knight with one last quest',
-      traits: ['honorable', 'stubborn', 'weary'],
-      background: 'Sir Marcus served the crown for forty years. Retired but restless, he seeks a worthy end to his story.',
-      level: 'platform'
-    },
-  ])
-  
-  const [worldItems] = useState<WorldItem[]>([
-    { 
-      id: '1', 
-      name: 'The Hollow Market', 
-      type: 'location',
-      description: 'A bazaar that exists only at twilight, nestled in the spaces between buildings that were never quite there.',
-      details: 'Vendors sell memories, futures, and things that have been lost. Currency varies by stall.',
-      level: 'frame'
-    },
-    { 
-      id: '2', 
-      name: 'Order of the Sealed Gate', 
-      type: 'faction',
-      description: 'Guardians who ensure certain doors remain closed, certain names unspoken.',
-      details: 'They mark their members with silver tattoos. Their hierarchy is unknown to outsiders.',
-      level: 'platform'
-    },
-    { 
-      id: '3', 
-      name: 'Whispering Compass', 
-      type: 'item',
-      description: 'A brass compass that points not north, but toward what you need most.',
-      details: 'The needle speaks in riddles. Many have been led astray; some have found salvation.',
-      level: 'user'
-    },
-  ])
   
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   
@@ -256,6 +221,17 @@ function App() {
 
   const liquidEntries = entries.filter(e => e.state === 'submitted' && filterByFace(e))
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && filterByFace(e))
+  
+  // Directory entries: committed entries with parseable artifacts for current face
+  const directoryEntries = entries.filter(e => {
+    if (e.state !== 'committed') return false
+    if (e.face !== face) return false
+    // For designer, we use frameSkills from database instead
+    if (face === 'designer') return false
+    // Check if entry contains a valid artifact
+    const artifact = parseArtifactFromText(e.text, face)
+    return artifact !== null
+  })
   
   const hasVaporOrLiquid = input.trim() || softResponse || liquidEntries.length > 0
 
@@ -301,22 +277,35 @@ function App() {
     }
   }
 
-  // Unified directory item click handler
-  const handleDirectoryItemClick = (item: any, itemFace: Face) => {
-    let document: string
-    
-    if (itemFace === 'designer') {
-      document = formatSkillDocument(item as FrameSkill)
-    } else if (itemFace === 'player') {
-      document = formatCharacterDocument(item as CharacterItem)
-    } else {
-      document = formatWorldDocument(item as WorldItem)
+  // Load shelf entry back to liquid for editing
+  const handleShelfEntryClick = (entry: ShelfEntry) => {
+    const newEntry: ShelfEntry = {
+      id: crypto.randomUUID(),
+      text: entry.text,
+      face: entry.face,
+      frameId,
+      state: 'submitted',
+      timestamp: new Date().toISOString(),
     }
+    
+    setEntries(prev => [...prev, newEntry])
+    setSolidView('log')
+    console.log(`[Directory] Loaded entry to liquid:`, entry.artifactName || 'unnamed')
+  }
+
+  // Load skill from database to liquid
+  const handleSkillClick = (skill: FrameSkill) => {
+    const document = `SKILL_CREATE
+name: ${skill.name}
+category: ${skill.category}
+applies_to: ${skill.applies_to.join(', ')}
+content: |
+${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
       text: document,
-      face: itemFace,
+      face: 'designer',
       frameId,
       state: 'submitted',
       timestamp: new Date().toISOString(),
@@ -324,7 +313,7 @@ function App() {
     
     setEntries(prev => [...prev, entry])
     setSolidView('log')
-    console.log(`[Directory] Loaded ${itemFace} item to liquid:`, item.name)
+    console.log('[Directory] Loaded skill to liquid:', skill.name)
   }
 
   const handleDismissEntry = (entryId: string) => {
@@ -401,6 +390,9 @@ function App() {
       const softType: SoftType = data.soft_type || 'refine'
       
       if (softType === 'artifact' && data.document) {
+        // Parse artifact metadata for display
+        const artifact = parseArtifactFromText(data.document, face)
+        
         const entry: ShelfEntry = {
           id: crypto.randomUUID(),
           text: data.document,
@@ -408,6 +400,8 @@ function App() {
           frameId,
           state: 'submitted',
           timestamp: new Date().toISOString(),
+          artifactName: artifact?.name,
+          artifactType: artifact?.type,
         }
         setEntries(prev => [...prev, entry])
         setInput('')
@@ -426,7 +420,7 @@ function App() {
           setSoftResponse(prev => prev?.id === response.id ? null : prev)
         }, 3000)
         
-        console.log('[Soft-LLM] Artifact created in liquid:', data.document.slice(0, 100))
+        console.log('[Soft-LLM] Artifact created in liquid:', artifact?.name || 'unnamed')
       } else {
         const response: SoftLLMResponse = {
           id: crypto.randomUUID(),
@@ -469,6 +463,8 @@ function App() {
   const handleSubmitDirect = (text: string) => {
     if (!text.trim()) return
     
+    const artifact = parseArtifactFromText(text, face)
+    
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
       text: text.trim(),
@@ -476,6 +472,8 @@ function App() {
       frameId,
       state: 'submitted',
       timestamp: new Date().toISOString(),
+      artifactName: artifact?.name,
+      artifactType: artifact?.type,
     }
     
     setEntries(prev => [...prev, entry])
@@ -492,6 +490,8 @@ function App() {
       return
     }
     
+    const artifact = parseArtifactFromText(parsed.text, face)
+    
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
       text: parsed.text,
@@ -499,6 +499,8 @@ function App() {
       frameId,
       state: 'submitted',
       timestamp: new Date().toISOString(),
+      artifactName: artifact?.name,
+      artifactType: artifact?.type,
     }
     
     setEntries(prev => [...prev, entry])
@@ -508,6 +510,8 @@ function App() {
   const handleCommitDirect = async (text: string) => {
     if (!text.trim()) return
     
+    const artifact = parseArtifactFromText(text, face)
+    
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
       text: text.trim(),
@@ -515,6 +519,8 @@ function App() {
       frameId,
       state: 'committed',
       timestamp: new Date().toISOString(),
+      artifactName: artifact?.name,
+      artifactType: artifact?.type,
     }
     
     setInput('')
@@ -526,8 +532,17 @@ function App() {
     const entry = entries.find(e => e.id === entryId)
     if (!entry || entry.state !== 'submitted') return
 
+    // Parse artifact metadata before committing
+    const artifact = parseArtifactFromText(entry.text, entry.face)
+
     setEntries(prev => prev.map(e => 
-      e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false } : e
+      e.id === entryId ? { 
+        ...e, 
+        state: 'committed' as TextState, 
+        isEditing: false,
+        artifactName: artifact?.name,
+        artifactType: artifact?.type,
+      } : e
     ))
     
     await generateResponse(entry)
@@ -536,6 +551,7 @@ function App() {
   const handleCommit = async () => {
     if (input.trim()) {
       const parsed = parseInputTypography(input)
+      const artifact = parseArtifactFromText(parsed.text, face)
       
       const entry: ShelfEntry = {
         id: crypto.randomUUID(),
@@ -544,6 +560,8 @@ function App() {
         frameId,
         state: 'committed',
         timestamp: new Date().toISOString(),
+        artifactName: artifact?.name,
+        artifactType: artifact?.type,
       }
       setInput('')
       setEntries(prev => [...prev, entry])
@@ -630,98 +648,82 @@ function App() {
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // Check if item is editable based on level
-  const isEditable = (level: string) => level !== 'platform'
-
-  // Render directory based on face - now with uniform click behavior
+  // Render directory based on face
   const renderDirectory = () => {
-    if (isLoadingDirectory) {
+    if (isLoadingDirectory && face === 'designer') {
       return <div className="directory-loading">Loading...</div>
     }
 
-    switch (face) {
-      case 'designer':
-        return (
-          <div className="directory-list">
-            {frameSkills.length > 0 ? (
-              frameSkills.map(skill => (
-                <div 
-                  key={skill.id} 
-                  className={`directory-item skill-item ${skill.package_level} ${isEditable(skill.package_level || 'platform') ? 'editable' : 'readonly'}`}
-                  onClick={() => handleDirectoryItemClick(skill, 'designer')}
-                >
-                  <div className="dir-item-header">
-                    <span className="dir-item-name">{skill.name}</span>
-                    <span className={`dir-item-level ${skill.package_level}`}>
-                      {skill.package_level}
-                      {!isEditable(skill.package_level || 'platform') && ' 🔒'}
-                    </span>
-                  </div>
-                  <div className="dir-item-meta">
-                    <span className="dir-item-category">{skill.category}</span>
-                    <span className="dir-item-faces">{skill.applies_to.join(', ')}</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="directory-empty">
-                No skills in this frame yet.
-                {!frameId && ' Select a frame to see frame-specific skills.'}
-              </div>
-            )}
-          </div>
-        )
-      
-      case 'player':
-        return (
-          <div className="directory-list">
-            <div className="directory-section-label">Characters</div>
-            {characters.map(char => (
+    // Designer: use frameSkills from database
+    if (face === 'designer') {
+      return (
+        <div className="directory-list">
+          {frameSkills.length > 0 ? (
+            frameSkills.map(skill => (
               <div 
-                key={char.id} 
-                className={`directory-item character-item ${char.level} ${isEditable(char.level) ? 'editable' : 'readonly'}`}
-                onClick={() => handleDirectoryItemClick(char, 'player')}
+                key={skill.id} 
+                className={`directory-item skill-item ${skill.package_level}`}
+                onClick={() => handleSkillClick(skill)}
               >
                 <div className="dir-item-header">
-                  <span className="dir-item-name">{char.name}</span>
-                  <span className={`dir-item-level ${char.level}`}>
-                    {char.level}
-                    {!isEditable(char.level) && ' 🔒'}
+                  <span className="dir-item-name">{skill.name}</span>
+                  <span className={`dir-item-level ${skill.package_level}`}>
+                    {skill.package_level}
+                    {skill.package_level === 'platform' && ' 🔒'}
                   </span>
                 </div>
                 <div className="dir-item-meta">
-                  <span className="dir-item-concept">{char.concept}</span>
+                  <span className="dir-item-category">{skill.category}</span>
+                  <span className="dir-item-faces">{skill.applies_to.join(', ')}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )
-      
-      case 'author':
-        return (
-          <div className="directory-list">
-            <div className="directory-section-label">World Elements</div>
-            {worldItems.map(item => (
-              <div 
-                key={item.id} 
-                className={`directory-item world-item ${item.level} ${isEditable(item.level) ? 'editable' : 'readonly'}`}
-                onClick={() => handleDirectoryItemClick(item, 'author')}
-              >
-                <div className="dir-item-header">
-                  <span className="dir-item-name">{item.name}</span>
-                  <span className={`dir-item-level ${item.level}`}>
-                    {item.level}
-                    {!isEditable(item.level) && ' 🔒'}
-                  </span>
-                </div>
-                <div className="dir-item-meta">
-                  <span className="dir-item-type">{item.type}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )
+            ))
+          ) : (
+            <div className="directory-empty">
+              No skills in this frame yet.
+              {!frameId && ' Select a frame to see frame-specific skills.'}
+            </div>
+          )}
+        </div>
+      )
     }
+
+    // Player/Author: use committed shelf entries
+    const label = face === 'player' ? 'Characters' : 'World Elements'
+    
+    return (
+      <div className="directory-list">
+        <div className="directory-section-label">{label}</div>
+        {directoryEntries.length > 0 ? (
+          directoryEntries.map(entry => {
+            const artifact = parseArtifactFromText(entry.text, face)
+            if (!artifact) return null
+            
+            return (
+              <div 
+                key={entry.id} 
+                className={`directory-item ${face}-item user`}
+                onClick={() => handleShelfEntryClick(entry)}
+              >
+                <div className="dir-item-header">
+                  <span className="dir-item-name">{artifact.name}</span>
+                  <span className="dir-item-level user">user</span>
+                </div>
+                <div className="dir-item-meta">
+                  <span className="dir-item-type">{artifact.type}</span>
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <div className="directory-empty">
+            No {label.toLowerCase()} created yet.
+            <br />
+            Use [?] to create one, or type a {face === 'player' ? 'CHARACTER_CREATE' : 'WORLD_CREATE'} document.
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -859,6 +861,9 @@ function App() {
                       <span className="face-badge">{entry.face}</span>
                       {entry.frameId && <span className="frame-badge">test-frame</span>}
                       <span className="state-badge committed">committed</span>
+                      {entry.artifactName && (
+                        <span className="artifact-badge">{entry.artifactName}</span>
+                      )}
                       {entry.createdSkill && (
                         <span className="skill-created-badge">+ skill</span>
                       )}
@@ -894,6 +899,9 @@ function App() {
                 <div key={entry.id} className={`liquid-entry ${entry.isEditing ? 'editing' : ''}`}>
                   <div className="entry-header">
                     <span className="face-badge">{entry.face}</span>
+                    {entry.artifactName && (
+                      <span className="artifact-badge">{entry.artifactName}</span>
+                    )}
                     <span className={`state-badge ${entry.isEditing ? 'editing' : 'submitted'}`}>
                       {entry.isEditing ? 'editing' : 'submitted'}
                     </span>
