@@ -46,6 +46,14 @@ interface SkillCreateRequest {
   content: string;
 }
 
+// Soft-LLM response types
+interface SoftResponse {
+  type: 'artifact' | 'clarify' | 'refine';
+  text: string;
+  document?: string;  // For artifact type - the full SKILL_CREATE document
+  options?: string[]; // For clarify type
+}
+
 /**
  * Ensure user exists in database.
  * Uses upsert to create if not exists.
@@ -503,6 +511,174 @@ ${location === 'frame'
   : `This skill is saved as a draft. Select a frame to publish it.`}`;
 }
 
+/**
+ * Handle soft-mode for designer face.
+ * Uses extended thinking to classify intent and generate appropriate response.
+ */
+async function handleDesignerSoftMode(
+  anthropicKey: string,
+  userInput: string,
+  frameId: string | null
+): Promise<SoftResponse> {
+  
+  const systemPrompt = `You are Soft-LLM helping a designer create skills for a narrative coordination system.
+
+SKILL CATEGORIES (choose the most appropriate):
+- format: How responses should be styled/formatted
+- gathering: How to collect context and information
+- aperture: What scope/focus to apply
+- weighting: How to prioritize different factors
+- routing: How to direct flow between components
+- constraint: Limitations and boundaries
+- parsing: How to interpret input
+- display: How output should be presented
+
+APPLIES_TO OPTIONS:
+- player: Characters taking actions in the narrative
+- author: World-building and lore creation
+- designer: System modification and skill creation
+
+YOUR TASK:
+1. Analyze the user's request
+2. Determine if it's a CLEAR artifact request (they want you to create something specific)
+3. If CLEAR: Generate a complete SKILL_CREATE document
+4. If AMBIGUOUS: Ask clarifying questions or offer options
+
+OUTPUT FORMAT:
+If creating an artifact, respond with ONLY the SKILL_CREATE block:
+
+SKILL_CREATE
+name: kebab-case-skill-name
+category: [one of the categories above]
+applies_to: [comma-separated faces]
+content: |
+  [The actual skill content - instructions for the LLM]
+
+If clarifying, respond conversationally with questions or options.`;
+
+  // Use extended thinking to reason about the request
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': anthropicKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 16000,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: 5000,
+      },
+      system: systemPrompt,
+      messages: [{ 
+        role: 'user', 
+        content: `${frameId ? `[Frame selected: ${frameId.slice(0, 8)}]` : '[No frame selected - will be saved as draft]'}
+
+User request: ${userInput}`
+      }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const claudeResponse = await response.json();
+  
+  // Extract the text response (skip thinking blocks)
+  let generatedText = '';
+  for (const block of claudeResponse.content || []) {
+    if (block.type === 'text') {
+      generatedText = block.text;
+      break;
+    }
+  }
+
+  console.log('[Soft-LLM Designer] Generated:', generatedText.slice(0, 200) + '...');
+
+  // Check if it's a SKILL_CREATE artifact
+  if (generatedText.includes('SKILL_CREATE')) {
+    const parsed = parseSkillCreateFromResponse(generatedText);
+    if (parsed) {
+      // Format as full document for liquid
+      const document = `SKILL_CREATE
+name: ${parsed.name}
+category: ${parsed.category}
+applies_to: ${parsed.applies_to.join(', ')}
+content: |
+${parsed.content.split('\n').map(line => '  ' + line).join('\n')}`;
+
+      return {
+        type: 'artifact',
+        text: `Creating **${parsed.name}** (${parsed.category} skill for ${parsed.applies_to.join(', ')})`,
+        document,
+      };
+    }
+  }
+
+  // It's a clarification/options response
+  // Check for numbered options
+  const optionMatches = generatedText.match(/(?:^|\n)[a-d]\)|(?:^|\n)\d\./gm);
+  const hasOptions = optionMatches && optionMatches.length >= 2;
+
+  return {
+    type: hasOptions ? 'clarify' : 'refine',
+    text: generatedText,
+    options: hasOptions ? undefined : undefined, // Could parse options if needed
+  };
+}
+
+/**
+ * Handle soft-mode for player/author faces.
+ * Standard refinement without thinking mode.
+ */
+async function handleStandardSoftMode(
+  anthropicKey: string,
+  userInput: string,
+  face: string,
+  frameId: string | null
+): Promise<SoftResponse> {
+  
+  const systemPrompt = face === 'player'
+    ? `You are Soft-LLM helping a player refine their character's intentions.
+Rewrite their input as clear, actionable text suitable for the narrative.
+Keep it concise but evocative. Output only the refined text.`
+    : `You are Soft-LLM helping an author craft world content.
+Refine their input into clear, atmospheric prose suitable for lore.
+Keep it concise but evocative. Output only the refined text.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': anthropicKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userInput }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const claudeResponse = await response.json();
+  const generatedText = claudeResponse.content?.[0]?.text || '';
+
+  return {
+    type: 'refine',
+    text: generatedText,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -575,7 +751,43 @@ Deno.serve(async (req: Request) => {
       throw new Error('Either shelf_entry_id or (text + face) required');
     }
 
-    // Load skills
+    // SOFT MODE: Handle with specialized soft-LLM
+    if (body.mode === 'soft') {
+      let softResponse: SoftResponse;
+      
+      if (entry.face === 'designer') {
+        softResponse = await handleDesignerSoftMode(
+          anthropicKey,
+          entry.text,
+          entry.frame_id
+        );
+      } else {
+        softResponse = await handleStandardSoftMode(
+          anthropicKey,
+          entry.text,
+          entry.face,
+          entry.frame_id
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          text: softResponse.text,
+          soft_type: softResponse.type,
+          document: softResponse.document,
+          options: softResponse.options,
+          metadata: {
+            face: entry.face,
+            frame_id: entry.frame_id,
+            mode: 'soft',
+          },
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // MEDIUM MODE: Standard generation with skill loading
     const skills = await loadSkills(supabase, entry.face, entry.frame_id, entry.user_id);
 
     console.log('Loaded skills:', {
