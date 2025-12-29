@@ -12,6 +12,7 @@ type Face = 'player' | 'author' | 'designer'
 type TextState = 'draft' | 'submitted' | 'committed'
 type LLMMode = 'soft' | 'medium'
 type SolidView = 'log' | 'dir'
+type SoftType = 'artifact' | 'clarify' | 'refine'
 
 // Available frames (Phase 0.3)
 const FRAMES = [
@@ -63,8 +64,10 @@ interface ShelfEntry {
 interface SoftLLMResponse {
   id: string
   originalInput: string
-  refinedText: string
-  options?: string[]
+  text: string           // Display text (preview for artifact, full for clarify/refine)
+  softType: SoftType     // Type of response
+  document?: string      // For artifact: the full SKILL_CREATE document
+  options?: string[]     // For clarify: options to choose from
   face: Face
   frameId: string | null
 }
@@ -116,7 +119,7 @@ function parseInputTypography(input: string): ParsedInput {
   return { text: trimmed, route: 'soft' }
 }
 
-// Phase 0.5.5: Solid panel navigation + frame-scoped skills
+// Phase 0.5.6: Smart Soft-LLM with auto-artifact detection
 function App() {
   const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
@@ -284,7 +287,8 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
         const mockResponse: SoftLLMResponse = {
           id: crypto.randomUUID(),
           originalInput: input,
-          refinedText: `[Soft-LLM would refine: "${parsed.text}"]`,
+          text: `[Soft-LLM would refine: "${parsed.text}"]`,
+          softType: 'refine',
           face,
           frameId,
         }
@@ -313,15 +317,51 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
         throw new Error(data.error || `HTTP ${res.status}`)
       }
 
-      const response: SoftLLMResponse = {
-        id: crypto.randomUUID(),
-        originalInput: input,
-        refinedText: data.text,
-        options: data.options,
-        face,
-        frameId,
+      const softType: SoftType = data.soft_type || 'refine'
+      
+      // For 'artifact' type: auto-create liquid entry with the document
+      if (softType === 'artifact' && data.document) {
+        const entry: ShelfEntry = {
+          id: crypto.randomUUID(),
+          text: data.document,
+          face,
+          frameId,
+          state: 'submitted',
+          timestamp: new Date().toISOString(),
+        }
+        setEntries(prev => [...prev, entry])
+        setInput('') // Clear input
+        
+        // Show brief confirmation in vapor (auto-dismiss after 3s)
+        const response: SoftLLMResponse = {
+          id: crypto.randomUUID(),
+          originalInput: input,
+          text: data.text, // Brief preview message
+          softType: 'artifact',
+          face,
+          frameId,
+        }
+        setSoftResponse(response)
+        
+        // Auto-dismiss vapor after 3 seconds
+        setTimeout(() => {
+          setSoftResponse(prev => prev?.id === response.id ? null : prev)
+        }, 3000)
+        
+        console.log('[Soft-LLM] Artifact created in liquid:', data.document.slice(0, 100))
+      } else {
+        // For 'clarify' or 'refine': show in vapor
+        const response: SoftLLMResponse = {
+          id: crypto.randomUUID(),
+          originalInput: input,
+          text: data.text,
+          softType,
+          options: data.options,
+          face,
+          frameId,
+        }
+        setSoftResponse(response)
       }
-      setSoftResponse(response)
       
     } catch (error) {
       console.error('Soft-LLM query error:', error)
@@ -329,7 +369,8 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       setSoftResponse({
         id: crypto.randomUUID(),
         originalInput: input,
-        refinedText: `[Error: ${errorMsg}]`,
+        text: `[Error: ${errorMsg}]`,
+        softType: 'refine',
         face,
         frameId,
       })
@@ -338,26 +379,10 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     }
   }
 
-  const handleUseSoftResponse = () => {
-    if (!softResponse) return
-    
-    const entry: ShelfEntry = {
-      id: crypto.randomUUID(),
-      text: softResponse.refinedText,
-      face: softResponse.face,
-      frameId: softResponse.frameId,
-      state: 'submitted',
-      timestamp: new Date().toISOString(),
-    }
-    
-    setEntries(prev => [...prev, entry])
-    setSoftResponse(null)
-    setInput('')
-  }
-
-  const handleEditSoftResponse = () => {
-    if (!softResponse) return
-    setInput(softResponse.refinedText)
+  // Click on vapor text to use it as input (for refine/clarify)
+  const handleVaporClick = () => {
+    if (!softResponse || softResponse.softType === 'artifact') return
+    setInput(softResponse.text)
     setSoftResponse(null)
   }
 
@@ -822,13 +847,28 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
             </div>
             
             {softResponse && (
-              <div className="soft-response">
+              <div className={`soft-response ${softResponse.softType}`}>
                 <div className="soft-response-header">
                   <span className="face-badge">{softResponse.face}</span>
-                  <span className="soft-label">Soft-LLM</span>
+                  <span className={`soft-label ${softResponse.softType}`}>
+                    {softResponse.softType === 'artifact' ? '→ liquid' : 
+                     softResponse.softType === 'clarify' ? 'options' : 'refined'}
+                  </span>
+                  <button 
+                    className="soft-action-btn dismiss" 
+                    onClick={handleDismissSoftResponse}
+                  >
+                    x
+                  </button>
                 </div>
-                <div className="soft-response-text">{softResponse.refinedText}</div>
-                {softResponse.options && softResponse.options.length > 0 && (
+                <div 
+                  className={`soft-response-text ${softResponse.softType !== 'artifact' ? 'clickable' : ''}`}
+                  onClick={handleVaporClick}
+                  title={softResponse.softType !== 'artifact' ? 'Click to use as input' : undefined}
+                >
+                  {softResponse.text}
+                </div>
+                {softResponse.softType === 'clarify' && softResponse.options && softResponse.options.length > 0 && (
                   <div className="soft-options">
                     {softResponse.options.map((opt, i) => (
                       <button key={i} className="soft-option-btn" onClick={() => {
@@ -840,17 +880,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
                     ))}
                   </div>
                 )}
-                <div className="soft-response-actions">
-                  <button className="soft-action-btn use" onClick={handleUseSoftResponse}>
-                    Use
-                  </button>
-                  <button className="soft-action-btn edit" onClick={handleEditSoftResponse}>
-                    Edit
-                  </button>
-                  <button className="soft-action-btn dismiss" onClick={handleDismissSoftResponse}>
-                    x
-                  </button>
-                </div>
               </div>
             )}
             
