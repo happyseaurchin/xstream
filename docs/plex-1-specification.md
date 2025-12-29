@@ -151,6 +151,22 @@ This is skill-defined (constraint category), not hard-coded—but the principle 
 
 ---
 
+## Typography Intent System (Phase 0.4.5+)
+
+Input syntax signals routing intent:
+
+| Syntax | Route | Behavior |
+|--------|-------|----------|
+| `plain text` | Soft-LLM | Default, LLM refines → vapor response |
+| `"quoted text"` | Soft-LLM (dialogue) | Player speech, character-voiced |
+| `{braces}` | Direct to liquid | Bypass Soft-LLM, submit raw |
+| `(parens)` | Direct to solid | Bypass Soft-LLM, commit to Medium-LLM |
+| `[brackets]` | Hard-LLM query | World/system state queries (future) |
+
+This is currently hard-coded; Phase 0.5 makes it designer-editable via skills.
+
+---
+
 ## The Core Entities
 
 | Entity | Created By | What It Is |
@@ -187,6 +203,8 @@ Skills are organized by category, mapping to the processing pipeline:
 | `routing` | Delivery | Who receives output, how displayed, mutations (Z1) | Yes |
 | `constraint` | Validation | Tunable rules (input limits, pacing, etc.) | Yes |
 | `guard` | Throughout | Immutable platform rules | **No** |
+| `parsing` | Input | Typography interpretation rules (Phase 0.5+) | Yes |
+| `display` | UI hints | Default visibility, face filters (Phase 0.5+) | Yes |
 
 **Key distinction:** `constraint` skills can be overridden by packages (e.g., a combat package might tighten input limits). `guard` skills cannot be overridden by anyone—they're platform-level safety rails.
 
@@ -340,7 +358,7 @@ interface Skill {
   name: string;
   package: string;        // which package this belongs to
   level: 'platform' | 'frame' | 'user';
-  category: 'gathering' | 'aperture' | 'weighting' | 'format' | 'routing' | 'constraint' | 'guard';
+  category: 'gathering' | 'aperture' | 'weighting' | 'format' | 'routing' | 'constraint' | 'guard' | 'parsing' | 'display';
   content: string;        // markdown content (the actual skill)
   overrides?: string;     // skill id this replaces (if any)
   extends?: string;       // skill id this extends (if any)
@@ -519,7 +537,7 @@ All skills must conform to the Skill interface:
 - name: human-readable name
 - package: package provenance
 - level: platform/frame/user
-- category: gathering/aperture/weighting/format/routing/constraint/guard
+- category: gathering/aperture/weighting/format/routing/constraint/guard/parsing/display
 - content: markdown content
 ```
 
@@ -722,7 +740,7 @@ CREATE TABLE skills (
   name TEXT NOT NULL,
   package_id UUID REFERENCES packages(id),
   level TEXT CHECK (level IN ('platform', 'frame', 'user')),
-  category TEXT CHECK (category IN ('gathering', 'aperture', 'weighting', 'format', 'routing', 'constraint', 'guard')),
+  category TEXT CHECK (category IN ('gathering', 'aperture', 'weighting', 'format', 'routing', 'constraint', 'guard', 'parsing', 'display')),
   content TEXT NOT NULL,
   overrides UUID REFERENCES skills(id),
   extends UUID REFERENCES skills(id),
@@ -805,7 +823,7 @@ CREATE TABLE frame_users (
 
 **Interface states:**
 
-- **Vapor**: Others see "● typing..." when you're writing
+- **Vapor**: Others see "● typing..." when you're writing, plus Soft-LLM responses
 - **Liquid**: Others see your submitted intention (can still revise)
 - **Solid**: Committed text triggers generation, becomes record (if X1)
 
@@ -815,7 +833,8 @@ CREATE TABLE frame_users (
 - Frame indicator: which frame + XYZ configuration
 - Synthesis: Medium-LLM output (solid)
 - Peer area: others' liquid + vapor states
-- Input: your text
+- Input: your text + typography syntax
+- Query [?]: triggers Soft-LLM refinement (Phase 0.4.5+)
 - Submit: saves to shelf as submitted (liquid)
 - Commit: triggers compilation → LLM → synthesis (solid)
 
@@ -856,7 +875,7 @@ Skills loaded from database, face-aware.
 
 ---
 
-### Phase 0.3: Frame Selection 🔄 IN PROGRESS
+### Phase 0.3: Frame Selection ✅ COMPLETE
 
 UI to select frame, verify skill overrides work.
 
@@ -869,19 +888,33 @@ UI to select frame, verify skill overrides work.
 
 ---
 
-### Phase 0.4: Text States (Visual)
+### Phase 0.4: Text States (Visual) ✅ COMPLETE
 
 Make vapor/liquid/solid visible in single-user mode.
 
 **What it delivers:**
-- Draft state (typing, not yet submitted)
-- Submitted state (liquid, visible, can revise)
-- Committed state (solid, triggers generation)
-- State badges visible in UI
+- Vapor area (typing indicators, Soft-LLM responses)
+- Liquid area (submitted intentions, editable)
+- Solid area (committed results)
+- State badges visible in UI (submitted/editing/committed)
+- Visibility panel with state toggles
 
 **Test criterion:** User sees their own text transition through states. Prepares for multi-user visibility.
 
-**Design note:** This phase sets up the visual infrastructure. The states become meaningful when others can see them (Phase 0.6).
+---
+
+### Phase 0.4.5: Soft-LLM Query Flow ✅ COMPLETE
+
+Private refinement before public intention.
+
+**What it delivers:**
+- `[?]` Query button triggers Soft-LLM
+- Soft-LLM response appears in vapor with [Use]/[Edit] buttons
+- Typography parsing: `{braces}` → direct liquid, `(parens)` → direct solid
+- Face filters in visibility panel (Player/Author/Designer)
+- Fixed: Cmd+Enter with empty input no longer errors
+
+**Test criterion:** Type "open door" → tap `[?]` → vapor shows refined intention → tap [Use] → moves to liquid. Or use `{open door}` to bypass Soft-LLM.
 
 ---
 
@@ -894,6 +927,8 @@ Designer mode stores skills to database.
 - New skills stored in user's personal package
 - Created skills load on subsequent requests
 - Validation against guard rails
+- Typography rules become designer-editable (parsing skills)
+- Display defaults become designer-editable (display skills)
 
 **Test criterion:** As designer, create a custom format skill. Switch to player, see custom skill in effect. This is where "the system builds itself" begins.
 
