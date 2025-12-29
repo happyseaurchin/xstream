@@ -11,7 +11,14 @@
   --color-border-light: #e0e0e0;
   --color-accent: #2563eb;
   --color-accent-hover: #1d4ed8;
-  --color-liquid: #1d4ed8;
+  
+  /* Text state colors */
+  --color-vapor: #8b5cf6;      /* Purple - presence/typing */
+  --color-liquid: #f59e0b;     /* Amber - submitted intentions */
+  --color-solid: #22c55e;      /* Green - committed results */
+  --color-editing: #f97316;    /* Orange - actively editing */
+  --color-error: #ef4444;      /* Red - errors */
+  
   --color-commit: #16a34a;
   --color-commit-hover: #15803d;
   --color-badge-bg: #e0e0e0;
@@ -37,7 +44,14 @@
   --color-border-light: #4a4a4a;
   --color-accent: #6eb5ff;
   --color-accent-hover: #8ec5ff;
-  --color-liquid: #6eb5ff;
+  
+  /* Text state colors (dark theme) */
+  --color-vapor: #a78bfa;      /* Lighter purple */
+  --color-liquid: #fbbf24;     /* Lighter amber */
+  --color-solid: #4ade80;      /* Lighter green */
+  --color-editing: #fb923c;    /* Lighter orange */
+  --color-error: #f87171;      /* Lighter red */
+  
   --color-commit: #4ade80;
   --color-commit-hover: #6ee7a0;
   --color-badge-bg: #4a4a4a;
