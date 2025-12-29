@@ -178,7 +178,7 @@ function parseArtifactFromText(text: string, face: Face): ParsedArtifact | null 
   }
 }
 
-// Phase 0.5.8: Shelf-as-persistence - directory reads from committed entries
+// Phase 0.5.9: Vapor persists until replaced
 function App() {
   const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
@@ -406,19 +406,15 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
         setEntries(prev => [...prev, entry])
         setInput('')
         
-        const response: SoftLLMResponse = {
+        // Keep vapor visible - user can dismiss or replace with new query
+        setSoftResponse({
           id: crypto.randomUUID(),
           originalInput: input,
           text: data.text,
           softType: 'artifact',
           face,
           frameId,
-        }
-        setSoftResponse(response)
-        
-        setTimeout(() => {
-          setSoftResponse(prev => prev?.id === response.id ? null : prev)
-        }, 3000)
+        })
         
         console.log('[Soft-LLM] Artifact created in liquid:', artifact?.name || 'unnamed')
       } else {
