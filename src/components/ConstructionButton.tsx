@@ -63,7 +63,7 @@ export function ConstructionButton() {
       {isOpen && (
         <div className="construction-menu">
           <div className="construction-menu-header">
-            🚧 Construction
+            Construction
           </div>
           
           {permissions.canChangeTheme && (
@@ -71,7 +71,7 @@ export function ConstructionButton() {
               className="construction-menu-item"
               onClick={toggleTheme}
             >
-              <span className="menu-icon">{theme === 'light' ? '🌙' : '☀️'}</span>
+              <span className="menu-icon">{theme === 'light' ? 'D' : 'L'}</span>
               <span>Switch to {theme === 'light' ? 'dark' : 'light'} theme</span>
             </button>
           )}
@@ -81,13 +81,13 @@ export function ConstructionButton() {
               className="construction-menu-item"
               onClick={handleDashboardClick}
             >
-              <span className="menu-icon">⚙️</span>
+              <span className="menu-icon">*</span>
               <span>Construction Dashboard</span>
             </button>
           )}
 
           <div className="construction-menu-footer">
-            <span className="version">Plex 0.3 ✓ • Next: 0.4 Text States</span>
+            <span className="version">Plex 0.4 done | Next: 0.4.5 Soft-LLM</span>
           </div>
         </div>
       )}
@@ -97,7 +97,7 @@ export function ConstructionButton() {
         onClick={() => setIsOpen(!isOpen)}
         title="Construction menu"
       >
-        🔧
+        #
       </button>
     </div>
   )
