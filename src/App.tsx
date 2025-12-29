@@ -38,6 +38,15 @@ interface SkillUsed {
   name: string
 }
 
+interface UserSkill {
+  id: string
+  name: string
+  category: string
+  applies_to: string[]
+  content: string
+  package_name?: string
+}
+
 interface ShelfEntry {
   id: string
   text: string
@@ -49,6 +58,7 @@ interface ShelfEntry {
   response?: string
   error?: string
   skillsUsed?: SkillUsed[]
+  createdSkill?: UserSkill | null
 }
 
 // Soft-LLM response in vapor
@@ -69,6 +79,16 @@ interface ParsedInput {
 
 // Debounce delay for liquid edits (ms)
 const EDIT_DEBOUNCE_MS = 500
+
+// Get or create a persistent user ID
+function getUserId(): string {
+  const stored = localStorage.getItem('xstream_user_id')
+  if (stored) return stored
+  
+  const newId = crypto.randomUUID()
+  localStorage.setItem('xstream_user_id', newId)
+  return newId
+}
 
 // Parse input for typography markers
 // plain text -> soft-LLM
@@ -102,7 +122,9 @@ function parseInputTypography(input: string): ParsedInput {
 // Phase 0.3: Frame selection
 // Phase 0.4: Text states (vapor/liquid/solid) visible
 // Phase 0.4.5: Soft-LLM query flow, typography parsing, face filters
+// Phase 0.5: Designer creates skills
 function App() {
+  const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
@@ -111,6 +133,9 @@ function App() {
   const [isQuerying, setIsQuerying] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
   const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
+  const [showDesignerPanel, setShowDesignerPanel] = useState(false)
+  const [userSkills, setUserSkills] = useState<UserSkill[]>([])
+  const [isLoadingSkills, setIsLoadingSkills] = useState(false)
   
   // Soft-LLM response (shown in vapor)
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
@@ -152,6 +177,42 @@ function App() {
       }
     }
   }, [])
+
+  // Load user skills when designer panel is opened
+  useEffect(() => {
+    if (showDesignerPanel && userId) {
+      loadUserSkills()
+    }
+  }, [showDesignerPanel, userId])
+
+  // Load user's created skills
+  const loadUserSkills = async () => {
+    if (!GENERATE_URL || !SUPABASE_ANON_KEY) return
+    
+    setIsLoadingSkills(true)
+    try {
+      const res = await fetch(GENERATE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          action: 'list_skills',
+          user_id: userId,
+        }),
+      })
+      
+      const data = await res.json()
+      if (data.success && data.skills) {
+        setUserSkills(data.skills)
+      }
+    } catch (error) {
+      console.error('Error loading user skills:', error)
+    } finally {
+      setIsLoadingSkills(false)
+    }
+  }
 
   // Handle liquid entry edit with debouncing
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
@@ -213,6 +274,7 @@ function App() {
           text: parsed.text,
           face,
           frame_id: frameId,
+          user_id: userId,
           mode: 'soft' as LLMMode,
         }),
       })
@@ -408,6 +470,7 @@ function App() {
           text: entry.text,
           face: entry.face,
           frame_id: entry.frameId,
+          user_id: userId,
           mode: 'medium' as LLMMode,
         }),
       })
@@ -418,12 +481,20 @@ function App() {
         throw new Error(data.error || `HTTP ${res.status}`)
       }
 
+      // Check if a skill was created (designer mode)
+      const createdSkill = data.created_skill || null
+      if (createdSkill) {
+        // Refresh the user skills list
+        loadUserSkills()
+      }
+
       setEntries(prev => prev.map(e => 
         e.id === entry.id ? { 
           ...e, 
           state: 'committed' as TextState, 
           response: data.text,
           skillsUsed: data.metadata?.skills_used || [],
+          createdSkill,
         } : e
       ))
     } catch (error) {
@@ -474,6 +545,15 @@ function App() {
         </div>
         <div className="header-controls">
           <span className="xyz-badge">{currentFrame.xyz}</span>
+          {face === 'designer' && (
+            <button 
+              className={`designer-panel-toggle ${showDesignerPanel ? 'active' : ''}`}
+              onClick={() => setShowDesignerPanel(!showDesignerPanel)}
+              title="View your created skills"
+            >
+              skills
+            </button>
+          )}
           <button 
             className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`}
             onClick={() => setShowVisibilityPanel(!showVisibilityPanel)}
@@ -490,6 +570,44 @@ function App() {
           </button>
         </div>
       </header>
+
+      {/* Designer Panel - shows created skills */}
+      {showDesignerPanel && face === 'designer' && (
+        <div className="designer-panel">
+          <div className="designer-panel-header">
+            <span className="panel-title">Your Skills</span>
+            <button 
+              className="refresh-btn"
+              onClick={loadUserSkills}
+              disabled={isLoadingSkills}
+              title="Refresh skills list"
+            >
+              {isLoadingSkills ? '...' : '↻'}
+            </button>
+          </div>
+          {userSkills.length > 0 ? (
+            <div className="skills-list">
+              {userSkills.map(skill => (
+                <div key={skill.id} className="skill-item">
+                  <div className="skill-header">
+                    <span className="skill-name">{skill.name}</span>
+                    <span className="skill-category">{skill.category}</span>
+                  </div>
+                  <div className="skill-applies-to">
+                    {skill.applies_to.join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-skills">
+              No skills created yet. Ask me to create a skill!
+              <br /><br />
+              Example: "Create a format skill that makes responses pirate-themed"
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Visibility Settings Panel */}
       {showVisibilityPanel && (
@@ -577,9 +695,17 @@ function App() {
                     <span className="face-badge">{entry.face}</span>
                     {entry.frameId && <span className="frame-badge">test-frame</span>}
                     <span className="state-badge committed">committed</span>
+                    {entry.createdSkill && (
+                      <span className="skill-created-badge">+ skill created</span>
+                    )}
                   </div>
                   <div className="entry-input">"{entry.text}"</div>
                   <div className="entry-response">{entry.response}</div>
+                  {entry.createdSkill && (
+                    <div className="created-skill-info">
+                      Created skill: <strong>{entry.createdSkill.name}</strong> ({entry.createdSkill.category})
+                    </div>
+                  )}
                   {showMeta && entry.skillsUsed && entry.skillsUsed.length > 0 && (
                     <div className="skills-meta">
                       Skills: {entry.skillsUsed.map(s => s.name).join(', ')}
@@ -700,7 +826,10 @@ function App() {
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={`Enter text as ${face}... (use {braces} for direct submit, (parens) for direct commit)`}
+          placeholder={face === 'designer' 
+            ? 'Ask to create a skill... (e.g., "Create a format skill for pirate responses")'
+            : `Enter text as ${face}... (use {braces} for direct submit, (parens) for direct commit)`
+          }
           disabled={isLoading || isQuerying}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.metaKey) {

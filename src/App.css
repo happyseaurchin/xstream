@@ -53,7 +53,8 @@
 }
 
 .visibility-toggle,
-.meta-toggle {
+.meta-toggle,
+.designer-panel-toggle {
   background: transparent;
   border: none;
   color: var(--color-text-muted);
@@ -64,14 +65,128 @@
 }
 
 .visibility-toggle:hover,
-.meta-toggle:hover {
+.meta-toggle:hover,
+.designer-panel-toggle:hover {
   color: var(--color-accent);
   background: var(--color-bg-tertiary);
 }
 
-.visibility-toggle.active {
+.visibility-toggle.active,
+.designer-panel-toggle.active {
   color: var(--color-accent);
   background: var(--color-bg-tertiary);
+}
+
+/* Designer Panel */
+.designer-panel {
+  padding: 0.75rem 1rem;
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.designer-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.panel-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.refresh-btn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skill-item {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border-radius: 6px;
+  border-left: 3px solid var(--color-accent);
+}
+
+.skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.skill-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.skill-category {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  background: var(--color-badge-bg);
+  border-radius: 3px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.skill-applies-to {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+
+.empty-skills {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 1rem;
+  font-style: italic;
+}
+
+/* Skill created badge */
+.skill-created-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  background: var(--color-accent);
+  color: white;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.created-skill-info {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.created-skill-info strong {
+  color: var(--color-accent);
 }
 
 /* Visibility Panel */
