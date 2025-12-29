@@ -23,7 +23,6 @@
   gap: 0.5rem;
 }
 
-.face-selector,
 .frame-selector {
   background: var(--color-bg-tertiary);
   color: var(--color-text);
@@ -31,10 +30,7 @@
   padding: 0.4rem 0.8rem;
   border-radius: 4px;
   font-size: 0.9rem;
-}
-
-.frame-selector {
-  max-width: 180px;
+  max-width: 200px;
 }
 
 .header-controls {
@@ -316,11 +312,13 @@
   border-left-color: var(--color-solid, #4ade80);
 }
 
-.directory-item.character-item {
+.directory-item.character-item,
+.directory-item.player-item {
   border-left-color: var(--color-liquid, #fbbf24);
 }
 
-.directory-item.world-item {
+.directory-item.world-item,
+.directory-item.author-item {
   border-left-color: var(--color-vapor, #a78bfa);
 }
 
@@ -356,6 +354,11 @@
   color: #000;
 }
 
+.dir-item-level.user {
+  background: var(--color-liquid, #fbbf24);
+  color: #000;
+}
+
 .dir-item-meta {
   display: flex;
   gap: 0.75rem;
@@ -374,7 +377,8 @@
 }
 
 .dir-item-status,
-.dir-item-type {
+.dir-item-type,
+.dir-item-concept {
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }
@@ -387,6 +391,16 @@
   color: white;
   border-radius: 3px;
   text-transform: uppercase;
+}
+
+/* Artifact name badge */
+.artifact-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  background: var(--color-liquid, #fbbf24);
+  color: #000;
+  border-radius: 3px;
+  font-weight: 500;
 }
 
 .created-skill-info {
@@ -420,6 +434,12 @@
   background: var(--color-bg-tertiary);
 }
 
+/* Committed liquid entries - stay visible but styled differently */
+.liquid-entry.committed {
+  border-left-color: var(--color-solid, #4ade80);
+  background: var(--color-bg-secondary);
+}
+
 .liquid-text {
   width: 100%;
   padding: 0.5rem;
@@ -436,6 +456,28 @@
 .liquid-text:focus {
   outline: none;
   border-color: var(--color-liquid, #fbbf24);
+}
+
+/* Committed liquid entries are read-only */
+.liquid-entry.committed .liquid-text {
+  background: var(--color-bg);
+  border-color: transparent;
+  resize: none;
+  min-height: auto;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Response shown inline in committed liquid entries */
+.liquid-response {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: var(--color-bg);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  border-left: 2px solid var(--color-solid, #4ade80);
 }
 
 .entry-actions {
@@ -686,6 +728,24 @@
   background: var(--color-bg-secondary);
   border-radius: 0 0 8px 8px;
   border-top: 1px solid var(--color-border);
+  align-items: flex-start;
+}
+
+/* Face selector in input area */
+.input-area .face-selector {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-width: 80px;
+}
+
+.input-area .face-selector:focus {
+  outline: none;
+  border-color: var(--color-accent);
 }
 
 .input-area textarea {
