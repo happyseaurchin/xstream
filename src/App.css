@@ -463,6 +463,23 @@
   cursor: not-allowed;
 }
 
+/* Dismiss button in liquid entry header */
+.dismiss-entry-btn {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+  border-radius: 3px;
+}
+
+.dismiss-entry-btn:hover {
+  color: var(--color-error, #f87171);
+  background: var(--color-bg-tertiary);
+}
+
 /* VAPOR area */
 .vapor-area {
   background: var(--color-bg-tertiary);
