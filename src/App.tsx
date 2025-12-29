@@ -71,8 +71,7 @@ function App() {
     showSolid: true,
   })
 
-  // Track which entry is being edited and debounce timer
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  // Debounce timer ref for liquid edits
   const debounceTimerRef = useRef<number | null>(null)
 
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
@@ -96,7 +95,6 @@ function App() {
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, text: newText, isEditing: true } : e
     ))
-    setEditingEntryId(entryId)
 
     // Clear previous debounce timer
     if (debounceTimerRef.current) {
@@ -108,7 +106,6 @@ function App() {
       setEntries(prev => prev.map(e => 
         e.id === entryId ? { ...e, isEditing: false } : e
       ))
-      setEditingEntryId(null)
       // Future: WebSocket broadcast here (Phase 0.6)
       console.log('[Debounced] Would broadcast liquid update:', { entryId, newText })
     }, EDIT_DEBOUNCE_MS)
