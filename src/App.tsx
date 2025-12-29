@@ -10,6 +10,7 @@ const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` :
 // Types matching spec
 type Face = 'player' | 'author' | 'designer'
 type TextState = 'draft' | 'submitted' | 'committed'
+type LLMMode = 'soft' | 'medium'
 
 // Available frames (Phase 0.3)
 const FRAMES = [
@@ -20,12 +21,16 @@ const FRAMES = [
 // Visibility settings for sharing and filtering
 interface VisibilitySettings {
   // What you share with others
-  shareVapor: boolean    // Live keystrokes
-  shareLiquid: boolean   // Submitted intentions
+  shareVapor: boolean
+  shareLiquid: boolean
   // What you see from others
-  showVapor: boolean     // Others' typing indicators
-  showLiquid: boolean    // Others' submitted intentions
-  showSolid: boolean     // Committed/synthesized results
+  showVapor: boolean
+  showLiquid: boolean
+  showSolid: boolean
+  // Face filters
+  showPlayerFace: boolean
+  showAuthorFace: boolean
+  showDesignerFace: boolean
 }
 
 interface SkillUsed {
@@ -40,27 +45,75 @@ interface ShelfEntry {
   frameId: string | null
   state: TextState
   timestamp: string
-  isEditing?: boolean      // Currently being edited
+  isEditing?: boolean
   response?: string
   error?: string
   skillsUsed?: SkillUsed[]
 }
 
+// Soft-LLM response in vapor
+interface SoftLLMResponse {
+  id: string
+  originalInput: string
+  refinedText: string
+  options?: string[]  // Multiple choice options if provided
+  face: Face
+  frameId: string | null
+}
+
+// Typography parsing result
+interface ParsedInput {
+  text: string
+  route: 'soft' | 'liquid' | 'solid' | 'hard'
+}
+
 // Debounce delay for liquid edits (ms)
 const EDIT_DEBOUNCE_MS = 500
+
+// Parse input for typography markers
+// plain text -> soft-LLM
+// {braces} -> direct to liquid
+// (parens) -> direct to solid
+// [brackets] -> hard-LLM query (future)
+function parseInputTypography(input: string): ParsedInput {
+  const trimmed = input.trim()
+  
+  // {braces} -> direct to liquid
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return { text: trimmed.slice(1, -1).trim(), route: 'liquid' }
+  }
+  
+  // (parens) -> direct to solid
+  if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+    return { text: trimmed.slice(1, -1).trim(), route: 'solid' }
+  }
+  
+  // [brackets] -> hard-LLM (future, treat as soft for now)
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return { text: trimmed.slice(1, -1).trim(), route: 'hard' }
+  }
+  
+  // Default: plain text -> soft-LLM
+  return { text: trimmed, route: 'soft' }
+}
 
 // Phase 0.1: Core loop (X0Y0Z0)
 // Phase 0.2: Skills loaded from database
 // Phase 0.3: Frame selection
 // Phase 0.4: Text states (vapor/liquid/solid) visible
+// Phase 0.4.5: Soft-LLM query flow, typography parsing, face filters
 function App() {
   const [face, setFace] = useState<Face>('player')
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isQuerying, setIsQuerying] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
   const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
+  
+  // Soft-LLM response (shown in vapor)
+  const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   
   // Visibility settings
   const [visibility, setVisibility] = useState<VisibilitySettings>({
@@ -69,6 +122,9 @@ function App() {
     showVapor: true,
     showLiquid: true,
     showSolid: true,
+    showPlayerFace: true,
+    showAuthorFace: true,
+    showDesignerFace: true,
   })
 
   // Debounce timer ref for liquid edits
@@ -76,9 +132,17 @@ function App() {
 
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
 
-  // Get entries by state
-  const liquidEntries = entries.filter(e => e.state === 'submitted')
-  const solidEntries = entries.filter(e => e.state === 'committed' && e.response)
+  // Filter entries by face visibility
+  const filterByFace = (entry: ShelfEntry) => {
+    if (entry.face === 'player' && !visibility.showPlayerFace) return false
+    if (entry.face === 'author' && !visibility.showAuthorFace) return false
+    if (entry.face === 'designer' && !visibility.showDesignerFace) return false
+    return true
+  }
+
+  // Get entries by state (filtered by face)
+  const liquidEntries = entries.filter(e => e.state === 'submitted' && filterByFace(e))
+  const solidEntries = entries.filter(e => e.state === 'committed' && e.response && filterByFace(e))
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -91,33 +155,138 @@ function App() {
 
   // Handle liquid entry edit with debouncing
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
-    // Mark as editing immediately
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, text: newText, isEditing: true } : e
     ))
 
-    // Clear previous debounce timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current)
     }
 
-    // Set new debounce timer - will broadcast after pause
     debounceTimerRef.current = window.setTimeout(() => {
       setEntries(prev => prev.map(e => 
         e.id === entryId ? { ...e, isEditing: false } : e
       ))
-      // Future: WebSocket broadcast here (Phase 0.6)
       console.log('[Debounced] Would broadcast liquid update:', { entryId, newText })
     }, EDIT_DEBOUNCE_MS)
   }, [])
 
-  // Submit: input -> liquid (submitted state)
-  const handleSubmit = () => {
+  // Query Soft-LLM -> response in vapor
+  const handleQuery = async () => {
     if (!input.trim()) return
+    
+    const parsed = parseInputTypography(input)
+    
+    // If typography indicates direct route, use that instead
+    if (parsed.route === 'liquid') {
+      handleSubmitDirect(parsed.text)
+      return
+    }
+    if (parsed.route === 'solid') {
+      handleCommitDirect(parsed.text)
+      return
+    }
+    
+    setIsQuerying(true)
+    
+    try {
+      if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
+        // Fallback for dev without Supabase
+        const mockResponse: SoftLLMResponse = {
+          id: crypto.randomUUID(),
+          originalInput: input,
+          refinedText: `[Soft-LLM would refine: "${parsed.text}"]`,
+          face,
+          frameId,
+        }
+        setSoftResponse(mockResponse)
+        return
+      }
+
+      const res = await fetch(GENERATE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          text: parsed.text,
+          face,
+          frame_id: frameId,
+          mode: 'soft' as LLMMode,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
+
+      const response: SoftLLMResponse = {
+        id: crypto.randomUUID(),
+        originalInput: input,
+        refinedText: data.text,
+        options: data.options,  // If Soft-LLM provides multiple choice
+        face,
+        frameId,
+      }
+      setSoftResponse(response)
+      
+    } catch (error) {
+      console.error('Soft-LLM query error:', error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      setSoftResponse({
+        id: crypto.randomUUID(),
+        originalInput: input,
+        refinedText: `[Error: ${errorMsg}]`,
+        face,
+        frameId,
+      })
+    } finally {
+      setIsQuerying(false)
+    }
+  }
+
+  // Use Soft-LLM response -> move to liquid
+  const handleUseSoftResponse = () => {
+    if (!softResponse) return
     
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
-      text: input.trim(),
+      text: softResponse.refinedText,
+      face: softResponse.face,
+      frameId: softResponse.frameId,
+      state: 'submitted',
+      timestamp: new Date().toISOString(),
+    }
+    
+    setEntries(prev => [...prev, entry])
+    setSoftResponse(null)
+    setInput('')
+    
+    console.log('[Use] Moved soft response to liquid:', entry.id)
+  }
+
+  // Edit Soft-LLM response -> put back in input
+  const handleEditSoftResponse = () => {
+    if (!softResponse) return
+    setInput(softResponse.refinedText)
+    setSoftResponse(null)
+  }
+
+  // Dismiss Soft-LLM response
+  const handleDismissSoftResponse = () => {
+    setSoftResponse(null)
+  }
+
+  // Submit direct (from {braces} typography) -> liquid
+  const handleSubmitDirect = (text: string) => {
+    if (!text.trim()) return
+    
+    const entry: ShelfEntry = {
+      id: crypto.randomUUID(),
+      text: text.trim(),
       face,
       frameId,
       state: 'submitted',
@@ -127,8 +296,53 @@ function App() {
     setEntries(prev => [...prev, entry])
     setInput('')
     
-    // Future: Soft-LLM processing here (Phase 0.5+)
+    console.log('[Submit Direct] Created liquid entry:', entry.id)
+  }
+
+  // Submit: input -> liquid (submitted state)
+  const handleSubmit = () => {
+    if (!input.trim()) return
+    
+    const parsed = parseInputTypography(input)
+    
+    // Handle typography routing
+    if (parsed.route === 'solid') {
+      handleCommitDirect(parsed.text)
+      return
+    }
+    
+    // For {braces} or plain text, submit to liquid
+    const entry: ShelfEntry = {
+      id: crypto.randomUUID(),
+      text: parsed.text,
+      face,
+      frameId,
+      state: 'submitted',
+      timestamp: new Date().toISOString(),
+    }
+    
+    setEntries(prev => [...prev, entry])
+    setInput('')
+    
     console.log('[Submit] Created liquid entry:', entry.id)
+  }
+
+  // Commit direct (from (parens) typography) -> solid
+  const handleCommitDirect = async (text: string) => {
+    if (!text.trim()) return
+    
+    const entry: ShelfEntry = {
+      id: crypto.randomUUID(),
+      text: text.trim(),
+      face,
+      frameId,
+      state: 'committed',
+      timestamp: new Date().toISOString(),
+    }
+    
+    setInput('')
+    setEntries(prev => [...prev, entry])
+    await generateResponse(entry)
   }
 
   // Commit specific entry: submitted -> committed -> triggers generation
@@ -136,7 +350,6 @@ function App() {
     const entry = entries.find(e => e.id === entryId)
     if (!entry || entry.state !== 'submitted') return
 
-    // Mark as committed
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false } : e
     ))
@@ -146,11 +359,13 @@ function App() {
 
   // Commit: submit current input OR commit last liquid entry
   const handleCommit = async () => {
-    // If there's input, submit and commit in one action
+    // If there's input, check typography and commit
     if (input.trim()) {
+      const parsed = parseInputTypography(input)
+      
       const entry: ShelfEntry = {
         id: crypto.randomUUID(),
-        text: input.trim(),
+        text: parsed.text,
         face,
         frameId,
         state: 'committed',
@@ -167,9 +382,10 @@ function App() {
     if (lastLiquid) {
       await handleCommitEntry(lastLiquid.id)
     }
+    // If no input and no liquid entry, do nothing (prevents error)
   }
 
-  // LLM generation via Supabase Edge Function (generate-v2)
+  // LLM generation via Supabase Edge Function (generate-v2) - Medium-LLM
   const generateResponse = async (entry: ShelfEntry) => {
     setIsLoading(true)
     
@@ -192,6 +408,7 @@ function App() {
           text: entry.text,
           face: entry.face,
           frame_id: entry.frameId,
+          mode: 'medium' as LLMMode,
         }),
       })
 
@@ -318,6 +535,30 @@ function App() {
               # Solid
             </button>
           </div>
+          <div className="visibility-section">
+            <span className="visibility-label">Faces:</span>
+            <button 
+              className={`visibility-btn ${visibility.showPlayerFace ? 'on' : 'off'}`}
+              onClick={() => toggleVisibility('showPlayerFace')}
+              title="Show player entries"
+            >
+              Player
+            </button>
+            <button 
+              className={`visibility-btn ${visibility.showAuthorFace ? 'on' : 'off'}`}
+              onClick={() => toggleVisibility('showAuthorFace')}
+              title="Show author entries"
+            >
+              Author
+            </button>
+            <button 
+              className={`visibility-btn ${visibility.showDesignerFace ? 'on' : 'off'}`}
+              onClick={() => toggleVisibility('showDesignerFace')}
+              title="Show designer entries"
+            >
+              Designer
+            </button>
+          </div>
         </div>
       )}
 
@@ -395,23 +636,60 @@ function App() {
           </section>
         )}
 
-        {/* VAPOR: Typing indicators area (placeholder for multi-user) */}
+        {/* VAPOR: Typing indicators + Soft-LLM responses */}
         {visibility.showVapor && (
           <section className="vapor-area">
             <div className="area-header">
               <span className="area-label">~ Vapor</span>
-              <span className="area-hint">Live presence</span>
+              <span className="area-hint">Live presence + Soft-LLM</span>
             </div>
-            {input.trim() && visibility.shareVapor && (
+            
+            {/* Soft-LLM Response */}
+            {softResponse && (
+              <div className="soft-response">
+                <div className="soft-response-header">
+                  <span className="face-badge">{softResponse.face}</span>
+                  <span className="soft-label">Soft-LLM</span>
+                </div>
+                <div className="soft-response-text">{softResponse.refinedText}</div>
+                {softResponse.options && softResponse.options.length > 0 && (
+                  <div className="soft-options">
+                    {softResponse.options.map((opt, i) => (
+                      <button key={i} className="soft-option-btn" onClick={() => {
+                        setInput(opt)
+                        setSoftResponse(null)
+                      }}>
+                        {String.fromCharCode(97 + i)}) {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="soft-response-actions">
+                  <button className="soft-action-btn use" onClick={handleUseSoftResponse}>
+                    Use
+                  </button>
+                  <button className="soft-action-btn edit" onClick={handleEditSoftResponse}>
+                    Edit
+                  </button>
+                  <button className="soft-action-btn dismiss" onClick={handleDismissSoftResponse}>
+                    x
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Typing indicator */}
+            {input.trim() && visibility.shareVapor && !softResponse && (
               <div className="vapor-indicator self">
                 <span className="typing-dot">*</span>
                 <span className="vapor-preview">typing: "{input.slice(0, 30)}{input.length > 30 ? '...' : ''}"</span>
               </div>
             )}
-            {/* Future: Others' vapor indicators will appear here (Phase 0.6) */}
-            {!input.trim() && (
+            
+            {/* Empty state */}
+            {!input.trim() && !softResponse && (
               <div className="empty-hint">
-                Typing indicators appear here
+                Use [?] to query Soft-LLM, or type {'{braces}'} for direct submit
               </div>
             )}
           </section>
@@ -422,32 +700,44 @@ function App() {
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={`Enter text as ${face}...`}
-          disabled={isLoading}
+          placeholder={`Enter text as ${face}... (use {braces} for direct submit, (parens) for direct commit)`}
+          disabled={isLoading || isQuerying}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.metaKey) {
+              e.preventDefault()
               handleCommit()
             } else if (e.key === 'Enter' && e.shiftKey) {
               e.preventDefault()
               handleSubmit()
+            } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
+              // Plain Enter could trigger query (optional)
+              // For now, let it create newlines
             }
           }}
         />
         <div className="buttons">
           <button 
+            onClick={handleQuery}
+            disabled={isLoading || isQuerying || !input.trim()}
+            className="query-btn"
+            title="Query Soft-LLM for refinement"
+          >
+            {isQuerying ? '...' : '?'}
+          </button>
+          <button 
             onClick={handleSubmit} 
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || isQuerying || !input.trim()}
             title="Submit to liquid (Shift+Enter)"
           >
             Submit
           </button>
           <button 
             onClick={handleCommit} 
-            disabled={isLoading}
+            disabled={isLoading || isQuerying}
             className="commit-btn"
             title="Commit and generate (Cmd+Enter)"
           >
-            {isLoading ? 'Generating...' : 'Commit'}
+            {isLoading ? '...' : 'Commit'}
           </button>
         </div>
       </footer>
