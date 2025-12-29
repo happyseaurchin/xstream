@@ -114,7 +114,7 @@ function App() {
     }, EDIT_DEBOUNCE_MS)
   }, [])
 
-  // Submit: input → liquid (submitted state)
+  // Submit: input -> liquid (submitted state)
   const handleSubmit = () => {
     if (!input.trim()) return
     
@@ -134,7 +134,7 @@ function App() {
     console.log('[Submit] Created liquid entry:', entry.id)
   }
 
-  // Commit specific entry: submitted → committed → triggers generation
+  // Commit specific entry: submitted -> committed -> triggers generation
   const handleCommitEntry = async (entryId: string) => {
     const entry = entries.find(e => e.id === entryId)
     if (!entry || entry.state !== 'submitted') return
@@ -265,14 +265,14 @@ function App() {
             onClick={() => setShowVisibilityPanel(!showVisibilityPanel)}
             title="Visibility settings"
           >
-            👁
+            *
           </button>
           <button 
             className="meta-toggle"
             onClick={() => setShowMeta(!showMeta)}
             title="Toggle skill metadata"
           >
-            {showMeta ? '◉' : '○'}
+            {showMeta ? '#' : 'o'}
           </button>
         </div>
       </header>
@@ -287,14 +287,14 @@ function App() {
               onClick={() => toggleVisibility('shareVapor')}
               title="Share live typing (vapor)"
             >
-              💨 Vapor
+              ~ Vapor
             </button>
             <button 
               className={`visibility-btn ${visibility.shareLiquid ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('shareLiquid')}
               title="Share submitted intentions (liquid)"
             >
-              💧 Liquid
+              o Liquid
             </button>
           </div>
           <div className="visibility-section">
@@ -304,21 +304,21 @@ function App() {
               onClick={() => toggleVisibility('showVapor')}
               title="See others' typing"
             >
-              💨 Vapor
+              ~ Vapor
             </button>
             <button 
               className={`visibility-btn ${visibility.showLiquid ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showLiquid')}
               title="See others' intentions"
             >
-              💧 Liquid
+              o Liquid
             </button>
             <button 
               className={`visibility-btn ${visibility.showSolid ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showSolid')}
               title="See committed results"
             >
-              �ite Solid
+              # Solid
             </button>
           </div>
         </div>
@@ -329,7 +329,7 @@ function App() {
         {visibility.showSolid && (
           <section className="synthesis-area">
             <div className="area-header">
-              <span className="area-label">🧊 Solid</span>
+              <span className="area-label"># Solid</span>
               <span className="area-hint">Committed results</span>
             </div>
             {solidEntries.length > 0 ? (
@@ -361,7 +361,7 @@ function App() {
         {visibility.showLiquid && (
           <section className="liquid-area">
             <div className="area-header">
-              <span className="area-label">💧 Liquid</span>
+              <span className="area-label">o Liquid</span>
               <span className="area-hint">Submitted intentions (editable)</span>
             </div>
             {liquidEntries.length > 0 ? (
@@ -402,12 +402,12 @@ function App() {
         {visibility.showVapor && (
           <section className="vapor-area">
             <div className="area-header">
-              <span className="area-label">💨 Vapor</span>
+              <span className="area-label">~ Vapor</span>
               <span className="area-hint">Live presence</span>
             </div>
             {input.trim() && visibility.shareVapor && (
               <div className="vapor-indicator self">
-                <span className="typing-dot">●</span>
+                <span className="typing-dot">*</span>
                 <span className="vapor-preview">typing: "{input.slice(0, 30)}{input.length > 30 ? '...' : ''}"</span>
               </div>
             )}
