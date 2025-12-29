@@ -11,6 +11,7 @@ const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` :
 type Face = 'player' | 'author' | 'designer'
 type TextState = 'draft' | 'submitted' | 'committed'
 type LLMMode = 'soft' | 'medium'
+type SolidView = 'log' | 'dir'
 
 // Available frames (Phase 0.3)
 const FRAMES = [
@@ -20,14 +21,11 @@ const FRAMES = [
 
 // Visibility settings for sharing and filtering
 interface VisibilitySettings {
-  // What you share with others
   shareVapor: boolean
   shareLiquid: boolean
-  // What you see from others
   showVapor: boolean
   showLiquid: boolean
   showSolid: boolean
-  // Face filters
   showPlayerFace: boolean
   showAuthorFace: boolean
   showDesignerFace: boolean
@@ -38,13 +36,14 @@ interface SkillUsed {
   name: string
 }
 
-interface UserSkill {
+interface FrameSkill {
   id: string
   name: string
   category: string
   applies_to: string[]
   content: string
   package_name?: string
+  package_level?: string
 }
 
 interface ShelfEntry {
@@ -58,29 +57,38 @@ interface ShelfEntry {
   response?: string
   error?: string
   skillsUsed?: SkillUsed[]
-  createdSkill?: UserSkill | null
+  createdSkill?: FrameSkill | null
 }
 
-// Soft-LLM response in vapor
 interface SoftLLMResponse {
   id: string
   originalInput: string
   refinedText: string
-  options?: string[]  // Multiple choice options if provided
+  options?: string[]
   face: Face
   frameId: string | null
 }
 
-// Typography parsing result
 interface ParsedInput {
   text: string
   route: 'soft' | 'liquid' | 'solid' | 'hard'
 }
 
-// Debounce delay for liquid edits (ms)
+// Placeholder directory items for player/author
+interface CharacterItem {
+  id: string
+  name: string
+  status: string
+}
+
+interface WorldItem {
+  id: string
+  name: string
+  type: string
+}
+
 const EDIT_DEBOUNCE_MS = 500
 
-// Get or create a persistent user ID
 function getUserId(): string {
   const stored = localStorage.getItem('xstream_user_id')
   if (stored) return stored
@@ -90,39 +98,25 @@ function getUserId(): string {
   return newId
 }
 
-// Parse input for typography markers
-// plain text -> soft-LLM
-// {braces} -> direct to liquid
-// (parens) -> direct to solid
-// [brackets] -> hard-LLM query (future)
 function parseInputTypography(input: string): ParsedInput {
   const trimmed = input.trim()
   
-  // {braces} -> direct to liquid
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     return { text: trimmed.slice(1, -1).trim(), route: 'liquid' }
   }
   
-  // (parens) -> direct to solid
   if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
     return { text: trimmed.slice(1, -1).trim(), route: 'solid' }
   }
   
-  // [brackets] -> hard-LLM (future, treat as soft for now)
   if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
     return { text: trimmed.slice(1, -1).trim(), route: 'hard' }
   }
   
-  // Default: plain text -> soft-LLM
   return { text: trimmed, route: 'soft' }
 }
 
-// Phase 0.1: Core loop (X0Y0Z0)
-// Phase 0.2: Skills loaded from database
-// Phase 0.3: Frame selection
-// Phase 0.4: Text states (vapor/liquid/solid) visible
-// Phase 0.4.5: Soft-LLM query flow, typography parsing, face filters
-// Phase 0.5: Designer creates skills
+// Phase 0.5.5: Solid panel navigation + frame-scoped skills
 function App() {
   const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
@@ -133,14 +127,27 @@ function App() {
   const [isQuerying, setIsQuerying] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
   const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
-  const [showDesignerPanel, setShowDesignerPanel] = useState(false)
-  const [userSkills, setUserSkills] = useState<UserSkill[]>([])
-  const [isLoadingSkills, setIsLoadingSkills] = useState(false)
   
-  // Soft-LLM response (shown in vapor)
+  // Solid panel state
+  const [solidView, setSolidView] = useState<SolidView>('log')
+  const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(false)
+  
+  // Placeholder directory data
+  const [characters] = useState<CharacterItem[]>([
+    { id: '1', name: 'Hero', status: 'active' },
+    { id: '2', name: 'Companion', status: 'nearby' },
+  ])
+  const [worldItems] = useState<WorldItem[]>([
+    { id: '1', name: 'Tavern District', type: 'location' },
+    { id: '2', name: 'Mysterious Stranger', type: 'npc' },
+  ])
+  
+  // Track if there's been a commit (for Clear button)
+  const [hasCommitted, setHasCommitted] = useState(false)
+  
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   
-  // Visibility settings
   const [visibility, setVisibility] = useState<VisibilitySettings>({
     shareVapor: true,
     shareLiquid: true,
@@ -152,12 +159,10 @@ function App() {
     showDesignerFace: true,
   })
 
-  // Debounce timer ref for liquid edits
   const debounceTimerRef = useRef<number | null>(null)
 
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
 
-  // Filter entries by face visibility
   const filterByFace = (entry: ShelfEntry) => {
     if (entry.face === 'player' && !visibility.showPlayerFace) return false
     if (entry.face === 'author' && !visibility.showAuthorFace) return false
@@ -165,11 +170,9 @@ function App() {
     return true
   }
 
-  // Get entries by state (filtered by face)
   const liquidEntries = entries.filter(e => e.state === 'submitted' && filterByFace(e))
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && filterByFace(e))
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -178,18 +181,18 @@ function App() {
     }
   }, [])
 
-  // Load user skills when designer panel is opened
+  // Load frame skills when switching to directory view or changing frame
   useEffect(() => {
-    if (showDesignerPanel && userId) {
-      loadUserSkills()
+    if (solidView === 'dir' && face === 'designer') {
+      loadFrameSkills()
     }
-  }, [showDesignerPanel, userId])
+  }, [solidView, frameId, face])
 
-  // Load user's created skills
-  const loadUserSkills = async () => {
+  // Load skills for current frame (directory view)
+  const loadFrameSkills = async () => {
     if (!GENERATE_URL || !SUPABASE_ANON_KEY) return
     
-    setIsLoadingSkills(true)
+    setIsLoadingDirectory(true)
     try {
       const res = await fetch(GENERATE_URL, {
         method: 'POST',
@@ -198,23 +201,47 @@ function App() {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
-          action: 'list_skills',
-          user_id: userId,
+          action: 'list_frame_skills',
+          frame_id: frameId,
         }),
       })
       
       const data = await res.json()
       if (data.success && data.skills) {
-        setUserSkills(data.skills)
+        setFrameSkills(data.skills)
       }
     } catch (error) {
-      console.error('Error loading user skills:', error)
+      console.error('Error loading frame skills:', error)
     } finally {
-      setIsLoadingSkills(false)
+      setIsLoadingDirectory(false)
     }
   }
 
-  // Handle liquid entry edit with debouncing
+  // Load skill content into liquid for editing
+  const handleSkillClick = async (skill: FrameSkill) => {
+    // Format skill as editable content
+    const skillText = `SKILL_CREATE
+name: ${skill.name}
+category: ${skill.category}
+applies_to: ${skill.applies_to.join(', ')}
+content: |
+${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
+    
+    // Create a liquid entry with this content
+    const entry: ShelfEntry = {
+      id: crypto.randomUUID(),
+      text: skillText,
+      face: 'designer',
+      frameId,
+      state: 'submitted',
+      timestamp: new Date().toISOString(),
+    }
+    
+    setEntries(prev => [...prev, entry])
+    setSolidView('log') // Switch back to log to see the liquid entry
+    console.log('[Directory] Loaded skill to liquid:', skill.name)
+  }
+
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, text: newText, isEditing: true } : e
@@ -228,17 +255,14 @@ function App() {
       setEntries(prev => prev.map(e => 
         e.id === entryId ? { ...e, isEditing: false } : e
       ))
-      console.log('[Debounced] Would broadcast liquid update:', { entryId, newText })
     }, EDIT_DEBOUNCE_MS)
   }, [])
 
-  // Query Soft-LLM -> response in vapor
   const handleQuery = async () => {
     if (!input.trim()) return
     
     const parsed = parseInputTypography(input)
     
-    // If typography indicates direct route, use that instead
     if (parsed.route === 'liquid') {
       handleSubmitDirect(parsed.text)
       return
@@ -252,7 +276,6 @@ function App() {
     
     try {
       if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
-        // Fallback for dev without Supabase
         const mockResponse: SoftLLMResponse = {
           id: crypto.randomUUID(),
           originalInput: input,
@@ -289,7 +312,7 @@ function App() {
         id: crypto.randomUUID(),
         originalInput: input,
         refinedText: data.text,
-        options: data.options,  // If Soft-LLM provides multiple choice
+        options: data.options,
         face,
         frameId,
       }
@@ -310,7 +333,6 @@ function App() {
     }
   }
 
-  // Use Soft-LLM response -> move to liquid
   const handleUseSoftResponse = () => {
     if (!softResponse) return
     
@@ -326,23 +348,18 @@ function App() {
     setEntries(prev => [...prev, entry])
     setSoftResponse(null)
     setInput('')
-    
-    console.log('[Use] Moved soft response to liquid:', entry.id)
   }
 
-  // Edit Soft-LLM response -> put back in input
   const handleEditSoftResponse = () => {
     if (!softResponse) return
     setInput(softResponse.refinedText)
     setSoftResponse(null)
   }
 
-  // Dismiss Soft-LLM response
   const handleDismissSoftResponse = () => {
     setSoftResponse(null)
   }
 
-  // Submit direct (from {braces} typography) -> liquid
   const handleSubmitDirect = (text: string) => {
     if (!text.trim()) return
     
@@ -357,23 +374,18 @@ function App() {
     
     setEntries(prev => [...prev, entry])
     setInput('')
-    
-    console.log('[Submit Direct] Created liquid entry:', entry.id)
   }
 
-  // Submit: input -> liquid (submitted state)
   const handleSubmit = () => {
     if (!input.trim()) return
     
     const parsed = parseInputTypography(input)
     
-    // Handle typography routing
     if (parsed.route === 'solid') {
       handleCommitDirect(parsed.text)
       return
     }
     
-    // For {braces} or plain text, submit to liquid
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
       text: parsed.text,
@@ -385,11 +397,8 @@ function App() {
     
     setEntries(prev => [...prev, entry])
     setInput('')
-    
-    console.log('[Submit] Created liquid entry:', entry.id)
   }
 
-  // Commit direct (from (parens) typography) -> solid
   const handleCommitDirect = async (text: string) => {
     if (!text.trim()) return
     
@@ -405,9 +414,9 @@ function App() {
     setInput('')
     setEntries(prev => [...prev, entry])
     await generateResponse(entry)
+    setHasCommitted(true)
   }
 
-  // Commit specific entry: submitted -> committed -> triggers generation
   const handleCommitEntry = async (entryId: string) => {
     const entry = entries.find(e => e.id === entryId)
     if (!entry || entry.state !== 'submitted') return
@@ -417,11 +426,10 @@ function App() {
     ))
     
     await generateResponse(entry)
+    setHasCommitted(true)
   }
 
-  // Commit: submit current input OR commit last liquid entry
   const handleCommit = async () => {
-    // If there's input, check typography and commit
     if (input.trim()) {
       const parsed = parseInputTypography(input)
       
@@ -436,24 +444,30 @@ function App() {
       setInput('')
       setEntries(prev => [...prev, entry])
       await generateResponse(entry)
+      setHasCommitted(true)
       return
     }
 
-    // Otherwise commit the last liquid entry
     const lastLiquid = [...entries].reverse().find(e => e.state === 'submitted')
     if (lastLiquid) {
       await handleCommitEntry(lastLiquid.id)
     }
-    // If no input and no liquid entry, do nothing (prevents error)
   }
 
-  // LLM generation via Supabase Edge Function (generate-v2) - Medium-LLM
+  // Clear vapor and liquid, keep solid
+  const handleClear = () => {
+    setInput('')
+    setSoftResponse(null)
+    setEntries(prev => prev.filter(e => e.state === 'committed'))
+    setHasCommitted(false)
+  }
+
   const generateResponse = async (entry: ShelfEntry) => {
     setIsLoading(true)
     
     try {
       if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
-        const response = `[Supabase not configured]\n\nTo enable LLM responses, add environment variables:\n- VITE_SUPABASE_URL\n- VITE_SUPABASE_ANON_KEY\n\nYour input (${entry.face}): ${entry.text}`
+        const response = `[Supabase not configured]\n\nYour input (${entry.face}): ${entry.text}`
         setEntries(prev => prev.map(e => 
           e.id === entry.id ? { ...e, state: 'committed' as TextState, response } : e
         ))
@@ -481,11 +495,9 @@ function App() {
         throw new Error(data.error || `HTTP ${res.status}`)
       }
 
-      // Check if a skill was created (designer mode)
       const createdSkill = data.created_skill || null
-      if (createdSkill) {
-        // Refresh the user skills list
-        loadUserSkills()
+      if (createdSkill && solidView === 'dir') {
+        loadFrameSkills() // Refresh directory
       }
 
       setEntries(prev => prev.map(e => 
@@ -513,9 +525,80 @@ function App() {
     }
   }
 
-  // Toggle visibility setting
   const toggleVisibility = (key: keyof VisibilitySettings) => {
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  // Render directory based on face
+  const renderDirectory = () => {
+    if (isLoadingDirectory) {
+      return <div className="directory-loading">Loading...</div>
+    }
+
+    switch (face) {
+      case 'designer':
+        return (
+          <div className="directory-list">
+            {frameSkills.length > 0 ? (
+              frameSkills.map(skill => (
+                <div 
+                  key={skill.id} 
+                  className={`directory-item skill-item ${skill.package_level}`}
+                  onClick={() => handleSkillClick(skill)}
+                >
+                  <div className="dir-item-header">
+                    <span className="dir-item-name">{skill.name}</span>
+                    <span className={`dir-item-level ${skill.package_level}`}>
+                      {skill.package_level}
+                    </span>
+                  </div>
+                  <div className="dir-item-meta">
+                    <span className="dir-item-category">{skill.category}</span>
+                    <span className="dir-item-faces">{skill.applies_to.join(', ')}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="directory-empty">
+                No skills in this frame yet.
+                {!frameId && ' Select a frame to see frame-specific skills.'}
+              </div>
+            )}
+          </div>
+        )
+      
+      case 'player':
+        return (
+          <div className="directory-list">
+            <div className="directory-section-label">Characters in Frame</div>
+            {characters.map(char => (
+              <div key={char.id} className="directory-item character-item">
+                <span className="dir-item-name">{char.name}</span>
+                <span className="dir-item-status">{char.status}</span>
+              </div>
+            ))}
+            <div className="directory-placeholder">
+              (Character directory - placeholder)
+            </div>
+          </div>
+        )
+      
+      case 'author':
+        return (
+          <div className="directory-list">
+            <div className="directory-section-label">World Elements</div>
+            {worldItems.map(item => (
+              <div key={item.id} className="directory-item world-item">
+                <span className="dir-item-name">{item.name}</span>
+                <span className="dir-item-type">{item.type}</span>
+              </div>
+            ))}
+            <div className="directory-placeholder">
+              (World directory - placeholder)
+            </div>
+          </div>
+        )
+    }
   }
 
   return (
@@ -545,15 +628,6 @@ function App() {
         </div>
         <div className="header-controls">
           <span className="xyz-badge">{currentFrame.xyz}</span>
-          {face === 'designer' && (
-            <button 
-              className={`designer-panel-toggle ${showDesignerPanel ? 'active' : ''}`}
-              onClick={() => setShowDesignerPanel(!showDesignerPanel)}
-              title="View your created skills"
-            >
-              skills
-            </button>
-          )}
           <button 
             className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`}
             onClick={() => setShowVisibilityPanel(!showVisibilityPanel)}
@@ -571,44 +645,6 @@ function App() {
         </div>
       </header>
 
-      {/* Designer Panel - shows created skills */}
-      {showDesignerPanel && face === 'designer' && (
-        <div className="designer-panel">
-          <div className="designer-panel-header">
-            <span className="panel-title">Your Skills</span>
-            <button 
-              className="refresh-btn"
-              onClick={loadUserSkills}
-              disabled={isLoadingSkills}
-              title="Refresh skills list"
-            >
-              {isLoadingSkills ? '...' : '↻'}
-            </button>
-          </div>
-          {userSkills.length > 0 ? (
-            <div className="skills-list">
-              {userSkills.map(skill => (
-                <div key={skill.id} className="skill-item">
-                  <div className="skill-header">
-                    <span className="skill-name">{skill.name}</span>
-                    <span className="skill-category">{skill.category}</span>
-                  </div>
-                  <div className="skill-applies-to">
-                    {skill.applies_to.join(', ')}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-skills">
-              No skills created yet. Ask me to create a skill!
-              <br /><br />
-              Example: "Create a format skill that makes responses pirate-themed"
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Visibility Settings Panel */}
       {showVisibilityPanel && (
         <div className="visibility-panel">
@@ -617,14 +653,12 @@ function App() {
             <button 
               className={`visibility-btn ${visibility.shareVapor ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('shareVapor')}
-              title="Share live typing (vapor)"
             >
               ~ Vapor
             </button>
             <button 
               className={`visibility-btn ${visibility.shareLiquid ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('shareLiquid')}
-              title="Share submitted intentions (liquid)"
             >
               o Liquid
             </button>
@@ -634,21 +668,18 @@ function App() {
             <button 
               className={`visibility-btn ${visibility.showVapor ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showVapor')}
-              title="See others' typing"
             >
               ~ Vapor
             </button>
             <button 
               className={`visibility-btn ${visibility.showLiquid ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showLiquid')}
-              title="See others' intentions"
             >
               o Liquid
             </button>
             <button 
               className={`visibility-btn ${visibility.showSolid ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showSolid')}
-              title="See committed results"
             >
               # Solid
             </button>
@@ -658,21 +689,18 @@ function App() {
             <button 
               className={`visibility-btn ${visibility.showPlayerFace ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showPlayerFace')}
-              title="Show player entries"
             >
               Player
             </button>
             <button 
               className={`visibility-btn ${visibility.showAuthorFace ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showAuthorFace')}
-              title="Show author entries"
             >
               Author
             </button>
             <button 
               className={`visibility-btn ${visibility.showDesignerFace ? 'on' : 'off'}`}
               onClick={() => toggleVisibility('showDesignerFace')}
-              title="Show designer entries"
             >
               Designer
             </button>
@@ -681,42 +709,57 @@ function App() {
       )}
 
       <main className="main">
-        {/* SOLID: Synthesis area - committed results */}
+        {/* SOLID: Synthesis area with log/directory toggle */}
         {visibility.showSolid && (
           <section className="synthesis-area">
             <div className="area-header">
               <span className="area-label"># Solid</span>
-              <span className="area-hint">Committed results</span>
+              <div className="solid-view-toggle">
+                <button 
+                  className={`view-btn ${solidView === 'log' ? 'active' : ''}`}
+                  onClick={() => setSolidView('log')}
+                >
+                  log
+                </button>
+                <button 
+                  className={`view-btn ${solidView === 'dir' ? 'active' : ''}`}
+                  onClick={() => setSolidView('dir')}
+                >
+                  dir
+                </button>
+              </div>
             </div>
-            {solidEntries.length > 0 ? (
-              solidEntries.map(entry => (
-                <div key={entry.id} className={`solid-entry ${entry.error ? 'error' : ''}`}>
-                  <div className="entry-header">
-                    <span className="face-badge">{entry.face}</span>
-                    {entry.frameId && <span className="frame-badge">test-frame</span>}
-                    <span className="state-badge committed">committed</span>
-                    {entry.createdSkill && (
-                      <span className="skill-created-badge">+ skill created</span>
+            
+            {solidView === 'log' ? (
+              // Log view - committed entries
+              solidEntries.length > 0 ? (
+                solidEntries.map(entry => (
+                  <div key={entry.id} className={`solid-entry ${entry.error ? 'error' : ''}`}>
+                    <div className="entry-header">
+                      <span className="face-badge">{entry.face}</span>
+                      {entry.frameId && <span className="frame-badge">test-frame</span>}
+                      <span className="state-badge committed">committed</span>
+                      {entry.createdSkill && (
+                        <span className="skill-created-badge">+ skill</span>
+                      )}
+                    </div>
+                    <div className="entry-input">"{entry.text.slice(0, 100)}{entry.text.length > 100 ? '...' : ''}"</div>
+                    <div className="entry-response">{entry.response}</div>
+                    {showMeta && entry.skillsUsed && entry.skillsUsed.length > 0 && (
+                      <div className="skills-meta">
+                        Skills: {entry.skillsUsed.map(s => s.name).join(', ')}
+                      </div>
                     )}
                   </div>
-                  <div className="entry-input">"{entry.text}"</div>
-                  <div className="entry-response">{entry.response}</div>
-                  {entry.createdSkill && (
-                    <div className="created-skill-info">
-                      Created skill: <strong>{entry.createdSkill.name}</strong> ({entry.createdSkill.category})
-                    </div>
-                  )}
-                  {showMeta && entry.skillsUsed && entry.skillsUsed.length > 0 && (
-                    <div className="skills-meta">
-                      Skills: {entry.skillsUsed.map(s => s.name).join(', ')}
-                    </div>
-                  )}
+                ))
+              ) : (
+                <div className="empty-state">
+                  No committed results yet. Submit and commit to generate.
                 </div>
-              ))
+              )
             ) : (
-              <div className="empty-state">
-                No committed results yet. Submit and commit to generate.
-              </div>
+              // Directory view
+              renderDirectory()
             )}
           </section>
         )}
@@ -726,7 +769,7 @@ function App() {
           <section className="liquid-area">
             <div className="area-header">
               <span className="area-label">o Liquid</span>
-              <span className="area-hint">Submitted intentions (editable)</span>
+              <span className="area-hint">Editable intentions</span>
             </div>
             {liquidEntries.length > 0 ? (
               liquidEntries.map(entry => (
@@ -756,7 +799,7 @@ function App() {
               ))
             ) : (
               <div className="empty-hint">
-                Type below and submit to create a liquid entry
+                Type below and submit to create an entry
               </div>
             )}
           </section>
@@ -767,10 +810,9 @@ function App() {
           <section className="vapor-area">
             <div className="area-header">
               <span className="area-label">~ Vapor</span>
-              <span className="area-hint">Live presence + Soft-LLM</span>
+              <span className="area-hint">Live + Soft-LLM</span>
             </div>
             
-            {/* Soft-LLM Response */}
             {softResponse && (
               <div className="soft-response">
                 <div className="soft-response-header">
@@ -804,7 +846,6 @@ function App() {
               </div>
             )}
             
-            {/* Typing indicator */}
             {input.trim() && visibility.shareVapor && !softResponse && (
               <div className="vapor-indicator self">
                 <span className="typing-dot">*</span>
@@ -812,7 +853,6 @@ function App() {
               </div>
             )}
             
-            {/* Empty state */}
             {!input.trim() && !softResponse && (
               <div className="empty-hint">
                 Use [?] to query Soft-LLM, or type {'{braces}'} for direct submit
@@ -827,8 +867,8 @@ function App() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={face === 'designer' 
-            ? 'Ask to create a skill... (e.g., "Create a format skill for pirate responses")'
-            : `Enter text as ${face}... (use {braces} for direct submit, (parens) for direct commit)`
+            ? 'Create a skill... (e.g., "Create a format skill for pirate responses")'
+            : `Enter text as ${face}...`
           }
           disabled={isLoading || isQuerying}
           onKeyDown={(e) => {
@@ -838,9 +878,6 @@ function App() {
             } else if (e.key === 'Enter' && e.shiftKey) {
               e.preventDefault()
               handleSubmit()
-            } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
-              // Plain Enter could trigger query (optional)
-              // For now, let it create newlines
             }
           }}
         />
@@ -849,25 +886,35 @@ function App() {
             onClick={handleQuery}
             disabled={isLoading || isQuerying || !input.trim()}
             className="query-btn"
-            title="Query Soft-LLM for refinement"
+            title="Query Soft-LLM"
           >
             {isQuerying ? '...' : '?'}
           </button>
           <button 
             onClick={handleSubmit} 
             disabled={isLoading || isQuerying || !input.trim()}
-            title="Submit to liquid (Shift+Enter)"
+            title="Submit (Shift+Enter)"
           >
             Submit
           </button>
-          <button 
-            onClick={handleCommit} 
-            disabled={isLoading || isQuerying}
-            className="commit-btn"
-            title="Commit and generate (Cmd+Enter)"
-          >
-            {isLoading ? '...' : 'Commit'}
-          </button>
+          {hasCommitted ? (
+            <button 
+              onClick={handleClear}
+              className="clear-btn"
+              title="Clear vapor and liquid"
+            >
+              Clear
+            </button>
+          ) : (
+            <button 
+              onClick={handleCommit} 
+              disabled={isLoading || isQuerying}
+              className="commit-btn"
+              title="Commit (Cmd+Enter)"
+            >
+              {isLoading ? '...' : 'Commit'}
+            </button>
+          )}
         </div>
       </footer>
 
