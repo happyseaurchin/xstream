@@ -37,6 +37,15 @@ interface SkillUsed {
   name: string
 }
 
+// Unified directory item interface
+interface DirectoryItem {
+  id: string
+  name: string
+  type: string // skill category, character trait, world element type
+  level: 'platform' | 'frame' | 'user' // ownership level
+  content: Record<string, any> // flexible content based on face
+}
+
 interface FrameSkill {
   id: string
   name: string
@@ -64,10 +73,10 @@ interface ShelfEntry {
 interface SoftLLMResponse {
   id: string
   originalInput: string
-  text: string           // Display text (preview for artifact, full for clarify/refine)
-  softType: SoftType     // Type of response
-  document?: string      // For artifact: the full SKILL_CREATE document
-  options?: string[]     // For clarify: options to choose from
+  text: string
+  softType: SoftType
+  document?: string
+  options?: string[]
   face: Face
   frameId: string | null
 }
@@ -77,17 +86,24 @@ interface ParsedInput {
   route: 'soft' | 'liquid' | 'solid' | 'hard'
 }
 
-// Placeholder directory items for player/author
+// Character data structure
 interface CharacterItem {
   id: string
   name: string
-  status: string
+  concept: string
+  traits: string[]
+  background: string
+  level: 'platform' | 'frame' | 'user'
 }
 
+// World element data structure
 interface WorldItem {
   id: string
   name: string
-  type: string
+  type: 'location' | 'faction' | 'item' | 'npc' | 'lore'
+  description: string
+  details: string
+  level: 'platform' | 'frame' | 'user'
 }
 
 const EDIT_DEBOUNCE_MS = 500
@@ -119,7 +135,38 @@ function parseInputTypography(input: string): ParsedInput {
   return { text: trimmed, route: 'soft' }
 }
 
-// Phase 0.5.6: Smart Soft-LLM with auto-artifact detection
+// Format character as editable document
+function formatCharacterDocument(char: CharacterItem): string {
+  return `CHARACTER_CREATE
+name: ${char.name}
+concept: ${char.concept}
+traits: ${char.traits.join(', ')}
+background: |
+${char.background.split('\n').map(line => '  ' + line).join('\n')}`
+}
+
+// Format world element as editable document
+function formatWorldDocument(item: WorldItem): string {
+  return `WORLD_CREATE
+type: ${item.type}
+name: ${item.name}
+description: |
+${item.description.split('\n').map(line => '  ' + line).join('\n')}
+details: |
+${item.details.split('\n').map(line => '  ' + line).join('\n')}`
+}
+
+// Format skill as editable document
+function formatSkillDocument(skill: FrameSkill): string {
+  return `SKILL_CREATE
+name: ${skill.name}
+category: ${skill.category}
+applies_to: ${skill.applies_to.join(', ')}
+content: |
+${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
+}
+
+// Phase 0.5.7: Uniform directory operations across all faces
 function App() {
   const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
@@ -136,14 +183,51 @@ function App() {
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [isLoadingDirectory, setIsLoadingDirectory] = useState(false)
   
-  // Placeholder directory data
+  // Placeholder directory data (will be database-driven later)
   const [characters] = useState<CharacterItem[]>([
-    { id: '1', name: 'Hero', status: 'active' },
-    { id: '2', name: 'Companion', status: 'nearby' },
+    { 
+      id: '1', 
+      name: 'Kira Thornwood', 
+      concept: 'Reluctant hero seeking redemption',
+      traits: ['determined', 'secretive', 'compassionate'],
+      background: 'Once a notorious thief, Kira abandoned that life after a heist went wrong. Now she wanders, taking odd jobs and avoiding her past.',
+      level: 'frame'
+    },
+    { 
+      id: '2', 
+      name: 'Marcus the Bold', 
+      concept: 'Aging knight with one last quest',
+      traits: ['honorable', 'stubborn', 'weary'],
+      background: 'Sir Marcus served the crown for forty years. Retired but restless, he seeks a worthy end to his story.',
+      level: 'platform'
+    },
   ])
+  
   const [worldItems] = useState<WorldItem[]>([
-    { id: '1', name: 'Tavern District', type: 'location' },
-    { id: '2', name: 'Mysterious Stranger', type: 'npc' },
+    { 
+      id: '1', 
+      name: 'The Hollow Market', 
+      type: 'location',
+      description: 'A bazaar that exists only at twilight, nestled in the spaces between buildings that were never quite there.',
+      details: 'Vendors sell memories, futures, and things that have been lost. Currency varies by stall.',
+      level: 'frame'
+    },
+    { 
+      id: '2', 
+      name: 'Order of the Sealed Gate', 
+      type: 'faction',
+      description: 'Guardians who ensure certain doors remain closed, certain names unspoken.',
+      details: 'They mark their members with silver tattoos. Their hierarchy is unknown to outsiders.',
+      level: 'platform'
+    },
+    { 
+      id: '3', 
+      name: 'Whispering Compass', 
+      type: 'item',
+      description: 'A brass compass that points not north, but toward what you need most.',
+      details: 'The needle speaks in riddles. Many have been led astray; some have found salvation.',
+      level: 'user'
+    },
   ])
   
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
@@ -173,7 +257,6 @@ function App() {
   const liquidEntries = entries.filter(e => e.state === 'submitted' && filterByFace(e))
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && filterByFace(e))
   
-  // Check if there's any vapor/liquid content to clear
   const hasVaporOrLiquid = input.trim() || softResponse || liquidEntries.length > 0
 
   useEffect(() => {
@@ -184,14 +267,12 @@ function App() {
     }
   }, [])
 
-  // Load frame skills when switching to directory view or changing frame
   useEffect(() => {
     if (solidView === 'dir' && face === 'designer') {
       loadFrameSkills()
     }
   }, [solidView, frameId, face])
 
-  // Load skills for current frame (directory view)
   const loadFrameSkills = async () => {
     if (!GENERATE_URL || !SUPABASE_ANON_KEY) return
     
@@ -220,32 +301,32 @@ function App() {
     }
   }
 
-  // Load skill content into liquid for editing
-  const handleSkillClick = async (skill: FrameSkill) => {
-    // Format skill as editable content
-    const skillText = `SKILL_CREATE
-name: ${skill.name}
-category: ${skill.category}
-applies_to: ${skill.applies_to.join(', ')}
-content: |
-${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
+  // Unified directory item click handler
+  const handleDirectoryItemClick = (item: any, itemFace: Face) => {
+    let document: string
     
-    // Create a liquid entry with this content
+    if (itemFace === 'designer') {
+      document = formatSkillDocument(item as FrameSkill)
+    } else if (itemFace === 'player') {
+      document = formatCharacterDocument(item as CharacterItem)
+    } else {
+      document = formatWorldDocument(item as WorldItem)
+    }
+    
     const entry: ShelfEntry = {
       id: crypto.randomUUID(),
-      text: skillText,
-      face: 'designer',
+      text: document,
+      face: itemFace,
       frameId,
       state: 'submitted',
       timestamp: new Date().toISOString(),
     }
     
     setEntries(prev => [...prev, entry])
-    setSolidView('log') // Switch back to log to see the liquid entry
-    console.log('[Directory] Loaded skill to liquid:', skill.name)
+    setSolidView('log')
+    console.log(`[Directory] Loaded ${itemFace} item to liquid:`, item.name)
   }
 
-  // Dismiss a liquid entry
   const handleDismissEntry = (entryId: string) => {
     setEntries(prev => prev.filter(e => e.id !== entryId))
   }
@@ -319,7 +400,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
 
       const softType: SoftType = data.soft_type || 'refine'
       
-      // For 'artifact' type: auto-create liquid entry with the document
       if (softType === 'artifact' && data.document) {
         const entry: ShelfEntry = {
           id: crypto.randomUUID(),
@@ -330,27 +410,24 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
           timestamp: new Date().toISOString(),
         }
         setEntries(prev => [...prev, entry])
-        setInput('') // Clear input
+        setInput('')
         
-        // Show brief confirmation in vapor (auto-dismiss after 3s)
         const response: SoftLLMResponse = {
           id: crypto.randomUUID(),
           originalInput: input,
-          text: data.text, // Brief preview message
+          text: data.text,
           softType: 'artifact',
           face,
           frameId,
         }
         setSoftResponse(response)
         
-        // Auto-dismiss vapor after 3 seconds
         setTimeout(() => {
           setSoftResponse(prev => prev?.id === response.id ? null : prev)
         }, 3000)
         
         console.log('[Soft-LLM] Artifact created in liquid:', data.document.slice(0, 100))
       } else {
-        // For 'clarify' or 'refine': show in vapor
         const response: SoftLLMResponse = {
           id: crypto.randomUUID(),
           originalInput: input,
@@ -379,7 +456,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     }
   }
 
-  // Click on vapor text to use it as input (for refine/clarify)
   const handleVaporClick = () => {
     if (!softResponse || softResponse.softType === 'artifact') return
     setInput(softResponse.text)
@@ -481,7 +557,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     }
   }
 
-  // Clear vapor and liquid, keep solid
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
@@ -523,7 +598,7 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
 
       const createdSkill = data.created_skill || null
       if (createdSkill && solidView === 'dir') {
-        loadFrameSkills() // Refresh directory
+        loadFrameSkills()
       }
 
       setEntries(prev => prev.map(e => 
@@ -555,7 +630,10 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // Render directory based on face
+  // Check if item is editable based on level
+  const isEditable = (level: string) => level !== 'platform'
+
+  // Render directory based on face - now with uniform click behavior
   const renderDirectory = () => {
     if (isLoadingDirectory) {
       return <div className="directory-loading">Loading...</div>
@@ -569,13 +647,14 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               frameSkills.map(skill => (
                 <div 
                   key={skill.id} 
-                  className={`directory-item skill-item ${skill.package_level}`}
-                  onClick={() => handleSkillClick(skill)}
+                  className={`directory-item skill-item ${skill.package_level} ${isEditable(skill.package_level || 'platform') ? 'editable' : 'readonly'}`}
+                  onClick={() => handleDirectoryItemClick(skill, 'designer')}
                 >
                   <div className="dir-item-header">
                     <span className="dir-item-name">{skill.name}</span>
                     <span className={`dir-item-level ${skill.package_level}`}>
                       {skill.package_level}
+                      {!isEditable(skill.package_level || 'platform') && ' 🔒'}
                     </span>
                   </div>
                   <div className="dir-item-meta">
@@ -596,16 +675,25 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       case 'player':
         return (
           <div className="directory-list">
-            <div className="directory-section-label">Characters in Frame</div>
+            <div className="directory-section-label">Characters</div>
             {characters.map(char => (
-              <div key={char.id} className="directory-item character-item">
-                <span className="dir-item-name">{char.name}</span>
-                <span className="dir-item-status">{char.status}</span>
+              <div 
+                key={char.id} 
+                className={`directory-item character-item ${char.level} ${isEditable(char.level) ? 'editable' : 'readonly'}`}
+                onClick={() => handleDirectoryItemClick(char, 'player')}
+              >
+                <div className="dir-item-header">
+                  <span className="dir-item-name">{char.name}</span>
+                  <span className={`dir-item-level ${char.level}`}>
+                    {char.level}
+                    {!isEditable(char.level) && ' 🔒'}
+                  </span>
+                </div>
+                <div className="dir-item-meta">
+                  <span className="dir-item-concept">{char.concept}</span>
+                </div>
               </div>
             ))}
-            <div className="directory-placeholder">
-              (Character directory - placeholder)
-            </div>
           </div>
         )
       
@@ -614,14 +702,23 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
           <div className="directory-list">
             <div className="directory-section-label">World Elements</div>
             {worldItems.map(item => (
-              <div key={item.id} className="directory-item world-item">
-                <span className="dir-item-name">{item.name}</span>
-                <span className="dir-item-type">{item.type}</span>
+              <div 
+                key={item.id} 
+                className={`directory-item world-item ${item.level} ${isEditable(item.level) ? 'editable' : 'readonly'}`}
+                onClick={() => handleDirectoryItemClick(item, 'author')}
+              >
+                <div className="dir-item-header">
+                  <span className="dir-item-name">{item.name}</span>
+                  <span className={`dir-item-level ${item.level}`}>
+                    {item.level}
+                    {!isEditable(item.level) && ' 🔒'}
+                  </span>
+                </div>
+                <div className="dir-item-meta">
+                  <span className="dir-item-type">{item.type}</span>
+                </div>
               </div>
             ))}
-            <div className="directory-placeholder">
-              (World directory - placeholder)
-            </div>
           </div>
         )
     }
@@ -671,7 +768,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
         </div>
       </header>
 
-      {/* Visibility Settings Panel */}
       {showVisibilityPanel && (
         <div className="visibility-panel">
           <div className="visibility-section">
@@ -735,7 +831,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       )}
 
       <main className="main">
-        {/* SOLID: Synthesis area with log/directory toggle */}
         {visibility.showSolid && (
           <section className="synthesis-area">
             <div className="area-header">
@@ -757,7 +852,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
             </div>
             
             {solidView === 'log' ? (
-              // Log view - committed entries
               solidEntries.length > 0 ? (
                 solidEntries.map(entry => (
                   <div key={entry.id} className={`solid-entry ${entry.error ? 'error' : ''}`}>
@@ -784,13 +878,11 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
                 </div>
               )
             ) : (
-              // Directory view
               renderDirectory()
             )}
           </section>
         )}
 
-        {/* LIQUID: Submitted intentions area */}
         {visibility.showLiquid && (
           <section className="liquid-area">
             <div className="area-header">
@@ -838,7 +930,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
           </section>
         )}
 
-        {/* VAPOR: Typing indicators + Soft-LLM responses */}
         {visibility.showVapor && (
           <section className="vapor-area">
             <div className="area-header">
@@ -905,8 +996,9 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
           onChange={(e) => setInput(e.target.value)}
           placeholder={face === 'designer' 
             ? 'Create a skill... (e.g., "Create a format skill for pirate responses")'
-            : `Enter text as ${face}...`
-          }
+            : face === 'player'
+            ? 'Describe a character or action...'
+            : 'Create world content...'}
           disabled={isLoading || isQuerying}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.metaKey) {
