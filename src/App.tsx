@@ -716,6 +716,15 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     <div className="app">
       <header className="header">
         <div className="selectors">
+          <select 
+            value={face} 
+            onChange={(e) => setFace(e.target.value as Face)}
+            className="face-selector"
+          >
+            <option value="player">Player</option>
+            <option value="author">Author</option>
+            <option value="designer">Designer</option>
+          </select>
           <select
             value={frameId || ''}
             onChange={(e) => setFrameId(e.target.value || null)}
@@ -961,15 +970,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       </main>
 
       <footer className="input-area">
-        <select 
-          value={face} 
-          onChange={(e) => setFace(e.target.value as Face)}
-          className="face-selector"
-        >
-          <option value="player">Player</option>
-          <option value="author">Author</option>
-          <option value="designer">Designer</option>
-        </select>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
