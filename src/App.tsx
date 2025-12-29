@@ -20,16 +20,13 @@ const FRAMES = [
   { id: 'bbbbbbbb-0000-0000-0000-000000000001', name: 'test-frame', xyz: 'X0Y0Z0' },
 ] as const
 
-// Visibility settings for sharing and filtering
+// Visibility settings for sharing and filtering (face filtering removed - handled by face selector)
 interface VisibilitySettings {
   shareVapor: boolean
   shareLiquid: boolean
   showVapor: boolean
   showLiquid: boolean
   showSolid: boolean
-  showPlayerFace: boolean
-  showAuthorFace: boolean
-  showDesignerFace: boolean
 }
 
 interface SkillUsed {
@@ -178,7 +175,7 @@ function parseArtifactFromText(text: string, face: Face): ParsedArtifact | null 
   }
 }
 
-// Phase 0.5.9: Vapor persists until replaced
+// Phase 0.5.10: Face filters view, liquid persists
 function App() {
   const [userId] = useState<string>(getUserId)
   const [face, setFace] = useState<Face>('player')
@@ -203,24 +200,15 @@ function App() {
     showVapor: true,
     showLiquid: true,
     showSolid: true,
-    showPlayerFace: true,
-    showAuthorFace: true,
-    showDesignerFace: true,
   })
 
   const debounceTimerRef = useRef<number | null>(null)
 
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
 
-  const filterByFace = (entry: ShelfEntry) => {
-    if (entry.face === 'player' && !visibility.showPlayerFace) return false
-    if (entry.face === 'author' && !visibility.showAuthorFace) return false
-    if (entry.face === 'designer' && !visibility.showDesignerFace) return false
-    return true
-  }
-
-  const liquidEntries = entries.filter(e => e.state === 'submitted' && filterByFace(e))
-  const solidEntries = entries.filter(e => e.state === 'committed' && e.response && filterByFace(e))
+  // Face selector filters all views - entries for current face only
+  const liquidEntries = entries.filter(e => e.face === face)
+  const solidEntries = entries.filter(e => e.state === 'committed' && e.response && e.face === face)
   
   // Directory entries: committed entries with parseable artifacts for current face
   const directoryEntries = entries.filter(e => {
@@ -531,6 +519,7 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     // Parse artifact metadata before committing
     const artifact = parseArtifactFromText(entry.text, entry.face)
 
+    // Update state to committed but keep entry visible in liquid
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { 
         ...e, 
@@ -574,7 +563,8 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
-    setEntries(prev => prev.filter(e => e.state === 'committed'))
+    // Clear only non-committed entries for current face
+    setEntries(prev => prev.filter(e => e.face !== face || e.state === 'committed'))
   }
 
   const generateResponse = async (entry: ShelfEntry) => {
@@ -726,15 +716,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     <div className="app">
       <header className="header">
         <div className="selectors">
-          <select 
-            value={face} 
-            onChange={(e) => setFace(e.target.value as Face)}
-            className="face-selector"
-          >
-            <option value="player">Player</option>
-            <option value="author">Author</option>
-            <option value="designer">Designer</option>
-          </select>
           <select
             value={frameId || ''}
             onChange={(e) => setFrameId(e.target.value || null)}
@@ -804,27 +785,6 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               # Solid
             </button>
           </div>
-          <div className="visibility-section">
-            <span className="visibility-label">Faces:</span>
-            <button 
-              className={`visibility-btn ${visibility.showPlayerFace ? 'on' : 'off'}`}
-              onClick={() => toggleVisibility('showPlayerFace')}
-            >
-              Player
-            </button>
-            <button 
-              className={`visibility-btn ${visibility.showAuthorFace ? 'on' : 'off'}`}
-              onClick={() => toggleVisibility('showAuthorFace')}
-            >
-              Author
-            </button>
-            <button 
-              className={`visibility-btn ${visibility.showDesignerFace ? 'on' : 'off'}`}
-              onClick={() => toggleVisibility('showDesignerFace')}
-            >
-              Designer
-            </button>
-          </div>
         </div>
       )}
 
@@ -892,14 +852,14 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
             </div>
             {liquidEntries.length > 0 ? (
               liquidEntries.map(entry => (
-                <div key={entry.id} className={`liquid-entry ${entry.isEditing ? 'editing' : ''}`}>
+                <div key={entry.id} className={`liquid-entry ${entry.isEditing ? 'editing' : ''} ${entry.state === 'committed' ? 'committed' : ''}`}>
                   <div className="entry-header">
                     <span className="face-badge">{entry.face}</span>
                     {entry.artifactName && (
                       <span className="artifact-badge">{entry.artifactName}</span>
                     )}
-                    <span className={`state-badge ${entry.isEditing ? 'editing' : 'submitted'}`}>
-                      {entry.isEditing ? 'editing' : 'submitted'}
+                    <span className={`state-badge ${entry.isEditing ? 'editing' : entry.state}`}>
+                      {entry.isEditing ? 'editing' : entry.state}
                     </span>
                     <button
                       className="dismiss-entry-btn"
@@ -913,17 +873,23 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
                     className="liquid-text"
                     value={entry.text}
                     onChange={(e) => handleLiquidEdit(entry.id, e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || entry.state === 'committed'}
+                    readOnly={entry.state === 'committed'}
                   />
-                  <div className="entry-actions">
-                    <button
-                      className="commit-entry-btn"
-                      onClick={() => handleCommitEntry(entry.id)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? '...' : 'Commit'}
-                    </button>
-                  </div>
+                  {entry.state === 'committed' && entry.response && (
+                    <div className="liquid-response">{entry.response}</div>
+                  )}
+                  {entry.state === 'submitted' && (
+                    <div className="entry-actions">
+                      <button
+                        className="commit-entry-btn"
+                        onClick={() => handleCommitEntry(entry.id)}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? '...' : 'Commit'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -995,6 +961,15 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       </main>
 
       <footer className="input-area">
+        <select 
+          value={face} 
+          onChange={(e) => setFace(e.target.value as Face)}
+          className="face-selector"
+        >
+          <option value="player">Player</option>
+          <option value="author">Author</option>
+          <option value="designer">Designer</option>
+        </select>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
