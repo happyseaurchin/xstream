@@ -68,18 +68,77 @@ async function ensureUserExists(
 }
 
 /**
- * Get or create user's personal package.
+ * Get or create a package for the frame.
+ * Returns the package_id for the frame's custom package.
+ */
+async function getOrCreateFramePackage(
+  supabase: any,
+  frameId: string,
+  userId: string
+): Promise<string> {
+  // First ensure user exists (for created_by FK)
+  await ensureUserExists(supabase, userId);
+
+  // Check if frame already has a custom (non-platform) package
+  const { data: existingLink } = await supabase
+    .from('frame_packages')
+    .select(`
+      package_id,
+      packages!inner(id, level)
+    `)
+    .eq('frame_id', frameId)
+    .eq('packages.level', 'frame')
+    .single();
+
+  if (existingLink?.package_id) {
+    return existingLink.package_id;
+  }
+
+  // Create new package for this frame
+  const packageId = crypto.randomUUID();
+  const { error: pkgError } = await supabase
+    .from('packages')
+    .insert({
+      id: packageId,
+      name: `frame-${frameId.slice(0, 8)}-custom`,
+      signature: `frame-${frameId.slice(0, 8)}`,
+      level: 'frame',
+      description: 'Custom skills for this frame',
+      created_by: userId,
+    });
+
+  if (pkgError) {
+    console.error('Error creating frame package:', pkgError);
+    throw new Error('Failed to create frame package');
+  }
+
+  // Link to frame_packages with priority 100 (after platform, before user overrides)
+  const { error: linkError } = await supabase
+    .from('frame_packages')
+    .insert({
+      frame_id: frameId,
+      package_id: packageId,
+      priority: 100,
+    });
+
+  if (linkError) {
+    console.error('Error linking frame package:', linkError);
+  }
+
+  return packageId;
+}
+
+/**
+ * Get or create user's personal package (for drafts when no frame selected).
  * Returns the package_id for the user's default personal package.
  */
 async function getOrCreateUserPackage(
   supabase: any,
   userId: string
 ): Promise<string> {
-  // First ensure user exists (required for foreign keys)
   await ensureUserExists(supabase, userId);
 
-  // Check if user has a personal package
-  const { data: existing, error: existError } = await supabase
+  const { data: existing } = await supabase
     .from('user_packages')
     .select('package_id')
     .eq('user_id', userId)
@@ -90,16 +149,15 @@ async function getOrCreateUserPackage(
     return existing.package_id;
   }
 
-  // Create new personal package for user
   const packageId = crypto.randomUUID();
   const { error: pkgError } = await supabase
     .from('packages')
     .insert({
       id: packageId,
-      name: `user-${userId.slice(0, 8)}`,
+      name: `user-${userId.slice(0, 8)}-drafts`,
       signature: `user-${userId.slice(0, 8)}`,
       level: 'user',
-      description: 'Personal skills package',
+      description: 'Personal skill drafts',
       created_by: userId,
     });
 
@@ -108,7 +166,6 @@ async function getOrCreateUserPackage(
     throw new Error('Failed to create user package');
   }
 
-  // Link to user_packages
   const { error: linkError } = await supabase
     .from('user_packages')
     .insert({
@@ -119,7 +176,6 @@ async function getOrCreateUserPackage(
 
   if (linkError) {
     console.error('Error linking user package:', linkError);
-    // Package was created, so return it anyway
   }
 
   return packageId;
@@ -130,13 +186,11 @@ async function getOrCreateUserPackage(
  * Looks for SKILL_CREATE block in response.
  */
 function parseSkillCreateFromResponse(response: string): SkillCreateRequest | null {
-  // Look for SKILL_CREATE block
   const skillMatch = response.match(/SKILL_CREATE\s*\n([\s\S]*?)(?:\n```|$)/);
   if (!skillMatch) return null;
 
   const block = skillMatch[1];
   
-  // Parse fields
   const nameMatch = block.match(/name:\s*(.+)/);
   const categoryMatch = block.match(/category:\s*(.+)/);
   const appliesToMatch = block.match(/applies_to:\s*(.+)/);
@@ -153,14 +207,12 @@ function parseSkillCreateFromResponse(response: string): SkillCreateRequest | nu
     : ['player', 'author', 'designer'];
   const content = contentMatch[1].trim();
 
-  // Validate category
   const validCategories = ['gathering', 'aperture', 'weighting', 'format', 'routing', 'constraint', 'parsing', 'display'];
   if (!validCategories.includes(category)) {
     console.warn(`Invalid category: ${category}`);
     return null;
   }
 
-  // Guard category cannot be created by users
   if (category === 'guard') {
     console.warn('Cannot create guard skills');
     return null;
@@ -170,14 +222,24 @@ function parseSkillCreateFromResponse(response: string): SkillCreateRequest | nu
 }
 
 /**
- * Create a new skill in user's personal package.
+ * Create a skill in the frame's package (or user drafts if no frame).
  */
-async function createUserSkill(
+async function createSkill(
   supabase: any,
+  frameId: string | null,
   userId: string,
   skill: SkillCreateRequest
-): Promise<Skill | null> {
-  const packageId = await getOrCreateUserPackage(supabase, userId);
+): Promise<{ skill: Skill | null; location: string }> {
+  let packageId: string;
+  let location: string;
+
+  if (frameId) {
+    packageId = await getOrCreateFramePackage(supabase, frameId, userId);
+    location = 'frame';
+  } else {
+    packageId = await getOrCreateUserPackage(supabase, userId);
+    location = 'drafts';
+  }
 
   const skillId = crypto.randomUUID();
   const { data, error } = await supabase
@@ -195,24 +257,25 @@ async function createUserSkill(
 
   if (error) {
     console.error('Error creating skill:', error);
-    return null;
+    return { skill: null, location };
   }
 
   return {
-    id: data.id,
-    name: data.name,
-    category: data.category,
-    applies_to: data.applies_to,
-    content: data.content,
-    package_name: `user-${userId.slice(0, 8)}`,
-    package_level: 'user',
+    skill: {
+      id: data.id,
+      name: data.name,
+      category: data.category,
+      applies_to: data.applies_to,
+      content: data.content,
+      package_level: location,
+    },
+    location,
   };
 }
 
 /**
  * Load skills for a given face and optional frame.
  * Resolution order: platform → frame (by priority) → user
- * Guards cannot be overridden.
  */
 async function loadSkills(
   supabase: any,
@@ -222,7 +285,7 @@ async function loadSkills(
 ): Promise<SkillSet> {
   const skillSet: SkillSet = {};
 
-  // 1. Load platform skills (always apply)
+  // 1. Platform skills
   const { data: platformSkills, error: platformError } = await supabase
     .from('skills')
     .select(`
@@ -236,7 +299,7 @@ async function loadSkills(
     console.error('Error loading platform skills:', platformError);
   } else {
     for (const skill of platformSkills || []) {
-      const processed: Skill = {
+      skillSet[skill.category as keyof SkillSet] = {
         id: skill.id,
         name: skill.name,
         category: skill.category,
@@ -245,11 +308,10 @@ async function loadSkills(
         package_name: skill.packages?.name,
         package_level: skill.packages?.level,
       };
-      skillSet[skill.category as keyof SkillSet] = processed;
     }
   }
 
-  // 2. Load frame-specific skills (if frame provided)
+  // 2. Frame skills
   if (frameId) {
     const { data: framePackages, error: fpError } = await supabase
       .from('frame_packages')
@@ -257,9 +319,7 @@ async function loadSkills(
       .eq('frame_id', frameId)
       .order('priority', { ascending: true });
 
-    if (fpError) {
-      console.error('Error loading frame packages:', fpError);
-    } else if (framePackages && framePackages.length > 0) {
+    if (!fpError && framePackages?.length > 0) {
       const packageIds = framePackages.map((fp: any) => fp.package_id);
       
       const { data: frameSkills, error: fsError } = await supabase
@@ -272,19 +332,15 @@ async function loadSkills(
         .in('package_id', packageIds)
         .contains('applies_to', [face]);
 
-      if (fsError) {
-        console.error('Error loading frame skills:', fsError);
-      } else {
+      if (!fsError) {
         const priorityMap = new Map(framePackages.map((fp: any) => [fp.package_id, fp.priority]));
         const sortedSkills = (frameSkills || []).sort((a: any, b: any) => {
-          const pA = priorityMap.get(a.package_id) || 0;
-          const pB = priorityMap.get(b.package_id) || 0;
-          return pA - pB;
+          return (priorityMap.get(a.package_id) || 0) - (priorityMap.get(b.package_id) || 0);
         });
 
         for (const skill of sortedSkills) {
           if (skill.category !== 'guard') {
-            const processed: Skill = {
+            skillSet[skill.category as keyof SkillSet] = {
               id: skill.id,
               name: skill.name,
               category: skill.category,
@@ -293,27 +349,23 @@ async function loadSkills(
               package_name: skill.packages?.name,
               package_level: skill.packages?.level,
             };
-            skillSet[skill.category as keyof SkillSet] = processed;
           }
         }
       }
     }
   }
 
-  // 3. Load user skills (if user provided)
+  // 3. User skills (personal overrides)
   if (userId) {
-    // Get user's packages
-    const { data: userPackages, error: upError } = await supabase
+    const { data: userPackages } = await supabase
       .from('user_packages')
       .select('package_id')
       .eq('user_id', userId);
 
-    if (upError) {
-      console.error('Error loading user packages:', upError);
-    } else if (userPackages && userPackages.length > 0) {
+    if (userPackages?.length > 0) {
       const packageIds = userPackages.map((up: any) => up.package_id);
       
-      const { data: userSkills, error: usError } = await supabase
+      const { data: userSkills } = await supabase
         .from('skills')
         .select(`
           id, name, category, applies_to, content,
@@ -322,23 +374,17 @@ async function loadSkills(
         .in('package_id', packageIds)
         .contains('applies_to', [face]);
 
-      if (usError) {
-        console.error('Error loading user skills:', usError);
-      } else {
-        // User skills override frame skills (except guards)
-        for (const skill of userSkills || []) {
-          if (skill.category !== 'guard') {
-            const processed: Skill = {
-              id: skill.id,
-              name: skill.name,
-              category: skill.category,
-              applies_to: skill.applies_to,
-              content: skill.content,
-              package_name: skill.packages?.name,
-              package_level: skill.packages?.level,
-            };
-            skillSet[skill.category as keyof SkillSet] = processed;
-          }
+      for (const skill of userSkills || []) {
+        if (skill.category !== 'guard') {
+          skillSet[skill.category as keyof SkillSet] = {
+            id: skill.id,
+            name: skill.name,
+            category: skill.category,
+            applies_to: skill.applies_to,
+            content: skill.content,
+            package_name: skill.packages?.name,
+            package_level: skill.packages?.level,
+          };
         }
       }
     }
@@ -348,50 +394,73 @@ async function loadSkills(
 }
 
 /**
- * Get user's created skills.
+ * Get skills for frame directory view.
+ * Returns all skills visible in this frame (platform + frame-specific).
  */
-async function getUserSkills(
+async function getFrameSkills(
   supabase: any,
-  userId: string
+  frameId: string | null
 ): Promise<Skill[]> {
-  const { data: userPackages } = await supabase
-    .from('user_packages')
-    .select('package_id')
-    .eq('user_id', userId);
+  const skills: Skill[] = [];
 
-  if (!userPackages || userPackages.length === 0) {
-    return [];
-  }
-
-  const packageIds = userPackages.map((up: any) => up.package_id);
-  
-  const { data: skills, error } = await supabase
+  // Platform skills (always visible)
+  const { data: platformSkills } = await supabase
     .from('skills')
     .select(`
       id, name, category, applies_to, content,
       packages!inner(name, level)
     `)
-    .in('package_id', packageIds);
+    .eq('packages.level', 'platform');
 
-  if (error) {
-    console.error('Error loading user skills:', error);
-    return [];
+  for (const skill of platformSkills || []) {
+    skills.push({
+      id: skill.id,
+      name: skill.name,
+      category: skill.category,
+      applies_to: skill.applies_to,
+      content: skill.content,
+      package_name: skill.packages?.name,
+      package_level: 'platform',
+    });
   }
 
-  return (skills || []).map((s: any) => ({
-    id: s.id,
-    name: s.name,
-    category: s.category,
-    applies_to: s.applies_to,
-    content: s.content,
-    package_name: s.packages?.name,
-    package_level: s.packages?.level,
-  }));
+  // Frame-specific skills
+  if (frameId) {
+    const { data: framePackages } = await supabase
+      .from('frame_packages')
+      .select('package_id')
+      .eq('frame_id', frameId);
+
+    if (framePackages?.length > 0) {
+      const packageIds = framePackages.map((fp: any) => fp.package_id);
+      
+      const { data: frameSkills } = await supabase
+        .from('skills')
+        .select(`
+          id, name, category, applies_to, content,
+          packages!inner(name, level)
+        `)
+        .in('package_id', packageIds);
+
+      for (const skill of frameSkills || []) {
+        skills.push({
+          id: skill.id,
+          name: skill.name,
+          category: skill.category,
+          applies_to: skill.applies_to,
+          content: skill.content,
+          package_name: skill.packages?.name,
+          package_level: skill.packages?.level,
+        });
+      }
+    }
+  }
+
+  return skills;
 }
 
 /**
  * Compile prompt using loaded skills.
- * For designer face, merge designer-skill-creation with format.
  */
 function compilePrompt(
   skills: SkillSet,
@@ -406,18 +475,35 @@ function compilePrompt(
     systemPrompt = `You are helping a ${entry.face} in a narrative coordination system.`;
   }
 
-  // Add guard skill content (always enforced)
   if (skills.guard) {
     systemPrompt += '\n\n---\n\n' + skills.guard.content;
   }
 
-  const userPrompt = entry.text;
+  return { systemPrompt, userPrompt: entry.text };
+}
 
-  return { systemPrompt, userPrompt };
+/**
+ * Generate coordination response for designer (not echo).
+ */
+function formatDesignerResponse(
+  skill: Skill,
+  location: string,
+  frameId: string | null
+): string {
+  const frameName = frameId ? `frame ${frameId.slice(0, 8)}` : 'your drafts';
+  const faceList = skill.applies_to.join(', ');
+  
+  return `**${skill.name}** added to ${frameName}.
+
+Category: ${skill.category}
+Applies to: ${faceList}
+
+${location === 'frame' 
+  ? `This skill is now active for all users in this frame.` 
+  : `This skill is saved as a draft. Select a frame to publish it.`}`;
 }
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -432,23 +518,36 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-
     const body = await req.json();
 
-    // Handle list_skills request (for designer UI)
-    if (body.action === 'list_skills') {
-      const userId = body.user_id;
-      if (!userId) {
-        throw new Error('user_id required for list_skills');
-      }
-      const skills = await getUserSkills(supabase, userId);
+    // Handle list_frame_skills request (for directory view)
+    if (body.action === 'list_frame_skills') {
+      const skills = await getFrameSkills(supabase, body.frame_id || null);
       return new Response(
         JSON.stringify({ success: true, skills }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse request - accept either shelf_entry_id or direct input
+    // Handle get_skill request (for loading skill to edit)
+    if (body.action === 'get_skill') {
+      const { data: skill, error } = await supabase
+        .from('skills')
+        .select('id, name, category, applies_to, content')
+        .eq('id', body.skill_id)
+        .single();
+
+      if (error || !skill) {
+        throw new Error('Skill not found');
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, skill }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse request
     let entry: ShelfEntry;
 
     if (body.shelf_entry_id) {
@@ -476,24 +575,21 @@ Deno.serve(async (req: Request) => {
       throw new Error('Either shelf_entry_id or (text + face) required');
     }
 
-    // Load skills for this face and frame (including user skills)
+    // Load skills
     const skills = await loadSkills(supabase, entry.face, entry.frame_id, entry.user_id);
 
     console.log('Loaded skills:', {
       face: entry.face,
       frame_id: entry.frame_id,
-      user_id: entry.user_id,
       skills: Object.entries(skills).map(([cat, s]) => ({
         category: cat,
         name: (s as Skill).name,
-        package: (s as Skill).package_name,
       })),
     });
 
-    // Compile prompt
+    // Compile and call Claude
     const { systemPrompt, userPrompt } = compilePrompt(skills, entry);
 
-    // Call Claude API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -505,9 +601,7 @@ Deno.serve(async (req: Request) => {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
         system: systemPrompt,
-        messages: [
-          { role: 'user', content: userPrompt }
-        ],
+        messages: [{ role: 'user', content: userPrompt }],
       }),
     });
 
@@ -517,24 +611,33 @@ Deno.serve(async (req: Request) => {
     }
 
     const claudeResponse = await response.json();
-    const generatedText = claudeResponse.content?.[0]?.text || '';
+    let generatedText = claudeResponse.content?.[0]?.text || '';
 
-    // For designer face, check if response contains skill creation
+    // For designer, check for skill creation
     let createdSkill: Skill | null = null;
+    let skillLocation: string | null = null;
+
     if (entry.face === 'designer' && entry.user_id && entry.user_id !== 'anonymous') {
       const skillRequest = parseSkillCreateFromResponse(generatedText);
       if (skillRequest) {
-        createdSkill = await createUserSkill(supabase, entry.user_id, skillRequest);
-        console.log('Created skill:', createdSkill);
+        const result = await createSkill(supabase, entry.frame_id, entry.user_id, skillRequest);
+        createdSkill = result.skill;
+        skillLocation = result.location;
+        
+        if (createdSkill) {
+          // Replace LLM response with coordination message
+          generatedText = formatDesignerResponse(createdSkill, skillLocation, entry.frame_id);
+        }
+        console.log('Created skill:', createdSkill, 'in', skillLocation);
       }
     }
 
-    // Return response with metadata
     return new Response(
       JSON.stringify({
         success: true,
         text: generatedText,
         created_skill: createdSkill,
+        skill_location: skillLocation,
         metadata: {
           face: entry.face,
           frame_id: entry.frame_id,
@@ -547,22 +650,14 @@ Deno.serve(async (req: Request) => {
           tokens: claudeResponse.usage,
         },
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
