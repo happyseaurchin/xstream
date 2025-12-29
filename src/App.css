@@ -37,25 +37,87 @@
   max-width: 180px;
 }
 
-.frame-info {
+.header-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
 }
 
+.xyz-badge {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+  font-family: monospace;
+}
+
+.visibility-toggle,
 .meta-toggle {
   background: transparent;
   border: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 0.2rem;
+  padding: 0.3rem 0.5rem;
   font-size: 0.9rem;
+  border-radius: 4px;
 }
 
+.visibility-toggle:hover,
 .meta-toggle:hover {
   color: var(--color-accent);
+  background: var(--color-bg-tertiary);
+}
+
+.visibility-toggle.active {
+  color: var(--color-accent);
+  background: var(--color-bg-tertiary);
+}
+
+/* Visibility Panel */
+.visibility-panel {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.visibility-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.visibility-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  min-width: 45px;
+}
+
+.visibility-btn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.visibility-btn.on {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.visibility-btn.off {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.visibility-btn:hover {
+  opacity: 0.85;
 }
 
 /* Main content */
@@ -64,23 +126,69 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg-secondary);
-  overflow: hidden;
-}
-
-/* Synthesis area */
-.synthesis {
-  flex: 1;
-  padding: 1rem;
   overflow-y: auto;
+  gap: 0;
 }
 
-.synthesis-entry {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+/* Area common styles */
+.synthesis-area,
+.liquid-area,
+.vapor-area {
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--color-border);
 }
 
-.entry-meta {
+.area-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.area-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.area-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.empty-state,
+.empty-hint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+  font-style: italic;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+/* SOLID entries */
+.synthesis-area {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-bg);
+}
+
+.solid-entry {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+  border-left: 3px solid var(--color-solid, #4ade80);
+}
+
+.solid-entry.error {
+  border-left-color: var(--color-error, #f87171);
+}
+
+.entry-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -88,12 +196,14 @@
   flex-wrap: wrap;
 }
 
-.text-input {
+.entry-input {
   font-style: italic;
   color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
 }
 
-.response {
+.entry-response {
   white-space: pre-wrap;
   line-height: 1.6;
 }
@@ -107,64 +217,138 @@
   font-family: monospace;
 }
 
-.empty-state {
-  color: var(--color-text-muted);
-  text-align: center;
-  padding: 3rem 1rem;
-  line-height: 1.8;
+/* LIQUID entries */
+.liquid-area {
+  background: var(--color-bg-secondary);
 }
 
-.empty-state small {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  opacity: 0.7;
+.liquid-entry {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: var(--color-bg);
+  border-radius: 6px;
+  border-left: 3px solid var(--color-liquid, #fbbf24);
 }
 
-/* Peers area */
-.peers {
-  padding: 0.5rem 1rem;
+.liquid-entry.editing {
+  border-left-color: var(--color-editing, #fb923c);
   background: var(--color-bg-tertiary);
-  border-top: 1px solid var(--color-border);
-  min-height: 2.5rem;
 }
 
-.peer-entry {
+.liquid-text {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  min-height: 50px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.liquid-text:focus {
+  outline: none;
+  border-color: var(--color-liquid, #fbbf24);
+}
+
+.entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.commit-entry-btn {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
+  background: var(--color-commit);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.commit-entry-btn:hover:not(:disabled) {
+  background: var(--color-commit-hover);
+}
+
+.commit-entry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* VAPOR area */
+.vapor-area {
+  background: var(--color-bg-tertiary);
+  min-height: 60px;
+}
+
+.vapor-indicator {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.3rem 0;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
 }
 
-.peer-entry.liquid {
-  color: var(--color-liquid);
+.vapor-indicator.self {
+  opacity: 0.7;
 }
 
-.entry-text {
-  flex: 1;
+.typing-dot {
+  color: var(--color-vapor, #a78bfa);
+  animation: pulse 1s infinite;
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.vapor-preview {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+/* State badges */
 .state-badge {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   padding: 0.15rem 0.4rem;
-  background: var(--color-accent);
-  color: white;
   border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.state-badge.submitted {
+  background: var(--color-liquid, #fbbf24);
+  color: #000;
+}
+
+.state-badge.editing {
+  background: var(--color-editing, #fb923c);
+  color: #fff;
+}
+
+.state-badge.committed {
+  background: var(--color-solid, #4ade80);
+  color: #000;
 }
 
 /* Face badge */
 .face-badge {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   padding: 0.15rem 0.5rem;
   background: var(--color-badge-bg);
   border-radius: 3px;
   text-transform: uppercase;
+  font-weight: 500;
 }
 
 /* Frame badge */
 .frame-badge {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   padding: 0.1rem 0.4rem;
   background: var(--color-accent);
   color: white;
@@ -190,6 +374,8 @@
   border-radius: 4px;
   color: var(--color-text);
   min-height: 60px;
+  font-family: inherit;
+  resize: vertical;
 }
 
 .input-area textarea:focus {
@@ -201,6 +387,19 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.buttons button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .buttons .commit-btn {
