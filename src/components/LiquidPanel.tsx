@@ -41,7 +41,7 @@ export function LiquidPanel({
         </div>
       ))}
       
-      {/* Own liquid entries */}
+      {/* Own liquid entries - shows prompt only, response goes to solid */}
       {liquidEntries.map(entry => (
         <div 
           key={entry.id} 
@@ -70,9 +70,7 @@ export function LiquidPanel({
             disabled={isLoading || entry.state === 'committed'}
             readOnly={entry.state === 'committed'}
           />
-          {entry.state === 'committed' && entry.response && (
-            <div className="liquid-response">{entry.response}</div>
-          )}
+          {/* Response goes to solid panel, not shown here */}
           {entry.state === 'submitted' && (
             <div className="entry-actions">
               <button
