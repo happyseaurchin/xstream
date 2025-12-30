@@ -16,8 +16,9 @@ Each phase must be **complete and testable** before proceeding.
 | 0.4 | ✅ COMPLETE | Text States (Visual) |
 | 0.4.5 | ✅ COMPLETE | Soft-LLM Query Flow |
 | 0.5 | ✅ COMPLETE | Designer Creates Skills |
-| 0.6 | 🔄 NEXT | Multi-User Foundation |
-| 0.7 | ⏳ PLANNED | Management & Tidy |
+| 0.6 | ✅ COMPLETE | Multi-User Presence |
+| 0.6.5 | ✅ COMPLETE | Live Multi-User Text States |
+| 0.7 | 🔄 NEXT | Management & Tidy |
 | 0.8 | ⏳ PLANNED | User Registration |
 | 0.9 | ⏳ PLANNED | Integration Testing |
 | 1.0 | ⏳ PLANNED | Kernel Complete |
@@ -116,25 +117,62 @@ Designer mode stores skills to database.
 
 ---
 
-## Phase 0.6: Multi-User Foundation 🔄
+## Phase 0.6: Multi-User Presence ✅
 
-The social coordination layer. Same frame = same location = see each other.
+The social coordination layer foundation.
 
-**Will deliver:**
-- Supabase Realtime channel per frame
-- Vapor: typing indicator visible to others
-- Liquid: submitted entries visible to others
-- Solid: committed entries + responses visible to others
-- Shelf persistence to database
-- User display names
+**Delivered:**
+- Supabase Realtime channel per frame (useFrameChannel hook)
+- Connection status indicator in header
+- Presence tracking (who's in frame, their face, typing state)
+- Presence bar showing other users
+- Display name editing in visibility panel
+- Typing indicators visible to others
 
-**Test:** Two browser tabs in same frame. User A types → User B sees typing indicator. User A submits → User B sees liquid entry. User A commits → User B sees solid entry with response.
-
-**Prompt:** See `docs/phase-0.6-prompt.md`
+**Test:** Two browser tabs in same frame. User A types → User B sees typing indicator.
 
 ---
 
-## Phase 0.7: Management & Tidy ⏳
+## Phase 0.6.5: Live Multi-User Text States ✅
+
+Full text state sharing between users.
+
+**Delivered:**
+- Live vapor broadcast (character-by-character, 50ms throttle)
+- Liquid table in Supabase for persistent shared submissions
+- useLiquidSubscription hook for real-time database sync
+- Others' vapor displays live with blinking cursor
+- Others' liquid entries from database subscription
+- Face-colored indicators for vapor and liquid
+- Visibility controls (shareVapor, shareLiquid, showVapor, showLiquid, showSolid)
+- Codebase refactored: App.tsx 38KB → 15KB with extracted components
+
+**Architecture (post-refactor):**
+```
+src/
+├── types/index.ts           # All shared interfaces
+├── utils/parsing.ts         # Input/artifact parsing
+├── components/
+│   ├── VaporPanel.tsx       # Vapor area + soft responses
+│   ├── LiquidPanel.tsx      # Liquid entries + editing
+│   ├── SolidPanel.tsx       # Log/dir views
+│   ├── PresenceBar.tsx      # Other users display
+│   ├── VisibilityPanel.tsx  # Share/show toggles
+│   ├── InputArea.tsx        # Footer textarea + buttons
+│   └── ConstructionButton.tsx
+├── hooks/
+│   ├── useFrameChannel.ts   # Realtime presence + vapor
+│   └── useLiquidSubscription.ts  # Database liquid sync
+└── App.tsx                  # ~300 lines orchestration
+```
+
+**Test:** Two browser tabs in same frame. User A types → User B sees live text appear character-by-character. User A submits → User B sees liquid entry. User A commits → entry disappears from liquid.
+
+**Summary:** See `docs/phase-0.6-summary.md`
+
+---
+
+## Phase 0.7: Management & Tidy 🔄
 
 Management UI and polish.
 

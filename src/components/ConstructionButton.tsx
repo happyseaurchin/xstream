@@ -87,7 +87,7 @@ export function ConstructionButton() {
           )}
 
           <div className="construction-menu-footer">
-            <span className="version">Phase 0.5 ✓ | Next: 0.6 Multi-user</span>
+            <span className="version">Phase 0.6.5 ✓ | Next: 0.7 Tidy</span>
           </div>
         </div>
       )}
