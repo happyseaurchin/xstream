@@ -1,19 +1,15 @@
-import type { Face, SoftLLMResponse } from '../types'
-import type { PresentUser } from './PresenceBar'
+import type { SoftLLMResponse } from '../types'
 
 export interface OtherVapor {
   userId: string
   userName: string
-  face: Face
+  face: string
   text: string
 }
 
 interface VaporPanelProps {
   othersVapor: OtherVapor[]
-  presentUsers: PresentUser[]
   softResponse: SoftLLMResponse | null
-  input: string
-  shareVapor: boolean
   onVaporClick: () => void
   onDismissSoftResponse: () => void
   onSelectOption: (option: string) => void
@@ -21,23 +17,15 @@ interface VaporPanelProps {
 
 export function VaporPanel({
   othersVapor,
-  presentUsers,
   softResponse,
-  input,
-  shareVapor,
   onVaporClick,
   onDismissSoftResponse,
   onSelectOption,
 }: VaporPanelProps) {
-  // Users typing but no text received yet
-  const typingWithoutText = presentUsers.filter(
-    u => u.isTyping && !othersVapor.some(v => v.userId === u.id && v.text.length > 0)
-  )
+  // Only show others' vapor when they have actual text
+  const activeVapor = othersVapor.filter(v => v.text.length > 0)
 
-  const isEmpty = !input.trim() && 
-    !softResponse && 
-    othersVapor.length === 0 && 
-    typingWithoutText.length === 0
+  const isEmpty = activeVapor.length === 0 && !softResponse
 
   return (
     <section className="vapor-area">
@@ -47,19 +35,11 @@ export function VaporPanel({
       </div>
       
       {/* Others' vapor - live character-by-character text */}
-      {othersVapor.filter(v => v.text.length > 0).map(vapor => (
+      {activeVapor.map(vapor => (
         <div key={vapor.userId} className={`vapor-indicator other ${vapor.face}`}>
           <span className="typing-dot">*</span>
           <span className="vapor-user">{vapor.userName}:</span>
-          <span className="vapor-live-text">{vapor.text}</span>
-        </div>
-      ))}
-      
-      {/* Fallback for users typing but no text yet */}
-      {typingWithoutText.map(user => (
-        <div key={user.id} className="vapor-indicator other">
-          <span className="typing-dot">*</span>
-          <span className="vapor-preview">{user.name} is typing...</span>
+          <span className="vapor-live-text">{vapor.text}<span className="blinking-cursor">|</span></span>
         </div>
       ))}
       
@@ -98,13 +78,6 @@ export function VaporPanel({
               ))}
             </div>
           )}
-        </div>
-      )}
-      
-      {input.trim() && shareVapor && !softResponse && (
-        <div className="vapor-indicator self">
-          <span className="typing-dot">*</span>
-          <span className="vapor-preview">typing: "{input.slice(0, 30)}{input.length > 30 ? '...' : ''}"</span>
         </div>
       )}
       
