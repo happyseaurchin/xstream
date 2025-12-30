@@ -823,3 +823,154 @@
   background: var(--color-bg);
   color: var(--color-text);
 }
+
+/* ================================================
+   Phase 0.6: Multi-User Presence Styles
+   ================================================ */
+
+/* Presence indicator in header */
+.presence-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: 0.5rem;
+}
+
+.connection-status {
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
+.connection-status.connected {
+  color: var(--color-solid, #4ade80);
+}
+
+.connection-status.disconnected {
+  color: var(--color-text-muted);
+  animation: pulse 2s infinite;
+}
+
+.presence-count {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.35rem;
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+  color: var(--color-text-secondary);
+  cursor: help;
+}
+
+/* Presence bar - shows other users in frame */
+.presence-bar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.presence-user {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  border-left: 2px solid var(--color-text-muted);
+}
+
+.presence-user.player {
+  border-left-color: var(--color-liquid, #fbbf24);
+}
+
+.presence-user.author {
+  border-left-color: var(--color-vapor, #a78bfa);
+}
+
+.presence-user.designer {
+  border-left-color: var(--color-accent);
+}
+
+.presence-face {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.presence-name {
+  color: var(--color-text);
+}
+
+.presence-typing {
+  color: var(--color-vapor, #a78bfa);
+  animation: pulse 1s infinite;
+  margin-left: 0.1rem;
+}
+
+/* Name edit section in visibility panel */
+.name-section {
+  margin-left: auto;
+}
+
+.name-display {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  min-width: 80px;
+  text-align: left;
+}
+
+.name-display:hover {
+  border-color: var(--color-accent);
+}
+
+.name-edit {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.name-edit input {
+  background: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  width: 100px;
+}
+
+.name-edit input:focus {
+  outline: none;
+}
+
+.name-edit button {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.name-edit button:hover {
+  background: var(--color-bg);
+}
+
+/* Other users' vapor indicators */
+.vapor-indicator.other {
+  background: var(--color-bg-secondary);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+}
+
+.vapor-indicator.other .vapor-preview {
+  color: var(--color-text-secondary);
+}
