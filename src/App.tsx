@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ConstructionButton } from './components/ConstructionButton'
 import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFrameChannel'
+import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import './App.css'
 
 // Supabase Edge Function URL
@@ -176,7 +177,7 @@ function parseArtifactFromText(text: string, face: Face): ParsedArtifact | null 
   }
 }
 
-// Phase 0.6: Multi-user Foundation
+// Phase 0.6.5: Multi-user Live Text States
 function App() {
   const [userId] = useState<string>(getUserId)
   const [userName, setUserName] = useState<string>(getDisplayName)
@@ -208,12 +209,30 @@ function App() {
 
   const debounceTimerRef = useRef<number | null>(null)
 
-  // Phase 0.6: Multi-user presence
-  const { presentUsers, isConnected, broadcastTyping, error: channelError } = useFrameChannel({
+  // Phase 0.6.5: Multi-user presence with live vapor
+  const { 
+    presentUsers, 
+    isConnected, 
+    othersVapor,
+    broadcastVapor, 
+    error: channelError 
+  } = useFrameChannel({
     frameId,
     userId,
     userName,
     face,
+  })
+
+  // Phase 0.6.5: Liquid subscription for multi-user
+  const {
+    liquidEntries: dbLiquidEntries,
+    upsertLiquid,
+    markCommitted,
+    deleteLiquid,
+    error: liquidError,
+  } = useLiquidSubscription({
+    frameId,
+    userId,
   })
 
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
@@ -221,6 +240,9 @@ function App() {
   // Face selector filters all views - entries for current face only
   const liquidEntries = entries.filter(e => e.face === face)
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && e.face === face)
+  
+  // Others' liquid from database subscription (Phase 0.6.5)
+  const othersLiquid = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
   
   // Directory entries: committed entries with parseable artifacts for current face
   const directoryEntries = entries.filter(e => {
@@ -235,14 +257,12 @@ function App() {
   
   const hasVaporOrLiquid = input.trim() || softResponse || liquidEntries.length > 0
 
-  // Broadcast typing state when input changes
+  // Phase 0.6.5: Broadcast vapor text when input changes (character-by-character)
   useEffect(() => {
-    if (input.trim()) {
-      broadcastTyping(true)
-    } else {
-      broadcastTyping(false)
+    if (visibility.shareVapor) {
+      broadcastVapor(input)
     }
-  }, [input, broadcastTyping])
+  }, [input, broadcastVapor, visibility.shareVapor])
 
   useEffect(() => {
     return () => {
@@ -483,6 +503,15 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     
     setEntries(prev => [...prev, entry])
     setInput('')
+    
+    // Phase 0.6.5: Also upsert to liquid table for others to see
+    if (frameId && visibility.shareLiquid) {
+      upsertLiquid({
+        userName,
+        face,
+        content: text.trim(),
+      })
+    }
   }
 
   const handleSubmit = () => {
@@ -510,6 +539,15 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     
     setEntries(prev => [...prev, entry])
     setInput('')
+    
+    // Phase 0.6.5: Also upsert to liquid table for others to see
+    if (frameId && visibility.shareLiquid) {
+      upsertLiquid({
+        userName,
+        face,
+        content: parsed.text,
+      })
+    }
   }
 
   const handleCommitDirect = async (text: string) => {
@@ -530,6 +568,12 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     
     setInput('')
     setEntries(prev => [...prev, entry])
+    
+    // Phase 0.6.5: Clear liquid when committing
+    if (frameId) {
+      deleteLiquid()
+    }
+    
     await generateResponse(entry)
   }
 
@@ -551,6 +595,11 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       } : e
     ))
     
+    // Phase 0.6.5: Clear liquid when committing
+    if (frameId) {
+      deleteLiquid()
+    }
+    
     await generateResponse(entry)
   }
 
@@ -571,6 +620,12 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
       }
       setInput('')
       setEntries(prev => [...prev, entry])
+      
+      // Phase 0.6.5: Clear liquid when committing
+      if (frameId) {
+        deleteLiquid()
+      }
+      
       await generateResponse(entry)
       return
     }
@@ -586,6 +641,11 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     setSoftResponse(null)
     // Clear only non-committed entries for current face
     setEntries(prev => prev.filter(e => e.face !== face || e.state === 'committed'))
+    
+    // Phase 0.6.5: Clear liquid in database
+    if (frameId) {
+      deleteLiquid()
+    }
   }
 
   const generateResponse = async (entry: ShelfEntry) => {
@@ -945,6 +1005,21 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               <span className="area-label">o Liquid</span>
               <span className="area-hint">Editable intentions</span>
             </div>
+            
+            {/* Phase 0.6.5: Others' liquid from database */}
+            {othersLiquid.map(entry => (
+              <div key={entry.id} className="liquid-entry other-liquid">
+                <div className="entry-header">
+                  <span className="face-badge">{entry.face}</span>
+                  <span className="user-badge">{entry.userName}</span>
+                  <span className={`state-badge ${entry.committed ? 'committed' : 'submitted'}`}>
+                    {entry.committed ? 'committed' : 'submitted'}
+                  </span>
+                </div>
+                <div className="liquid-text readonly">{entry.content}</div>
+              </div>
+            ))}
+            
             {liquidEntries.length > 0 ? (
               liquidEntries.map(entry => (
                 <div key={entry.id} className={`liquid-entry ${entry.isEditing ? 'editing' : ''} ${entry.state === 'committed' ? 'committed' : ''}`}>
@@ -987,11 +1062,11 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
                   )}
                 </div>
               ))
-            ) : (
+            ) : othersLiquid.length === 0 ? (
               <div className="empty-hint">
                 Type below and submit to create an entry
               </div>
-            )}
+            ) : null}
           </section>
         )}
 
@@ -1002,8 +1077,17 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               <span className="area-hint">Live + Soft-LLM</span>
             </div>
             
-            {/* Others' typing indicators */}
-            {presentUsers.filter(u => u.isTyping).map(user => (
+            {/* Phase 0.6.5: Others' vapor - live character-by-character text */}
+            {othersVapor.filter(v => v.text.length > 0).map(vapor => (
+              <div key={vapor.userId} className={`vapor-indicator other ${vapor.face}`}>
+                <span className="typing-dot">*</span>
+                <span className="vapor-user">{vapor.userName}:</span>
+                <span className="vapor-live-text">{vapor.text}</span>
+              </div>
+            ))}
+            
+            {/* Fallback for users typing but no text yet */}
+            {presentUsers.filter(u => u.isTyping && !othersVapor.some(v => v.userId === u.id && v.text.length > 0)).map(user => (
               <div key={user.id} className="vapor-indicator other">
                 <span className="typing-dot">*</span>
                 <span className="vapor-preview">{user.name} is typing...</span>
@@ -1054,7 +1138,7 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               </div>
             )}
             
-            {!input.trim() && !softResponse && presentUsers.filter(u => u.isTyping).length === 0 && (
+            {!input.trim() && !softResponse && othersVapor.length === 0 && presentUsers.filter(u => u.isTyping).length === 0 && (
               <div className="empty-hint">
                 Use [?] to query Soft-LLM, or type {'{braces}'} for direct submit
               </div>
