@@ -246,13 +246,23 @@ function App() {
       setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: `[Error: ${errorMsg}]`, softType: 'refine', face, frameId })
     } finally {
       setIsQuerying(false)
+      // Refocus after query completes
+      setTimeout(() => inputAreaRef.current?.focus(), 10)
     }
   }
 
-  const handleVaporClick = () => {
+  const handleAcceptSoftResponse = () => {
     if (!softResponse || softResponse.softType === 'artifact') return
     setInput(softResponse.text)
     setSoftResponse(null)
+    // Refocus after accepting
+    setTimeout(() => inputAreaRef.current?.focus(), 10)
+  }
+
+  const handleDismissSoftResponse = () => {
+    setSoftResponse(null)
+    // Refocus after dismissing
+    setTimeout(() => inputAreaRef.current?.focus(), 10)
   }
 
   const handleSubmitDirect = (text: string) => {
@@ -312,6 +322,13 @@ function App() {
   const handleNameChange = (name: string) => {
     setDisplayName(name)
     setUserName(name)
+  }
+
+  const handleSelectOption = (opt: string) => {
+    setInput(opt)
+    setSoftResponse(null)
+    // Refocus after selecting option
+    setTimeout(() => inputAreaRef.current?.focus(), 10)
   }
 
   return (
@@ -390,9 +407,9 @@ function App() {
             onFocus={focusVaporInput}
             othersVapor={othersVapor}
             softResponse={softResponse}
-            onVaporClick={handleVaporClick}
-            onDismissSoftResponse={() => setSoftResponse(null)}
-            onSelectOption={(opt) => { setInput(opt); setSoftResponse(null) }}
+            onDismissSoftResponse={handleDismissSoftResponse}
+            onAcceptSoftResponse={handleAcceptSoftResponse}
+            onSelectOption={handleSelectOption}
           />
         )}
       </main>

@@ -18,8 +18,8 @@ interface VaporPanelProps {
   othersVapor: OtherVapor[]
   // Soft-LLM
   softResponse: SoftLLMResponse | null
-  onVaporClick: () => void
   onDismissSoftResponse: () => void
+  onAcceptSoftResponse: () => void
   onSelectOption: (option: string) => void
 }
 
@@ -31,8 +31,8 @@ export function VaporPanel({
   onFocus,
   othersVapor,
   softResponse,
-  onVaporClick,
   onDismissSoftResponse,
+  onAcceptSoftResponse,
   onSelectOption,
 }: VaporPanelProps) {
   // Others with actual text
@@ -69,27 +69,38 @@ export function VaporPanel({
         </div>
       ))}
       
-      {/* Soft-LLM response */}
+      {/* Soft-LLM response - read-only display */}
       {softResponse && (
-        <div className={`soft-response ${softResponse.softType}`}>
+        <div 
+          className={`soft-response ${softResponse.softType}`}
+          onClick={(e) => e.stopPropagation()} // Don't trigger vapor focus
+        >
           <div className="soft-response-header">
             <span className="face-badge">{softResponse.face}</span>
             <span className={`soft-label ${softResponse.softType}`}>
               {softResponse.softType === 'artifact' ? '→ liquid' : 
                softResponse.softType === 'clarify' ? 'options' : 'refined'}
             </span>
-            <button 
-              className="soft-action-btn dismiss" 
-              onClick={(e) => { e.stopPropagation(); onDismissSoftResponse(); }}
-            >
-              x
-            </button>
+            <div className="soft-actions">
+              {softResponse.softType !== 'artifact' && (
+                <button 
+                  className="soft-action-btn accept" 
+                  onClick={onAcceptSoftResponse}
+                  title="Use this text"
+                >
+                  ✓
+                </button>
+              )}
+              <button 
+                className="soft-action-btn dismiss" 
+                onClick={onDismissSoftResponse}
+                title="Dismiss"
+              >
+                ×
+              </button>
+            </div>
           </div>
-          <div 
-            className={`soft-response-text ${softResponse.softType !== 'artifact' ? 'clickable' : ''}`}
-            onClick={(e) => { e.stopPropagation(); onVaporClick(); }}
-            title={softResponse.softType !== 'artifact' ? 'Click to use as input' : undefined}
-          >
+          <div className="soft-response-text">
             {softResponse.text}
           </div>
           {softResponse.softType === 'clarify' && softResponse.options && softResponse.options.length > 0 && (
@@ -98,7 +109,7 @@ export function VaporPanel({
                 <button 
                   key={i} 
                   className="soft-option-btn" 
-                  onClick={(e) => { e.stopPropagation(); onSelectOption(opt); }}
+                  onClick={() => onSelectOption(opt)}
                 >
                   {String.fromCharCode(97 + i)}) {opt}
                 </button>
