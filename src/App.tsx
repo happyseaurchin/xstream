@@ -197,6 +197,45 @@ function App() {
     }
   }
 
+  // Core query function - can be called with specific text
+  const executeQuery = async (textToSend: string, currentFace: Face, currentFrameId: string | null) => {
+    if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
+      setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: `[Soft-LLM would process: "${textToSend}"]`, softType: 'refine', face: currentFace, frameId: currentFrameId })
+      return
+    }
+
+    const res = await fetch(GENERATE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ text: textToSend, face: currentFace, frame_id: currentFrameId, user_id: userId, mode: 'soft' as LLMMode }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+
+    const softType: SoftType = data.soft_type || 'refine'
+    
+    if (softType === 'artifact' && data.document) {
+      // Push directly to liquid - REPLACE any existing submitted entry
+      const artifact = parseArtifactFromText(data.document, currentFace)
+      const newEntry: ShelfEntry = { 
+        id: crypto.randomUUID(), 
+        text: data.document, 
+        face: currentFace, 
+        frameId: currentFrameId, 
+        state: 'submitted', 
+        timestamp: new Date().toISOString(), 
+        artifactName: artifact?.name, 
+        artifactType: artifact?.type 
+      }
+      replaceSubmittedEntry(newEntry, currentFace)
+      // Show brief confirmation in vapor
+      setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'artifact', face: currentFace, frameId: currentFrameId })
+    } else {
+      // clarify = options, refine = conversational response
+      setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType, options: data.options, face: currentFace, frameId: currentFrameId })
+    }
+  }
+
   // Handlers
   const handleShelfEntryClick = (entry: ShelfEntry) => {
     const newEntry: ShelfEntry = { 
@@ -250,41 +289,7 @@ function App() {
     setTimeout(() => inputAreaRef.current?.focus(), 10) // Refocus immediately
     
     try {
-      if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
-        setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: `[Soft-LLM would refine: "${textToSend}"]`, softType: 'refine', face: currentFace, frameId: currentFrameId })
-        return
-      }
-
-      const res = await fetch(GENERATE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ text: textToSend, face: currentFace, frame_id: currentFrameId, user_id: userId, mode: 'soft' as LLMMode }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
-
-      const softType: SoftType = data.soft_type || 'refine'
-      
-      if (softType === 'artifact' && data.document) {
-        // Push directly to liquid - REPLACE any existing submitted entry
-        const artifact = parseArtifactFromText(data.document, currentFace)
-        const newEntry: ShelfEntry = { 
-          id: crypto.randomUUID(), 
-          text: data.document, 
-          face: currentFace, 
-          frameId: currentFrameId, 
-          state: 'submitted', 
-          timestamp: new Date().toISOString(), 
-          artifactName: artifact?.name, 
-          artifactType: artifact?.type 
-        }
-        replaceSubmittedEntry(newEntry, currentFace)
-        // Show brief confirmation in vapor
-        setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'artifact', face: currentFace, frameId: currentFrameId })
-      } else {
-        // clarify = options, refine = conversational response
-        setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType, options: data.options, face: currentFace, frameId: currentFrameId })
-      }
+      await executeQuery(textToSend, currentFace, currentFrameId)
     } catch (error) {
       console.error('Soft-LLM query error:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -372,10 +377,20 @@ function App() {
     setUserName(name)
   }
 
-  const handleSelectOption = (opt: string) => {
-    setInput(opt)
+  // When user selects an option, EXECUTE it immediately
+  const handleSelectOption = async (opt: string) => {
     setSoftResponse(null)
-    setTimeout(() => inputAreaRef.current?.focus(), 10)
+    setIsQuerying(true)
+    
+    try {
+      await executeQuery(opt, face, frameId)
+    } catch (error) {
+      console.error('Option execution error:', error)
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      setSoftResponse({ id: crypto.randomUUID(), originalInput: opt, text: `[Error: ${errorMsg}]`, softType: 'refine', face, frameId })
+    } finally {
+      setIsQuerying(false)
+    }
   }
 
   return (
