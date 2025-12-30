@@ -215,17 +215,24 @@ function App() {
     if (parsed.route === 'liquid') { handleSubmitDirect(parsed.text); return }
     if (parsed.route === 'solid') { handleCommitDirect(parsed.text); return }
     
+    // Capture input and refocus IMMEDIATELY - user can keep typing
+    const textToSend = parsed.text
+    const currentFace = face
+    const currentFrameId = frameId
+    
     setIsQuerying(true)
+    setTimeout(() => inputAreaRef.current?.focus(), 10) // Refocus immediately
+    
     try {
       if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
-        setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: `[Soft-LLM would refine: "${parsed.text}"]`, softType: 'refine', face, frameId })
+        setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: `[Soft-LLM would refine: "${textToSend}"]`, softType: 'refine', face: currentFace, frameId: currentFrameId })
         return
       }
 
       const res = await fetch(GENERATE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ text: parsed.text, face, frame_id: frameId, user_id: userId, mode: 'soft' as LLMMode }),
+        body: JSON.stringify({ text: textToSend, face: currentFace, frame_id: currentFrameId, user_id: userId, mode: 'soft' as LLMMode }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
@@ -233,35 +240,26 @@ function App() {
       const softType: SoftType = data.soft_type || 'refine'
       
       if (softType === 'artifact' && data.document) {
-        const artifact = parseArtifactFromText(data.document, face)
-        setEntries(prev => [...prev, { id: crypto.randomUUID(), text: data.document, face, frameId, state: 'submitted', timestamp: new Date().toISOString(), artifactName: artifact?.name, artifactType: artifact?.type }])
-        setInput('')
-        setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: data.text, softType: 'artifact', face, frameId })
+        // Push directly to liquid - no user interaction needed
+        const artifact = parseArtifactFromText(data.document, currentFace)
+        setEntries(prev => [...prev, { id: crypto.randomUUID(), text: data.document, face: currentFace, frameId: currentFrameId, state: 'submitted', timestamp: new Date().toISOString(), artifactName: artifact?.name, artifactType: artifact?.type }])
+        // Show brief confirmation in vapor (auto-dismiss after showing)
+        setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'artifact', face: currentFace, frameId: currentFrameId })
       } else {
-        setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: data.text, softType, options: data.options, face, frameId })
+        // clarify = options, refine = conversational response
+        setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType, options: data.options, face: currentFace, frameId: currentFrameId })
       }
     } catch (error) {
       console.error('Soft-LLM query error:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      setSoftResponse({ id: crypto.randomUUID(), originalInput: input, text: `[Error: ${errorMsg}]`, softType: 'refine', face, frameId })
+      setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: `[Error: ${errorMsg}]`, softType: 'refine', face: currentFace, frameId: currentFrameId })
     } finally {
       setIsQuerying(false)
-      // Refocus after query completes
-      setTimeout(() => inputAreaRef.current?.focus(), 10)
     }
-  }
-
-  const handleAcceptSoftResponse = () => {
-    if (!softResponse || softResponse.softType === 'artifact') return
-    setInput(softResponse.text)
-    setSoftResponse(null)
-    // Refocus after accepting
-    setTimeout(() => inputAreaRef.current?.focus(), 10)
   }
 
   const handleDismissSoftResponse = () => {
     setSoftResponse(null)
-    // Refocus after dismissing
     setTimeout(() => inputAreaRef.current?.focus(), 10)
   }
 
@@ -327,7 +325,6 @@ function App() {
   const handleSelectOption = (opt: string) => {
     setInput(opt)
     setSoftResponse(null)
-    // Refocus after selecting option
     setTimeout(() => inputAreaRef.current?.focus(), 10)
   }
 
@@ -408,7 +405,6 @@ function App() {
             othersVapor={othersVapor}
             softResponse={softResponse}
             onDismissSoftResponse={handleDismissSoftResponse}
-            onAcceptSoftResponse={handleAcceptSoftResponse}
             onSelectOption={handleSelectOption}
           />
         )}

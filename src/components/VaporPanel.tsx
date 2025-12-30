@@ -19,7 +19,6 @@ interface VaporPanelProps {
   // Soft-LLM
   softResponse: SoftLLMResponse | null
   onDismissSoftResponse: () => void
-  onAcceptSoftResponse: () => void
   onSelectOption: (option: string) => void
 }
 
@@ -32,7 +31,6 @@ export function VaporPanel({
   othersVapor,
   softResponse,
   onDismissSoftResponse,
-  onAcceptSoftResponse,
   onSelectOption,
 }: VaporPanelProps) {
   // Others with actual text
@@ -69,7 +67,7 @@ export function VaporPanel({
         </div>
       ))}
       
-      {/* Soft-LLM response - read-only display */}
+      {/* Soft-LLM response */}
       {softResponse && (
         <div 
           className={`soft-response ${softResponse.softType}`}
@@ -79,18 +77,10 @@ export function VaporPanel({
             <span className="face-badge">{softResponse.face}</span>
             <span className={`soft-label ${softResponse.softType}`}>
               {softResponse.softType === 'artifact' ? '→ liquid' : 
-               softResponse.softType === 'clarify' ? 'options' : 'refined'}
+               softResponse.softType === 'clarify' ? 'options' : 'thinking'}
             </span>
-            <div className="soft-actions">
-              {softResponse.softType !== 'artifact' && (
-                <button 
-                  className="soft-action-btn accept" 
-                  onClick={onAcceptSoftResponse}
-                  title="Use this text"
-                >
-                  ✓
-                </button>
-              )}
+            {/* Only show dismiss for artifact (confirmation) */}
+            {softResponse.softType === 'artifact' && (
               <button 
                 className="soft-action-btn dismiss" 
                 onClick={onDismissSoftResponse}
@@ -98,11 +88,12 @@ export function VaporPanel({
               >
                 ×
               </button>
-            </div>
+            )}
           </div>
           <div className="soft-response-text">
             {softResponse.text}
           </div>
+          {/* Options for clarify type */}
           {softResponse.softType === 'clarify' && softResponse.options && softResponse.options.length > 0 && (
             <div className="soft-options">
               {softResponse.options.map((opt, i) => (
@@ -116,6 +107,7 @@ export function VaporPanel({
               ))}
             </div>
           )}
+          {/* Refine is conversational - just text, user keeps typing */}
         </div>
       )}
       
