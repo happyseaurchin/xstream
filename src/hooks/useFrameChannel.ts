@@ -13,6 +13,15 @@ export interface PresenceUser {
   lastSeen: string
 }
 
+// Vapor content from other users (live typing)
+export interface VaporContent {
+  userId: string
+  userName: string
+  face: Face
+  text: string
+  timestamp: number
+}
+
 export interface UseFrameChannelOptions {
   frameId: string | null
   userId: string
@@ -25,15 +34,18 @@ export interface UseFrameChannelReturn {
   presentUsers: PresenceUser[]
   isConnected: boolean
   
+  // Live vapor from others
+  othersVapor: VaporContent[]
+  
   // Actions
-  broadcastTyping: (isTyping: boolean) => void
+  broadcastVapor: (text: string) => void
   
   // Error state
   error: string | null
 }
 
-// Throttle typing broadcasts
-const TYPING_THROTTLE_MS = 1000
+// Throttle vapor broadcasts to ~50ms for character-by-character feel
+const VAPOR_THROTTLE_MS = 50
 
 export function useFrameChannel({
   frameId,
@@ -44,9 +56,10 @@ export function useFrameChannel({
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [othersVapor, setOthersVapor] = useState<VaporContent[]>([])
   
   const channelRef = useRef<RealtimeChannel | null>(null)
-  const lastTypingBroadcast = useRef<number>(0)
+  const lastVaporBroadcast = useRef<number>(0)
 
   // Subscribe to frame channel when frameId changes
   useEffect(() => {
@@ -56,6 +69,7 @@ export function useFrameChannel({
       supabase?.removeChannel(channelRef.current)
       channelRef.current = null
       setPresentUsers([])
+      setOthersVapor([])
       setIsConnected(false)
     }
 
@@ -105,9 +119,41 @@ export function useFrameChannel({
       console.log('[Presence] Join:', key, newPresences)
     })
 
-    // Handle user leave
+    // Handle user leave - clear their vapor
     channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
       console.log('[Presence] Leave:', key, leftPresences)
+      const leftUserId = (leftPresences[0] as any)?.user_id
+      if (leftUserId) {
+        setOthersVapor(prev => prev.filter(v => v.userId !== leftUserId))
+      }
+    })
+
+    // Handle vapor broadcasts from others
+    channel.on('broadcast', { event: 'vapor' }, ({ payload }) => {
+      if (payload.user_id === userId) return // Ignore own broadcasts
+      
+      console.log('[Vapor] Received:', payload.user_name, payload.text?.slice(0, 20))
+      
+      setOthersVapor(prev => {
+        // Update or add vapor for this user
+        const existing = prev.findIndex(v => v.userId === payload.user_id)
+        const newVapor: VaporContent = {
+          userId: payload.user_id,
+          userName: payload.user_name,
+          face: payload.face,
+          text: payload.text || '',
+          timestamp: Date.now(),
+        }
+        
+        if (existing >= 0) {
+          const updated = [...prev]
+          updated[existing] = newVapor
+          return updated
+        } else if (payload.text) {
+          return [...prev, newVapor]
+        }
+        return prev
+      })
     })
 
     // Subscribe and track our presence
@@ -163,17 +209,19 @@ export function useFrameChannel({
     })
   }, [face, isConnected, userId, userName])
 
-  // Broadcast typing state (throttled)
-  const broadcastTyping = useCallback((isTyping: boolean) => {
+  // Broadcast vapor text (throttled for character-by-character)
+  const broadcastVapor = useCallback((text: string) => {
     if (!channelRef.current || !isConnected) return
     
     const now = Date.now()
-    if (isTyping && now - lastTypingBroadcast.current < TYPING_THROTTLE_MS) {
-      return // Throttle typing=true broadcasts
+    if (now - lastVaporBroadcast.current < VAPOR_THROTTLE_MS) {
+      return // Throttle
     }
     
-    lastTypingBroadcast.current = now
+    lastVaporBroadcast.current = now
     
+    // Update presence typing state
+    const isTyping = text.length > 0
     channelRef.current.track({
       user_id: userId,
       user_name: userName,
@@ -181,12 +229,35 @@ export function useFrameChannel({
       is_typing: isTyping,
       online_at: new Date().toISOString(),
     })
+    
+    // Broadcast actual vapor content
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'vapor',
+      payload: {
+        user_id: userId,
+        user_name: userName,
+        face: face,
+        text: text,
+      },
+    })
   }, [isConnected, userId, userName, face])
+
+  // Clean up stale vapor (older than 5 seconds with no updates)
+  useEffect(() => {
+    const cleanup = setInterval(() => {
+      const cutoff = Date.now() - 5000
+      setOthersVapor(prev => prev.filter(v => v.timestamp > cutoff || v.text.length > 0))
+    }, 2000)
+    
+    return () => clearInterval(cleanup)
+  }, [])
 
   return {
     presentUsers,
     isConnected,
-    broadcastTyping,
+    othersVapor,
+    broadcastVapor,
     error,
   }
 }
