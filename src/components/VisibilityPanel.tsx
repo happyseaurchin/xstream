@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { VisibilitySettings } from '../types'
 
 interface VisibilityPanelProps {
@@ -90,6 +91,3 @@ export function VisibilityPanel({
     </div>
   )
 }
-
-// Need to import useState
-import { useState } from 'react'
