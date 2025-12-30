@@ -227,9 +227,7 @@ function App() {
   const {
     liquidEntries: dbLiquidEntries,
     upsertLiquid,
-    markCommitted,
     deleteLiquid,
-    error: liquidError,
   } = useLiquidSubscription({
     frameId,
     userId,

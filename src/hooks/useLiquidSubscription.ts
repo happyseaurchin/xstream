@@ -73,7 +73,7 @@ export function useLiquidSubscription({
     const loadLiquid = async () => {
       setIsLoading(true)
       try {
-        const { data, error: err } = await supabase
+        const { data, error: err } = await supabase!
           .from('liquid')
           .select('*')
           .eq('frame_id', frameId)
@@ -138,7 +138,7 @@ export function useLiquidSubscription({
 
     return () => {
       console.log('[Liquid] Unsubscribing')
-      supabase.removeChannel(channel)
+      supabase!.removeChannel(channel)
     }
   }, [frameId])
 
