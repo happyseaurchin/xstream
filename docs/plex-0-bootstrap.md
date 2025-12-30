@@ -110,6 +110,38 @@ In Plex 0, David is all three. In conversations, he may shift between faces.
 
 ---
 
+## State/Person Mapping
+
+Text states map to grammatical person and LLM coordination tiers:
+
+| State | Pscale | Person | Nature |
+|-------|--------|--------|--------|
+| **Vapor** | 1.0 | 1st | Raw thought, unsubmitted |
+| **Soft-LLM** | 1.5 | 1st→2nd | Dialogic refinement, I-you with soft-LLM |
+| **Liquid** | 2.0 | 2nd | Relational submission, witnessed by others |
+| **Medium-LLM** | 2.5 | 2nd→3rd | Coordination of multiple submissions |
+| **Solid** | 3.0 | 3rd | Fixed record - the actual content |
+| **Hard-LLM** | 3.5 | 3rd | Navigation/orchestration of solid content |
+
+### LLM Action Pattern
+
+Each LLM tier **acts forward** (outputs to next state) but can **respond in its own tier** (to halt or question progression):
+
+- **Soft-LLM**: Shows thinking in vapor (1.0), outputs refined submission to liquid (2.0)
+- **Medium-LLM**: Shows response in liquid (2.0) if issues, outputs committed content to solid (3.0)
+- **Hard-LLM**: Shows response in solid (3.0) if errors, outputs orchestration to database
+
+This enables governance: any LLM can intervene at its tier to prevent progression.
+
+### User Bypass Options
+
+Users can bypass LLM tiers with direct syntax:
+- `{braces}` — Direct to liquid, bypasses Soft-LLM
+- `(parentheses)` — Direct to solid, bypasses Medium-LLM
+- `(?)` — Routes through Soft-LLM for refinement before liquid
+
+---
+
 ## Designer Scope (Phase 0.5+)
 
 Designers can control through skills:
