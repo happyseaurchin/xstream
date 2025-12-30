@@ -88,7 +88,8 @@ function App() {
 
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
-  const liquidEntries = entries.filter(e => e.face === face)
+  // Only show submitted entries in liquid panel (not committed)
+  const liquidEntries = entries.filter(e => e.face === face && e.state === 'submitted')
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && e.face === face)
   const othersLiquid = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
   const directoryEntries = entries.filter(e => {
@@ -102,6 +103,15 @@ function App() {
     console.log('[App] focusVaporInput called')
     setVaporFocused(true)
     inputAreaRef.current?.focus()
+  }, [])
+
+  // Helper: Replace submitted entries for a face with a new one
+  const replaceSubmittedEntry = useCallback((newEntry: ShelfEntry, targetFace: Face) => {
+    setEntries(prev => {
+      // Remove existing submitted entries for this face, add new one
+      const filtered = prev.filter(e => !(e.face === targetFace && e.state === 'submitted'))
+      return [...filtered, newEntry]
+    })
   }, [])
 
   // Effects
@@ -189,13 +199,29 @@ function App() {
 
   // Handlers
   const handleShelfEntryClick = (entry: ShelfEntry) => {
-    setEntries(prev => [...prev, { id: crypto.randomUUID(), text: entry.text, face: entry.face, frameId, state: 'submitted', timestamp: new Date().toISOString() }])
+    const newEntry: ShelfEntry = { 
+      id: crypto.randomUUID(), 
+      text: entry.text, 
+      face: entry.face, 
+      frameId, 
+      state: 'submitted', 
+      timestamp: new Date().toISOString() 
+    }
+    replaceSubmittedEntry(newEntry, entry.face)
     setSolidView('log')
   }
 
   const handleSkillClick = (skill: FrameSkill) => {
     const document = `SKILL_CREATE\nname: ${skill.name}\ncategory: ${skill.category}\napplies_to: ${skill.applies_to.join(', ')}\ncontent: |\n${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
-    setEntries(prev => [...prev, { id: crypto.randomUUID(), text: document, face: 'designer', frameId, state: 'submitted', timestamp: new Date().toISOString() }])
+    const newEntry: ShelfEntry = { 
+      id: crypto.randomUUID(), 
+      text: document, 
+      face: 'designer', 
+      frameId, 
+      state: 'submitted', 
+      timestamp: new Date().toISOString() 
+    }
+    replaceSubmittedEntry(newEntry, 'designer')
     setSolidView('log')
   }
 
@@ -240,10 +266,20 @@ function App() {
       const softType: SoftType = data.soft_type || 'refine'
       
       if (softType === 'artifact' && data.document) {
-        // Push directly to liquid - no user interaction needed
+        // Push directly to liquid - REPLACE any existing submitted entry
         const artifact = parseArtifactFromText(data.document, currentFace)
-        setEntries(prev => [...prev, { id: crypto.randomUUID(), text: data.document, face: currentFace, frameId: currentFrameId, state: 'submitted', timestamp: new Date().toISOString(), artifactName: artifact?.name, artifactType: artifact?.type }])
-        // Show brief confirmation in vapor (auto-dismiss after showing)
+        const newEntry: ShelfEntry = { 
+          id: crypto.randomUUID(), 
+          text: data.document, 
+          face: currentFace, 
+          frameId: currentFrameId, 
+          state: 'submitted', 
+          timestamp: new Date().toISOString(), 
+          artifactName: artifact?.name, 
+          artifactType: artifact?.type 
+        }
+        replaceSubmittedEntry(newEntry, currentFace)
+        // Show brief confirmation in vapor
         setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'artifact', face: currentFace, frameId: currentFrameId })
       } else {
         // clarify = options, refine = conversational response
@@ -266,7 +302,17 @@ function App() {
   const handleSubmitDirect = (text: string) => {
     if (!text.trim()) return
     const artifact = parseArtifactFromText(text, face)
-    setEntries(prev => [...prev, { id: crypto.randomUUID(), text: text.trim(), face, frameId, state: 'submitted', timestamp: new Date().toISOString(), artifactName: artifact?.name, artifactType: artifact?.type }])
+    const newEntry: ShelfEntry = { 
+      id: crypto.randomUUID(), 
+      text: text.trim(), 
+      face, 
+      frameId, 
+      state: 'submitted', 
+      timestamp: new Date().toISOString(), 
+      artifactName: artifact?.name, 
+      artifactType: artifact?.type 
+    }
+    replaceSubmittedEntry(newEntry, face)
     setInput('')
     if (frameId && visibility.shareLiquid) upsertLiquid({ userName, face, content: text.trim() })
   }
@@ -283,7 +329,11 @@ function App() {
     const artifact = parseArtifactFromText(text, face)
     const entry: ShelfEntry = { id: crypto.randomUUID(), text: text.trim(), face, frameId, state: 'committed', timestamp: new Date().toISOString(), artifactName: artifact?.name, artifactType: artifact?.type }
     setInput('')
-    setEntries(prev => [...prev, entry])
+    // Remove any submitted entries for this face, add committed entry
+    setEntries(prev => {
+      const filtered = prev.filter(e => !(e.face === face && e.state === 'submitted'))
+      return [...filtered, entry]
+    })
     if (frameId) deleteLiquid()
     await generateResponse(entry)
   }
