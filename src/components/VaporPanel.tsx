@@ -57,7 +57,7 @@ export function VaporPanel({
       {showSelf && (
         <div className={`vapor-entry self ${face}`}>
           <span className="vapor-user">I ({userName}):</span>
-          <span className="vapor-text">{input || (isFocused ? '|' : '')}</span>
+          <span className="vapor-text">{input}<span className="cursor">{isFocused ? '|' : ''}</span></span>
         </div>
       )}
       

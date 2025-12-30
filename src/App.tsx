@@ -10,6 +10,7 @@ import {
   LiquidPanel,
   SolidPanel,
 } from './components'
+import type { InputAreaHandle } from './components/InputArea'
 import type {
   Face,
   TextState,
@@ -68,6 +69,7 @@ function App() {
   })
 
   const debounceTimerRef = useRef<number | null>(null)
+  const inputAreaRef = useRef<InputAreaHandle>(null)
 
   // Hooks
   const { 
@@ -95,6 +97,13 @@ function App() {
   })
   const hasVaporOrLiquid = !!(input.trim() || softResponse || liquidEntries.length > 0)
 
+  // Focus vapor input
+  const focusVaporInput = useCallback(() => {
+    console.log('[App] focusVaporInput called')
+    setVaporFocused(true)
+    inputAreaRef.current?.focus()
+  }, [])
+
   // Effects
   useEffect(() => {
     if (visibility.shareVapor) {
@@ -111,6 +120,18 @@ function App() {
   useEffect(() => {
     if (solidView === 'dir' && face === 'designer') loadFrameSkills()
   }, [solidView, frameId, face])
+
+  // Re-focus on visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && vaporFocused) {
+        console.log('[App] Tab visible, refocusing vapor input')
+        setTimeout(() => inputAreaRef.current?.focus(), 100)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [vaporFocused])
 
   // API calls
   const loadFrameSkills = async () => {
@@ -366,7 +387,7 @@ function App() {
             userName={userName}
             face={face}
             isFocused={vaporFocused}
-            onFocus={() => setVaporFocused(true)}
+            onFocus={focusVaporInput}
             othersVapor={othersVapor}
             softResponse={softResponse}
             onVaporClick={handleVaporClick}
@@ -377,14 +398,13 @@ function App() {
       </main>
 
       <InputArea
+        ref={inputAreaRef}
         input={input}
         onInputChange={setInput}
         face={face}
         isLoading={isLoading}
         isQuerying={isQuerying}
         hasVaporOrLiquid={hasVaporOrLiquid}
-        vaporFocused={vaporFocused}
-        onVaporFocus={() => setVaporFocused(true)}
         onQuery={handleQuery}
         onSubmit={handleSubmit}
         onCommit={handleCommit}
