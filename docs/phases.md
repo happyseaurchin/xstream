@@ -18,9 +18,9 @@ Each phase must be **complete and testable** before proceeding.
 | 0.5 | ✅ COMPLETE | Designer Creates Skills |
 | 0.6 | ✅ COMPLETE | Multi-User Presence |
 | 0.6.5 | ✅ COMPLETE | Live Multi-User Text States |
-| 0.7 | 🔄 NEXT | Management & Tidy |
-| 0.8 | ⏳ PLANNED | User Registration |
-| 0.9 | ⏳ PLANNED | Integration Testing |
+| 0.7 | 🔄 NEXT | Core Gameplay: Cross-Player Synthesis |
+| 0.8 | ⏳ PLANNED | Hard-LLM & World Context |
+| 0.9 | ⏳ PLANNED | Management, Auth & Polish |
 | 1.0 | ⏳ PLANNED | Kernel Complete |
 
 ---
@@ -146,6 +146,7 @@ Full text state sharing between users.
 - Face-colored indicators for vapor and liquid
 - Visibility controls (shareVapor, shareLiquid, showVapor, showLiquid, showSolid)
 - Codebase refactored: App.tsx 38KB → 15KB with extracted components
+- UX refinements: immediate refocus, decisive Soft-LLM, liquid replacement not stacking
 
 **Architecture (post-refactor):**
 ```
@@ -172,42 +173,73 @@ src/
 
 ---
 
-## Phase 0.7: Management & Tidy 🔄
+## Phase 0.7: Core Gameplay — Cross-Player Synthesis 🔄
 
-Management UI and polish.
+**The heart of Xstream: Medium-LLM synthesizes all players into coherent narrative.**
+
+This is where individual inputs become shared story.
 
 **Will deliver:**
-- Skill visibility in player/author modes
-- Package browsing/management
-- Frame creation/management
-- Platform/frame-level content (characters, world elements)
-- UX polish from testing
+
+### Medium-LLM Cross-Player Synthesis
+- Medium-LLM receives ALL committed content in frame (not just single user)
+- Synthesizes multiple player actions into coherent narrative
+- Outputs to solid (settled reality for all)
+- Can comment in liquid if conflicts ("both players reached for the sword...")
+
+### Author Content → Player Context
+- Author-created content (locations, NPCs, items) feeds into player generation
+- When player is in "The Rusty Anchor", Medium-LLM knows about Birdie
+- Content scoped by frame and proximity
+
+### Frame-Scoped Content
+- Content table stores author creations per frame
+- Player generation queries relevant content
+- Directory view shows frame's world elements
+
+### Timing Foundation
+- Medium-LLM waits for reasonable action accumulation
+- Timing conditions from Soft-LLM (immediate/reactive/coordinated)
+- Independent per-character synthesis (not centralized)
+
+**Test (The Pub Test):**
+1. Author creates pub + barkeep in test-frame
+2. Two players enter, both commit actions
+3. Medium-LLM synthesizes both actions + author content into one narrative
+4. Both players see coherent combined result in solid
 
 **Scope:** See `docs/phase-0.7-scope.md`
 
 ---
 
-## Phase 0.8: User Registration ⏳
+## Phase 0.8: Hard-LLM & World Context ⏳
 
-Proper authentication.
+Background world coherence.
 
 **Will deliver:**
-- Supabase Auth integration
-- User profiles
-- Session management
-- Permission model for frames/packages
+- Hard-LLM runs as background process
+- Compiles world state from author content
+- Defines aperture (what's in scope for this moment)
+- Procedurally generates missing content (author-llm)
+- Feeds context to Medium-LLM
+- Proximity management (who can perceive what)
+
+**Test:** Player enters unnamed room → Hard-LLM generates description from nearby content patterns.
 
 ---
 
-## Phase 0.9: Integration Testing ⏳
+## Phase 0.9: Management, Auth & Polish ⏳
 
-Skills-based content generation and kernel validation.
+Production readiness.
 
 **Will deliver:**
-- Character sheet generation (skills-based)
-- Chat history display (skills-based)
-- World content templates
-- End-to-end testing of kernel capabilities
+- Supabase Auth integration
+- User profiles and sessions
+- Permission model for frames/packages
+- Frame creation/management UI
+- Package browsing/management UI
+- Skill visibility in player/author modes
+- UX polish, error handling, mobile
 
 ---
 

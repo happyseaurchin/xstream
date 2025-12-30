@@ -4,6 +4,25 @@
 
 ---
 
+## The Objective: The Pub Test
+
+Success = three users spend one hour in synchronized imagination:
+
+1. **Author** creates "The Rusty Anchor" pub + "Birdie" the barkeep
+2. **Players** enter, act, interact — Medium-LLM synthesizes their actions into coherent narrative
+3. **Designer** tweaks skills live ("make dialogue snappier") — changes take effect immediately
+
+**End result:**
+- Players had fun (emergent story they couldn't have written alone)
+- Author content persists (reusable world package)
+- Skills improved (reusable skill package)
+
+**If this works, scale to millions.**
+
+This is the Mos Eisley Test made concrete. Everything we build serves this test.
+
+---
+
 ## What This Is
 
 Plex 0 is the bootstrap phase where we (David + Claude) create the conditions for Xstream to exist. We're using:
@@ -34,6 +53,62 @@ All changes are EXCLUSIVELY limited to:
 **VERIFICATION PATTERN:**
 Before any write operation, state:
 "✓ Target: [resource name] → Verified as xstream scope"
+
+---
+
+## The Coordination Architecture
+
+Three LLM tiers, each with distinct purpose:
+
+```
+HARD-LLM (background, slow, 10-30s async)
+├── Compiles world state from author content
+├── Defines aperture (what's in scope for this moment)
+├── Procedurally generates missing content
+└── Feeds context to Medium-LLM
+
+MEDIUM-LLM (on commit, medium speed, 2-5s)
+├── Receives ALL player intentions in frame
+├── Synthesizes into coherent narrative
+├── Respects world constraints from Hard-LLM
+├── Outputs to solid (settled reality)
+└── Comments in liquid if conflicts/issues
+
+SOFT-LLM (on query, fast, <1s)
+├── Helps individual user refine intention
+├── Operates within aperture
+└── Prepares content for liquid
+```
+
+**Key principle:** Each LLM acts forward (outputs to next state) but can respond in its own tier to halt or question progression.
+
+---
+
+## The Three Outputs
+
+One session produces three kinds of reusable output:
+
+| Face | Creates | Persists As |
+|------|---------|-------------|
+| **Player** | Emergent narrative through action | Story/logs (entertainment) |
+| **Author** | World content (locations, NPCs, items, lore) | Reusable world packages |
+| **Designer** | Refined skills (format, constraints, routing) | Reusable skill packages |
+
+Players have fun. Authors build worlds. Designers improve the system. All simultaneously.
+
+---
+
+## The Three Faces
+
+Every user of Xstream wears one of three faces:
+
+| Face | Operates ON | Output Becomes |
+|------|-------------|----------------|
+| **Player** | Character intentions | Narrative (affects other players) |
+| **Author** | World content | Context for players |
+| **Designer** | Skills/rules | Compilation rules for all levels |
+
+In Plex 0, David is all three. In conversations, he may shift between faces.
 
 ---
 
@@ -74,20 +149,6 @@ When starting a new chat thread:
 3. `docs/plex-0-bootstrap.md` — This file (workflow notes)
 4. `src/App.tsx` — Current UI implementation
 5. `supabase/functions/generate-v2/index.ts` — Edge function
-
----
-
-## The Three Faces
-
-Every user of Xstream wears one of three faces:
-
-| Face | Operates ON | Output Becomes |
-|------|-------------|----------------|
-| **Player** | Character intentions | Narrative (affects other players) |
-| **Author** | World content | Context for players |
-| **Designer** | Skills/rules | Compilation rules for all levels |
-
-In Plex 0, David is all three. In conversations, he may shift between faces.
 
 ---
 
