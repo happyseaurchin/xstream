@@ -526,34 +526,55 @@
 .vapor-area {
   background: var(--color-bg-tertiary);
   min-height: 80px;
+  cursor: text;
+  transition: box-shadow 0.15s ease;
 }
 
-.vapor-indicator {
+.vapor-area.focused {
+  box-shadow: inset 0 0 0 2px var(--color-vapor, #a78bfa);
+}
+
+/* Vapor entries - both self and others */
+.vapor-entry {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
-  padding: 0.3rem 0;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.4rem;
+  border-radius: 4px;
+  background: var(--color-bg-secondary);
+  border-left: 2px solid var(--color-text-muted);
 }
 
-.vapor-indicator.self {
-  opacity: 0.7;
+.vapor-entry.self {
+  background: var(--color-bg);
 }
 
-.typing-dot {
-  color: var(--color-vapor, #a78bfa);
-  animation: pulse 1s infinite;
+.vapor-entry.player {
+  border-left-color: var(--color-liquid, #fbbf24);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.vapor-entry.author {
+  border-left-color: var(--color-vapor, #a78bfa);
 }
 
-.vapor-preview {
-  font-style: italic;
+.vapor-entry.designer {
+  border-left-color: var(--color-accent);
+}
+
+.vapor-user {
+  font-weight: 500;
   color: var(--color-text-muted);
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.vapor-text {
+  font-family: inherit;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Soft-LLM Response (in vapor) */
@@ -720,7 +741,7 @@
   opacity: 0.8;
 }
 
-/* Input area */
+/* Input area - now just buttons, textarea hidden */
 .input-area {
   display: flex;
   gap: 0.5rem;
@@ -728,52 +749,20 @@
   background: var(--color-bg-secondary);
   border-radius: 0 0 8px 8px;
   border-top: 1px solid var(--color-border);
-  align-items: flex-start;
+  justify-content: flex-end;
 }
 
-/* Face selector in input area */
-.input-area .face-selector {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  padding: 0.5rem 0.6rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  min-width: 80px;
-}
-
-.input-area .face-selector:focus {
-  outline: none;
-  border-color: var(--color-accent);
-}
-
-.input-area textarea {
-  flex: 1;
-  padding: 0.75rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  color: var(--color-text);
-  min-height: 60px;
-  font-family: inherit;
-  resize: vertical;
-  font-size: 0.9rem;
-}
-
-.input-area textarea:focus {
-  outline: none;
-  border-color: var(--color-accent);
-}
-
-.input-area textarea::placeholder {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
+/* Hidden textarea - captures keystrokes but not visible */
+.input-area .hidden-input {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
 }
 
 .buttons {
   display: flex;
-  flex-direction: column;
   gap: 0.5rem;
 }
 
@@ -848,6 +837,11 @@
 .connection-status.disconnected {
   color: var(--color-text-muted);
   animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .presence-count {
@@ -963,22 +957,6 @@
   background: var(--color-bg);
 }
 
-/* Other users' vapor indicators */
-.vapor-indicator.other {
-  background: var(--color-bg-secondary);
-  padding: 0.4rem 0.6rem;
-  border-radius: 4px;
-  margin-bottom: 0.4rem;
-}
-
-.vapor-indicator.other .vapor-preview {
-  color: var(--color-text-secondary);
-}
-
-/* ================================================
-   Phase 0.6.5: Multi-User Live Text States
-   ================================================ */
-
 /* Others' liquid entries */
 .liquid-entry.other-liquid {
   background: rgba(100, 100, 100, 0.1);
@@ -1005,40 +983,4 @@
   background: rgba(100, 100, 100, 0.3);
   border-radius: 3px;
   color: var(--color-text-muted);
-}
-
-/* Others' vapor - live text with face colors */
-.vapor-indicator.other.player {
-  border-left: 2px solid var(--color-liquid, #fbbf24);
-}
-
-.vapor-indicator.other.author {
-  border-left: 2px solid var(--color-vapor, #a78bfa);
-}
-
-.vapor-indicator.other.designer {
-  border-left: 2px solid var(--color-accent);
-}
-
-.vapor-user {
-  font-weight: 500;
-  color: var(--color-text-muted);
-  margin-right: 0.5rem;
-}
-
-.vapor-live-text {
-  font-family: inherit;
-  color: var(--color-text-secondary);
-  font-style: italic;
-}
-
-/* Blinking cursor effect for live vapor */
-.vapor-live-text::after {
-  content: '▎';
-  animation: blink 1s step-end infinite;
-  color: var(--color-text-muted);
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
 }

@@ -1,4 +1,4 @@
-import type { SoftLLMResponse } from '../types'
+import type { Face, SoftLLMResponse } from '../types'
 
 export interface OtherVapor {
   userId: string
@@ -8,7 +8,15 @@ export interface OtherVapor {
 }
 
 interface VaporPanelProps {
+  // Self's vapor
+  input: string
+  userName: string
+  face: Face
+  isFocused: boolean
+  onFocus: () => void
+  // Others' vapor
   othersVapor: OtherVapor[]
+  // Soft-LLM
   softResponse: SoftLLMResponse | null
   onVaporClick: () => void
   onDismissSoftResponse: () => void
@@ -16,33 +24,52 @@ interface VaporPanelProps {
 }
 
 export function VaporPanel({
+  input,
+  userName,
+  face,
+  isFocused,
+  onFocus,
   othersVapor,
   softResponse,
   onVaporClick,
   onDismissSoftResponse,
   onSelectOption,
 }: VaporPanelProps) {
-  // Only show others' vapor when they have actual text
-  const activeVapor = othersVapor.filter(v => v.text.length > 0)
+  // Others with actual text
+  const activeOthers = othersVapor.filter(v => v.text.length > 0)
+  
+  // Show self if has input OR is focused (so user knows where they're typing)
+  const showSelf = input.length > 0 || isFocused
 
-  const isEmpty = activeVapor.length === 0 && !softResponse
+  const isEmpty = !showSelf && activeOthers.length === 0 && !softResponse
 
   return (
-    <section className="vapor-area">
+    <section 
+      className={`vapor-area ${isFocused ? 'focused' : ''}`}
+      onClick={onFocus}
+    >
       <div className="area-header">
         <span className="area-label">~ Vapor</span>
         <span className="area-hint">Live + Soft-LLM</span>
       </div>
       
-      {/* Others' vapor - live character-by-character text */}
-      {activeVapor.map(vapor => (
-        <div key={vapor.userId} className={`vapor-indicator other ${vapor.face}`}>
-          <span className="typing-dot">*</span>
+      {/* Self's vapor - always first */}
+      {showSelf && (
+        <div className={`vapor-entry self ${face}`}>
+          <span className="vapor-user">I ({userName}):</span>
+          <span className="vapor-text">{input || (isFocused ? '|' : '')}</span>
+        </div>
+      )}
+      
+      {/* Others' vapor */}
+      {activeOthers.map(vapor => (
+        <div key={vapor.userId} className={`vapor-entry other ${vapor.face}`}>
           <span className="vapor-user">{vapor.userName}:</span>
-          <span className="vapor-live-text">{vapor.text}<span className="blinking-cursor">|</span></span>
+          <span className="vapor-text">{vapor.text}</span>
         </div>
       ))}
       
+      {/* Soft-LLM response */}
       {softResponse && (
         <div className={`soft-response ${softResponse.softType}`}>
           <div className="soft-response-header">
@@ -53,14 +80,14 @@ export function VaporPanel({
             </span>
             <button 
               className="soft-action-btn dismiss" 
-              onClick={onDismissSoftResponse}
+              onClick={(e) => { e.stopPropagation(); onDismissSoftResponse(); }}
             >
               x
             </button>
           </div>
           <div 
             className={`soft-response-text ${softResponse.softType !== 'artifact' ? 'clickable' : ''}`}
-            onClick={onVaporClick}
+            onClick={(e) => { e.stopPropagation(); onVaporClick(); }}
             title={softResponse.softType !== 'artifact' ? 'Click to use as input' : undefined}
           >
             {softResponse.text}
@@ -71,7 +98,7 @@ export function VaporPanel({
                 <button 
                   key={i} 
                   className="soft-option-btn" 
-                  onClick={() => onSelectOption(opt)}
+                  onClick={(e) => { e.stopPropagation(); onSelectOption(opt); }}
                 >
                   {String.fromCharCode(97 + i)}) {opt}
                 </button>
@@ -83,7 +110,7 @@ export function VaporPanel({
       
       {isEmpty && (
         <div className="empty-hint">
-          Use [?] to query Soft-LLM, or type {'{braces}'} for direct submit
+          Click here to type. Use [?] for Soft-LLM, {'{braces}'} for direct submit.
         </div>
       )}
     </section>

@@ -57,6 +57,7 @@ function App() {
   const [solidView, setSolidView] = useState<SolidView>('log')
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
+  const [vaporFocused, setVaporFocused] = useState(false)
   
   const [visibility, setVisibility] = useState<VisibilitySettings>({
     shareVapor: true,
@@ -99,7 +100,7 @@ function App() {
     if (visibility.shareVapor) {
       broadcastVapor(input)
     } else {
-      broadcastVapor('')  // Clear vapor for others when not sharing
+      broadcastVapor('')
     }
   }, [input, broadcastVapor, visibility.shareVapor])
 
@@ -178,6 +179,7 @@ function App() {
   }
 
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
+    setVaporFocused(false)  // Editing liquid removes vapor focus
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, text: newText, isEditing: true } : e))
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = window.setTimeout(() => {
@@ -282,7 +284,7 @@ function App() {
     setEntries(prev => prev.filter(e => e.face !== face || e.state === 'committed'))
     if (frameId) {
       deleteLiquid()
-      broadcastVapor('')  // Clear vapor for others
+      broadcastVapor('')
     }
   }
 
@@ -360,6 +362,11 @@ function App() {
 
         {visibility.showVapor && (
           <VaporPanel
+            input={input}
+            userName={userName}
+            face={face}
+            isFocused={vaporFocused}
+            onFocus={() => setVaporFocused(true)}
             othersVapor={othersVapor}
             softResponse={softResponse}
             onVaporClick={handleVaporClick}
@@ -376,6 +383,8 @@ function App() {
         isLoading={isLoading}
         isQuerying={isQuerying}
         hasVaporOrLiquid={hasVaporOrLiquid}
+        vaporFocused={vaporFocused}
+        onVaporFocus={() => setVaporFocused(true)}
         onQuery={handleQuery}
         onSubmit={handleSubmit}
         onCommit={handleCommit}
