@@ -132,7 +132,7 @@ export function useFrameChannel({
     channel.on('broadcast', { event: 'vapor' }, ({ payload }) => {
       if (payload.user_id === userId) return // Ignore own broadcasts
       
-      console.log('[Vapor] Received:', payload.user_name, payload.text?.slice(0, 20))
+      console.log('[Vapor] Received:', payload.user_name, `"${payload.text}"`)
       
       setOthersVapor(prev => {
         // Update or add vapor for this user
@@ -146,10 +146,12 @@ export function useFrameChannel({
         }
         
         if (existing >= 0) {
+          // Update existing vapor entry
           const updated = [...prev]
           updated[existing] = newVapor
           return updated
         } else if (payload.text) {
+          // Only add new entry if there's text
           return [...prev, newVapor]
         }
         return prev
@@ -220,17 +222,7 @@ export function useFrameChannel({
     
     lastVaporBroadcast.current = now
     
-    // Update presence typing state
-    const isTyping = text.length > 0
-    channelRef.current.track({
-      user_id: userId,
-      user_name: userName,
-      face: face,
-      is_typing: isTyping,
-      online_at: new Date().toISOString(),
-    })
-    
-    // Broadcast actual vapor content
+    // Broadcast vapor content (don't update presence on every keystroke)
     channelRef.current.send({
       type: 'broadcast',
       event: 'vapor',
@@ -243,15 +235,9 @@ export function useFrameChannel({
     })
   }, [isConnected, userId, userName, face])
 
-  // Clean up stale vapor (older than 5 seconds with no updates)
-  useEffect(() => {
-    const cleanup = setInterval(() => {
-      const cutoff = Date.now() - 5000
-      setOthersVapor(prev => prev.filter(v => v.timestamp > cutoff || v.text.length > 0))
-    }, 2000)
-    
-    return () => clearInterval(cleanup)
-  }, [])
+  // Note: No cleanup interval - vapor stays until:
+  // 1. User sends empty vapor (clear/submit)
+  // 2. User disconnects (presence leave event)
 
   return {
     presentUsers,
