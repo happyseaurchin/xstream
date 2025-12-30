@@ -88,10 +88,29 @@ function App() {
 
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
-  // Only show submitted entries in liquid panel (not committed)
-  const liquidEntries = entries.filter(e => e.face === face && e.state === 'submitted')
+  
+  // LIQUID: Show the most recent entry for this face (keeps prompt visible after commit)
+  // Only exclude entries that are committed WITH response AND have a newer entry after them
+  const myLiquidEntry = entries
+    .filter(e => e.face === face)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+  const liquidEntries = myLiquidEntry ? [myLiquidEntry] : []
+  
+  // SOLID: Show all committed entries with responses (the history/log)
   const solidEntries = entries.filter(e => e.state === 'committed' && e.response && e.face === face)
-  const othersLiquid = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
+  
+  // OTHERS' LIQUID: One entry per other user (deduplicated, most recent per user)
+  const othersLiquidRaw = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
+  const othersLiquid = Object.values(
+    othersLiquidRaw.reduce((acc, entry) => {
+      const existing = acc[entry.userId]
+      if (!existing || new Date(entry.updatedAt) > new Date(existing.updatedAt)) {
+        acc[entry.userId] = entry
+      }
+      return acc
+    }, {} as Record<string, typeof othersLiquidRaw[0]>)
+  )
+  
   const directoryEntries = entries.filter(e => {
     if (e.state !== 'committed' || e.face !== face || face === 'designer') return false
     return parseArtifactFromText(e.text, face) !== null
@@ -105,11 +124,25 @@ function App() {
     inputAreaRef.current?.focus()
   }, [])
 
-  // Helper: Replace submitted entries for a face with a new one
-  const replaceSubmittedEntry = useCallback((newEntry: ShelfEntry, targetFace: Face) => {
+  // Helper: Replace the current active entry for a face
+  // Keeps history (committed with response), replaces the current "slot"
+  const replaceActiveEntry = useCallback((newEntry: ShelfEntry, targetFace: Face) => {
     setEntries(prev => {
-      // Remove existing submitted entries for this face, add new one
-      const filtered = prev.filter(e => !(e.face === targetFace && e.state === 'submitted'))
+      // Find the current active entry (most recent for this face)
+      const sorted = [...prev]
+        .filter(e => e.face === targetFace)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      const activeEntry = sorted[0]
+      
+      // Keep: entries from other faces, AND committed entries with response (history)
+      // Remove: the current active entry (if it exists and isn't already history)
+      const filtered = prev.filter(e => {
+        if (e.face !== targetFace) return true // Keep other faces
+        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true // Keep old history
+        if (e.id === activeEntry?.id && e.state === 'committed' && e.response) return true // Keep if active IS history
+        if (e.id === activeEntry?.id) return false // Remove active entry (being replaced)
+        return true // Keep anything else
+      })
       return [...filtered, newEntry]
     })
   }, [])
@@ -167,7 +200,7 @@ function App() {
     try {
       if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
         const response = `[Supabase not configured]\n\nYour input (${entry.face}): ${entry.text}`
-        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, state: 'committed' as TextState, response } : e))
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, response } : e))
         return
       }
 
@@ -183,14 +216,15 @@ function App() {
       const createdSkill = data.created_skill || null
       if (createdSkill && solidView === 'dir') loadFrameSkills()
 
+      // Add response to entry - entry stays in liquid (shows prompt), also shows in solid (shows response)
       setEntries(prev => prev.map(e => 
-        e.id === entry.id ? { ...e, state: 'committed' as TextState, response: data.text, skillsUsed: data.metadata?.skills_used || [], createdSkill } : e
+        e.id === entry.id ? { ...e, response: data.text, skillsUsed: data.metadata?.skills_used || [], createdSkill } : e
       ))
     } catch (error) {
       console.error('Generation error:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
       setEntries(prev => prev.map(e => 
-        e.id === entry.id ? { ...e, state: 'committed' as TextState, error: errorMsg, response: `[Error: ${errorMsg}]` } : e
+        e.id === entry.id ? { ...e, error: errorMsg, response: `[Error: ${errorMsg}]` } : e
       ))
     } finally {
       setIsLoading(false)
@@ -215,7 +249,7 @@ function App() {
     const softType: SoftType = data.soft_type || 'refine'
     
     if (softType === 'artifact' && data.document) {
-      // Push directly to liquid - REPLACE any existing submitted entry
+      // Push directly to liquid - REPLACE the current active entry
       const artifact = parseArtifactFromText(data.document, currentFace)
       const newEntry: ShelfEntry = { 
         id: crypto.randomUUID(), 
@@ -227,7 +261,7 @@ function App() {
         artifactName: artifact?.name, 
         artifactType: artifact?.type 
       }
-      replaceSubmittedEntry(newEntry, currentFace)
+      replaceActiveEntry(newEntry, currentFace)
       // Show brief confirmation in vapor
       setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'artifact', face: currentFace, frameId: currentFrameId })
     } else {
@@ -246,7 +280,7 @@ function App() {
       state: 'submitted', 
       timestamp: new Date().toISOString() 
     }
-    replaceSubmittedEntry(newEntry, entry.face)
+    replaceActiveEntry(newEntry, entry.face)
     setSolidView('log')
   }
 
@@ -260,7 +294,7 @@ function App() {
       state: 'submitted', 
       timestamp: new Date().toISOString() 
     }
-    replaceSubmittedEntry(newEntry, 'designer')
+    replaceActiveEntry(newEntry, 'designer')
     setSolidView('log')
   }
 
@@ -317,7 +351,7 @@ function App() {
       artifactName: artifact?.name, 
       artifactType: artifact?.type 
     }
-    replaceSubmittedEntry(newEntry, face)
+    replaceActiveEntry(newEntry, face)
     setInput('')
     if (frameId && visibility.shareLiquid) upsertLiquid({ userName, face, content: text.trim() })
   }
@@ -332,22 +366,31 @@ function App() {
   const handleCommitDirect = async (text: string) => {
     if (!text.trim()) return
     const artifact = parseArtifactFromText(text, face)
-    const entry: ShelfEntry = { id: crypto.randomUUID(), text: text.trim(), face, frameId, state: 'committed', timestamp: new Date().toISOString(), artifactName: artifact?.name, artifactType: artifact?.type }
+    const entry: ShelfEntry = { 
+      id: crypto.randomUUID(), 
+      text: text.trim(), 
+      face, 
+      frameId, 
+      state: 'committed', 
+      timestamp: new Date().toISOString(), 
+      artifactName: artifact?.name, 
+      artifactType: artifact?.type 
+    }
     setInput('')
-    // Remove any submitted entries for this face, add committed entry
-    setEntries(prev => {
-      const filtered = prev.filter(e => !(e.face === face && e.state === 'submitted'))
-      return [...filtered, entry]
-    })
+    replaceActiveEntry(entry, face)
     if (frameId) deleteLiquid()
     await generateResponse(entry)
   }
 
   const handleCommitEntry = async (entryId: string) => {
     const entry = entries.find(e => e.id === entryId)
-    if (!entry || entry.state !== 'submitted') return
+    if (!entry) return
+    
+    // Mark as committed (stays in liquid, will also appear in solid once response arrives)
     const artifact = parseArtifactFromText(entry.text, entry.face)
-    setEntries(prev => prev.map(e => e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false, artifactName: artifact?.name, artifactType: artifact?.type } : e))
+    setEntries(prev => prev.map(e => 
+      e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false, artifactName: artifact?.name, artifactType: artifact?.type } : e
+    ))
     if (frameId) deleteLiquid()
     await generateResponse(entry)
   }
@@ -358,14 +401,30 @@ function App() {
       await handleCommitDirect(parsed.text)
       return
     }
-    const lastLiquid = [...entries].reverse().find(e => e.state === 'submitted')
-    if (lastLiquid) await handleCommitEntry(lastLiquid.id)
+    // Commit the current liquid entry (if any)
+    const currentLiquid = liquidEntries[0]
+    if (currentLiquid && currentLiquid.state === 'submitted') {
+      await handleCommitEntry(currentLiquid.id)
+    }
   }
 
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
-    setEntries(prev => prev.filter(e => e.face !== face || e.state === 'committed'))
+    // Remove the current active entry for this face (not history)
+    setEntries(prev => {
+      const sorted = [...prev]
+        .filter(e => e.face === face)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      const activeEntry = sorted[0]
+      
+      return prev.filter(e => {
+        if (e.face !== face) return true // Keep other faces
+        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true // Keep old history
+        if (e.id === activeEntry?.id) return false // Remove active entry
+        return true
+      })
+    })
     if (frameId) {
       deleteLiquid()
       broadcastVapor('')
@@ -456,7 +515,10 @@ function App() {
             isLoading={isLoading}
             onEdit={handleLiquidEdit}
             onCommit={handleCommitEntry}
-            onDismiss={(id) => setEntries(prev => prev.filter(e => e.id !== id))}
+            onDismiss={(id) => {
+              // Dismiss = clear active entry
+              setEntries(prev => prev.filter(e => e.id !== id))
+            }}
           />
         )}
 
