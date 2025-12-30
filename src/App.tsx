@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ConstructionButton } from './components/ConstructionButton'
+import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFrameChannel'
 import './App.css'
 
 // Supabase Edge Function URL
@@ -175,9 +176,10 @@ function parseArtifactFromText(text: string, face: Face): ParsedArtifact | null 
   }
 }
 
-// Phase 0.5.10: Face filters view, liquid persists
+// Phase 0.6: Multi-user Foundation
 function App() {
   const [userId] = useState<string>(getUserId)
+  const [userName, setUserName] = useState<string>(getDisplayName)
   const [face, setFace] = useState<Face>('player')
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
@@ -186,6 +188,8 @@ function App() {
   const [isQuerying, setIsQuerying] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
   const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
+  const [showNameEdit, setShowNameEdit] = useState(false)
+  const [editingName, setEditingName] = useState('')
   
   // Solid panel state
   const [solidView, setSolidView] = useState<SolidView>('log')
@@ -203,6 +207,14 @@ function App() {
   })
 
   const debounceTimerRef = useRef<number | null>(null)
+
+  // Phase 0.6: Multi-user presence
+  const { presentUsers, isConnected, broadcastTyping, error: channelError } = useFrameChannel({
+    frameId,
+    userId,
+    userName,
+    face,
+  })
 
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
 
@@ -222,6 +234,15 @@ function App() {
   })
   
   const hasVaporOrLiquid = input.trim() || softResponse || liquidEntries.length > 0
+
+  // Broadcast typing state when input changes
+  useEffect(() => {
+    if (input.trim()) {
+      broadcastTyping(true)
+    } else {
+      broadcastTyping(false)
+    }
+  }, [input, broadcastTyping])
 
   useEffect(() => {
     return () => {
@@ -634,6 +655,14 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     setVisibility(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const handleNameSubmit = () => {
+    if (editingName.trim()) {
+      setDisplayName(editingName.trim())
+      setUserName(editingName.trim())
+    }
+    setShowNameEdit(false)
+  }
+
   // Render directory based on face
   const renderDirectory = () => {
     if (isLoadingDirectory && face === 'designer') {
@@ -738,6 +767,24 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
           </select>
         </div>
         <div className="header-controls">
+          {/* Presence indicator */}
+          <div className="presence-indicator">
+            {frameId && (
+              <>
+                <span 
+                  className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}
+                  title={isConnected ? 'Connected' : channelError || 'Disconnected'}
+                >
+                  ●
+                </span>
+                {presentUsers.length > 0 && (
+                  <span className="presence-count" title={presentUsers.map(u => `${u.name} (${u.face})`).join(', ')}>
+                    +{presentUsers.length}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
           <span className="xyz-badge">{currentFrame.xyz}</span>
           <button 
             className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`}
@@ -794,6 +841,45 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               # Solid
             </button>
           </div>
+          <div className="visibility-section name-section">
+            <span className="visibility-label">Name:</span>
+            {showNameEdit ? (
+              <div className="name-edit">
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
+                  autoFocus
+                />
+                <button onClick={handleNameSubmit}>✓</button>
+                <button onClick={() => setShowNameEdit(false)}>✕</button>
+              </div>
+            ) : (
+              <button 
+                className="name-display"
+                onClick={() => {
+                  setEditingName(userName)
+                  setShowNameEdit(true)
+                }}
+              >
+                {userName}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Others in frame */}
+      {frameId && presentUsers.length > 0 && (
+        <div className="presence-bar">
+          {presentUsers.map(user => (
+            <span key={user.id} className={`presence-user ${user.face}`}>
+              <span className="presence-face">[{user.face.charAt(0).toUpperCase()}]</span>
+              <span className="presence-name">{user.name}</span>
+              {user.isTyping && <span className="presence-typing">...</span>}
+            </span>
+          ))}
         </div>
       )}
 
@@ -916,6 +1002,14 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               <span className="area-hint">Live + Soft-LLM</span>
             </div>
             
+            {/* Others' typing indicators */}
+            {presentUsers.filter(u => u.isTyping).map(user => (
+              <div key={user.id} className="vapor-indicator other">
+                <span className="typing-dot">*</span>
+                <span className="vapor-preview">{user.name} is typing...</span>
+              </div>
+            ))}
+            
             {softResponse && (
               <div className={`soft-response ${softResponse.softType}`}>
                 <div className="soft-response-header">
@@ -960,7 +1054,7 @@ ${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
               </div>
             )}
             
-            {!input.trim() && !softResponse && (
+            {!input.trim() && !softResponse && presentUsers.filter(u => u.isTyping).length === 0 && (
               <div className="empty-hint">
                 Use [?] to query Soft-LLM, or type {'{braces}'} for direct submit
               </div>
