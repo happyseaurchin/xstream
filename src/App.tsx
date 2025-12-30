@@ -92,7 +92,7 @@ function App() {
     if (e.state !== 'committed' || e.face !== face || face === 'designer') return false
     return parseArtifactFromText(e.text, face) !== null
   })
-  const hasVaporOrLiquid = input.trim() || softResponse || liquidEntries.length > 0
+  const hasVaporOrLiquid = !!(input.trim() || softResponse || liquidEntries.length > 0)
 
   // Effects
   useEffect(() => {

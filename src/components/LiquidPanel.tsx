@@ -1,4 +1,4 @@
-import type { ShelfEntry, Face } from '../types'
+import type { ShelfEntry } from '../types'
 import type { LiquidEntry } from '../hooks/useLiquidSubscription'
 
 interface LiquidPanelProps {
