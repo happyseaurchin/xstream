@@ -60,6 +60,12 @@ export function useFrameChannel({
   
   const channelRef = useRef<RealtimeChannel | null>(null)
   const lastVaporBroadcast = useRef<number>(0)
+  const isConnectedRef = useRef<boolean>(false) // Mirror for callback use
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    isConnectedRef.current = isConnected
+  }, [isConnected])
 
   // Subscribe to frame channel when frameId changes
   useEffect(() => {
@@ -93,7 +99,7 @@ export function useFrameChannel({
     // Handle presence sync (when presence state changes)
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState()
-      console.log('[Presence] Sync:', state)
+      console.log('[Presence] Sync - raw state:', Object.keys(state).length, 'users')
       
       const users: PresenceUser[] = []
       
@@ -111,6 +117,7 @@ export function useFrameChannel({
         }
       }
       
+      console.log('[Presence] Other users:', users.map(u => u.name))
       setPresentUsers(users)
     })
 
@@ -132,7 +139,7 @@ export function useFrameChannel({
     channel.on('broadcast', { event: 'vapor' }, ({ payload }) => {
       if (payload.user_id === userId) return // Ignore own broadcasts
       
-      console.log('[Vapor] Received:', payload.user_name, `"${payload.text}"`)
+      console.log('[Vapor] Received from', payload.user_name, ':', `"${payload.text?.slice(0, 30)}${payload.text?.length > 30 ? '...' : ''}"`)
       
       setOthersVapor(prev => {
         // Update or add vapor for this user
@@ -178,9 +185,11 @@ export function useFrameChannel({
           
           console.log('[Presence] Tracked self:', trackResult)
         } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Channel] Error!')
           setError('Channel connection error')
           setIsConnected(false)
         } else if (status === 'CLOSED') {
+          console.log('[Channel] Closed')
           setIsConnected(false)
         }
       })
@@ -196,6 +205,35 @@ export function useFrameChannel({
       }
     }
   }, [frameId, userId, userName, face])
+
+  // Handle visibility change - re-track presence when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && channelRef.current) {
+        console.log('[Visibility] Tab became visible, re-tracking presence')
+        
+        // Re-track our presence to ensure connection is live
+        channelRef.current.track({
+          user_id: userId,
+          user_name: userName,
+          face: face,
+          is_typing: false,
+          online_at: new Date().toISOString(),
+        }).then(result => {
+          console.log('[Visibility] Re-track result:', result)
+          if (result === 'ok') {
+            setIsConnected(true)
+          }
+        }).catch(err => {
+          console.error('[Visibility] Re-track failed:', err)
+          setIsConnected(false)
+        })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [userId, userName, face])
 
   // Update face in presence when it changes
   useEffect(() => {
@@ -213,17 +251,25 @@ export function useFrameChannel({
 
   // Broadcast vapor text (throttled for character-by-character)
   const broadcastVapor = useCallback((text: string) => {
-    if (!channelRef.current || !isConnected) return
+    const channel = channelRef.current
+    if (!channel) {
+      console.log('[Vapor] No channel, cannot broadcast')
+      return
+    }
+    if (!isConnectedRef.current) {
+      console.log('[Vapor] Not connected, cannot broadcast')
+      return
+    }
     
     const now = Date.now()
     if (now - lastVaporBroadcast.current < VAPOR_THROTTLE_MS) {
-      return // Throttle
+      return // Throttle - don't log this, too noisy
     }
     
     lastVaporBroadcast.current = now
     
-    // Broadcast vapor content (don't update presence on every keystroke)
-    channelRef.current.send({
+    // Broadcast vapor content
+    channel.send({
       type: 'broadcast',
       event: 'vapor',
       payload: {
@@ -232,12 +278,12 @@ export function useFrameChannel({
         face: face,
         text: text,
       },
+    }).then(result => {
+      if (result !== 'ok') {
+        console.warn('[Vapor] Broadcast failed:', result)
+      }
     })
-  }, [isConnected, userId, userName, face])
-
-  // Note: No cleanup interval - vapor stays until:
-  // 1. User sends empty vapor (clear/submit)
-  // 2. User disconnects (presence leave event)
+  }, [userId, userName, face])
 
   return {
     presentUsers,
