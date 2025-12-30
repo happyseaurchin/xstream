@@ -96,7 +96,11 @@ function App() {
 
   // Effects
   useEffect(() => {
-    if (visibility.shareVapor) broadcastVapor(input)
+    if (visibility.shareVapor) {
+      broadcastVapor(input)
+    } else {
+      broadcastVapor('')  // Clear vapor for others when not sharing
+    }
   }, [input, broadcastVapor, visibility.shareVapor])
 
   useEffect(() => {
@@ -276,7 +280,10 @@ function App() {
     setInput('')
     setSoftResponse(null)
     setEntries(prev => prev.filter(e => e.face !== face || e.state === 'committed'))
-    if (frameId) deleteLiquid()
+    if (frameId) {
+      deleteLiquid()
+      broadcastVapor('')  // Clear vapor for others
+    }
   }
 
   const handleNameChange = (name: string) => {
@@ -354,10 +361,7 @@ function App() {
         {visibility.showVapor && (
           <VaporPanel
             othersVapor={othersVapor}
-            presentUsers={presentUsers}
             softResponse={softResponse}
-            input={input}
-            shareVapor={visibility.shareVapor}
             onVaporClick={handleVaporClick}
             onDismissSoftResponse={() => setSoftResponse(null)}
             onSelectOption={(opt) => { setInput(opt); setSoftResponse(null) }}
