@@ -151,7 +151,7 @@ This is skill-defined (constraint category), not hard-coded—but the principle 
 
 ---
 
-## Typography Intent System (Phase 0.4.5+)
+## Typography Intent System
 
 Input syntax signals routing intent:
 
@@ -163,7 +163,7 @@ Input syntax signals routing intent:
 | `(parens)` | Direct to solid | Bypass Soft-LLM, commit to Medium-LLM |
 | `[brackets]` | Hard-LLM query | World/system state queries (future) |
 
-This is currently hard-coded; Phase 0.5 makes it designer-editable via skills.
+This is designer-editable via parsing skills.
 
 ---
 
@@ -203,8 +203,8 @@ Skills are organized by category, mapping to the processing pipeline:
 | `routing` | Delivery | Who receives output, how displayed, mutations (Z1) | Yes |
 | `constraint` | Validation | Tunable rules (input limits, pacing, etc.) | Yes |
 | `guard` | Throughout | Immutable platform rules | **No** |
-| `parsing` | Input | Typography interpretation rules (Phase 0.5+) | Yes |
-| `display` | UI hints | Default visibility, face filters (Phase 0.5+) | Yes |
+| `parsing` | Input | Typography interpretation rules | Yes |
+| `display` | UI hints | Default visibility, face filters | Yes |
 
 **Key distinction:** `constraint` skills can be overridden by packages (e.g., a combat package might tighten input limits). `guard` skills cannot be overridden by anyone—they're platform-level safety rails.
 
@@ -834,126 +834,15 @@ CREATE TABLE frame_users (
 - Synthesis: Medium-LLM output (solid)
 - Peer area: others' liquid + vapor states
 - Input: your text + typography syntax
-- Query [?]: triggers Soft-LLM refinement (Phase 0.4.5+)
+- Query [?]: triggers Soft-LLM refinement
 - Submit: saves to shelf as submitted (liquid)
 - Commit: triggers compilation → LLM → synthesis (solid)
 
 ---
 
-## Implementation Order: Plex 0.x Phases
+## Implementation Phases
 
-Plex 0.x phases are the **bootstrap sequence** — David + Claude building the kernel before others can enter. Each phase must be **complete and testable** before proceeding.
-
-**Critical Design Constraint:** Multi-user is foundational, not an add-on. Text states (vapor/liquid/solid) exist to show OTHER PEOPLE's states. All phases must be designed with multi-user in mind, even when tested single-user.
-
-### Phase 0.1: Core Loop ✅ COMPLETE
-
-Single user, X0Y0Z0 configuration.
-
-**What it delivers:**
-- Text input → shelf (in-memory)
-- Hard-coded prompt compilation
-- Claude API call
-- Response displayed
-
-**Test criterion:** User enters text, system responds. Nothing persists after refresh.
-
----
-
-### Phase 0.2: Skill Loading ✅ COMPLETE
-
-Skills loaded from database, face-aware.
-
-**What it delivers:**
-- `packages` table with platform package (onen)
-- `skills` table with format skills per face
-- `frame_packages` table for composition
-- `generate-v2` edge function loads skills by face + frame
-- Platform guard skills enforced
-
-**Test criterion:** Switching faces loads different format skills. (Requires 0.3 to verify.)
-
----
-
-### Phase 0.3: Frame Selection ✅ COMPLETE
-
-UI to select frame, verify skill overrides work.
-
-**What it delivers:**
-- Frame selector dropdown in UI
-- Test frame with custom package attached
-- Visual confirmation of which skills loaded
-
-**Test criterion:** Select test-frame → response includes "[TEST FRAME ACTIVE]" marker. Select no-frame → default response.
-
----
-
-### Phase 0.4: Text States (Visual) ✅ COMPLETE
-
-Make vapor/liquid/solid visible in single-user mode.
-
-**What it delivers:**
-- Vapor area (typing indicators, Soft-LLM responses)
-- Liquid area (submitted intentions, editable)
-- Solid area (committed results)
-- State badges visible in UI (submitted/editing/committed)
-- Visibility panel with state toggles
-
-**Test criterion:** User sees their own text transition through states. Prepares for multi-user visibility.
-
----
-
-### Phase 0.4.5: Soft-LLM Query Flow ✅ COMPLETE
-
-Private refinement before public intention.
-
-**What it delivers:**
-- `[?]` Query button triggers Soft-LLM
-- Soft-LLM response appears in vapor with [Use]/[Edit] buttons
-- Typography parsing: `{braces}` → direct liquid, `(parens)` → direct solid
-- Face filters in visibility panel (Player/Author/Designer)
-- Fixed: Cmd+Enter with empty input no longer errors
-
-**Test criterion:** Type "open door" → tap `[?]` → vapor shows refined intention → tap [Use] → moves to liquid. Or use `{open door}` to bypass Soft-LLM.
-
----
-
-### Phase 0.5: Designer Creates Skills
-
-Designer mode stores skills to database.
-
-**What it delivers:**
-- Designer face prompts include skill-creation capability
-- New skills stored in user's personal package
-- Created skills load on subsequent requests
-- Validation against guard rails
-- Typography rules become designer-editable (parsing skills)
-- Display defaults become designer-editable (display skills)
-
-**Test criterion:** As designer, create a custom format skill. Switch to player, see custom skill in effect. This is where "the system builds itself" begins.
-
----
-
-### Phase 0.6: Multi-User (WebSocket)
-
-The social coordination layer.
-
-**What it delivers:**
-- WebSocket connection for real-time presence
-- Vapor: "● typing..." visible to others in same frame
-- Liquid: submitted intentions visible to others
-- Solid: committed text triggers shared synthesis
-- Proximity-based delivery (who sees whose output)
-
-**Test criterion:** Two browser tabs in same frame. User A types → User B sees "● typing...". User A submits → User B sees liquid text. Both commit → shared synthesis generated.
-
----
-
-### Plex 1: Kernel Complete
-
-All faces work, skills compose, multiple users coordinate.
-
-**Test criterion (Mos Eisley Test):** 3 players who've seen Star Wars. One is Han, one is Greedo, one is the bartender. X0Y0Z0 frame. 30 minutes. They feel synchronized imagination. They want to play again.
+See **`docs/phases.md`** for the complete Plex 0.x phase breakdown and current status.
 
 ---
 
