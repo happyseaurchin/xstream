@@ -974,3 +974,71 @@
 .vapor-indicator.other .vapor-preview {
   color: var(--color-text-secondary);
 }
+
+/* ================================================
+   Phase 0.6.5: Multi-User Live Text States
+   ================================================ */
+
+/* Others' liquid entries */
+.liquid-entry.other-liquid {
+  background: rgba(100, 100, 100, 0.1);
+  border-left: 3px solid #888;
+  opacity: 0.9;
+}
+
+.liquid-entry.other-liquid .liquid-text {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+  padding: 0.5rem;
+  min-height: auto;
+  resize: none;
+}
+
+.liquid-entry.other-liquid .liquid-text.readonly {
+  cursor: default;
+}
+
+.user-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: rgba(100, 100, 100, 0.3);
+  border-radius: 3px;
+  color: var(--color-text-muted);
+}
+
+/* Others' vapor - live text with face colors */
+.vapor-indicator.other.player {
+  border-left: 2px solid var(--color-liquid, #fbbf24);
+}
+
+.vapor-indicator.other.author {
+  border-left: 2px solid var(--color-vapor, #a78bfa);
+}
+
+.vapor-indicator.other.designer {
+  border-left: 2px solid var(--color-accent);
+}
+
+.vapor-user {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-right: 0.5rem;
+}
+
+.vapor-live-text {
+  font-family: inherit;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Blinking cursor effect for live vapor */
+.vapor-live-text::after {
+  content: '▎';
+  animation: blink 1s step-end infinite;
+  color: var(--color-text-muted);
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
