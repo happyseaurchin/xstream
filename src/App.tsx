@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFrameChannel'
 import { useLiquidSubscription } from './hooks/useLiquidSubscription'
+import { useSolidSubscription } from './hooks/useSolidSubscription'
 import {
   ConstructionButton,
   PresenceBar,
@@ -87,18 +88,17 @@ function App() {
     deleteLiquid,
   } = useLiquidSubscription({ frameId, userId })
 
+  // NEW: Solid entries from database
+  const { solidEntries: dbSolidEntries } = useSolidSubscription({ frameId })
+
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
   // LIQUID: Show the most recent entry for this face (keeps prompt visible after commit)
-  // Only exclude entries that are committed WITH response AND have a newer entry after them
   const myLiquidEntry = entries
     .filter(e => e.face === face)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
   const liquidEntries = myLiquidEntry ? [myLiquidEntry] : []
-  
-  // SOLID: Show all committed entries with responses (the history/log)
-  const solidEntries = entries.filter(e => e.state === 'committed' && e.response && e.face === face)
   
   // OTHERS' LIQUID: One entry per other user (deduplicated, most recent per user)
   const othersLiquidRaw = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
@@ -126,23 +126,19 @@ function App() {
   }, [])
 
   // Helper: Replace the current active entry for a face
-  // Keeps history (committed with response), replaces the current "slot"
   const replaceActiveEntry = useCallback((newEntry: ShelfEntry, targetFace: Face) => {
     setEntries(prev => {
-      // Find the current active entry (most recent for this face)
       const sorted = [...prev]
         .filter(e => e.face === targetFace)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       const activeEntry = sorted[0]
       
-      // Keep: entries from other faces, AND committed entries with response (history)
-      // Remove: the current active entry (if it exists and isn't already history)
       const filtered = prev.filter(e => {
-        if (e.face !== targetFace) return true // Keep other faces
-        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true // Keep old history
-        if (e.id === activeEntry?.id && e.state === 'committed' && e.response) return true // Keep if active IS history
-        if (e.id === activeEntry?.id) return false // Remove active entry (being replaced)
-        return true // Keep anything else
+        if (e.face !== targetFace) return true
+        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true
+        if (e.id === activeEntry?.id && e.state === 'committed' && e.response) return true
+        if (e.id === activeEntry?.id) return false
+        return true
       })
       return [...filtered, newEntry]
     })
@@ -165,7 +161,6 @@ function App() {
     if (solidView === 'dir' && face === 'designer') loadFrameSkills()
   }, [solidView, frameId, face])
 
-  // Re-focus on visibility change
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && vaporFocused) {
@@ -206,13 +201,10 @@ function App() {
         return
       }
 
-      let responseText: string
       let createdSkill = null
-      let skillsUsed: any[] = []
 
       // If we have a frame, use medium mode with liquid_id (Phase 0.7 synthesis)
       if (entry.frameId) {
-        // Step 1: Commit to liquid table and get liquid_id
         console.log('[App] Committing to liquid for medium mode synthesis')
         const liquidId = await commitLiquid({
           userName,
@@ -220,42 +212,25 @@ function App() {
           content: entry.text,
         })
 
-        if (!liquidId) {
-          throw new Error('Failed to commit to liquid table')
-        }
+        if (!liquidId) throw new Error('Failed to commit to liquid table')
         console.log('[App] Got liquid_id:', liquidId)
 
-        // Step 2: Call medium mode with liquid_id
         const res = await fetch(GENERATE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ 
-            mode: 'medium' as LLMMode, 
-            liquid_id: liquidId 
-          }),
+          body: JSON.stringify({ mode: 'medium' as LLMMode, liquid_id: liquidId }),
         })
         const data = await res.json()
 
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
 
-        // Extract response based on face
-        if (entry.face === 'player') {
-          responseText = data.result?.narrative || '[No narrative generated]'
-        } else if (entry.face === 'author') {
-          const contentData = data.result?.contentData
-          responseText = contentData 
-            ? `**${contentData.name}** (${contentData.type})\n\n${contentData.data?.description || JSON.stringify(contentData.data)}`
-            : '[No content generated]'
-        } else {
-          // Designer
-          const skillData = data.result?.skillData
-          responseText = skillData
-            ? `**${skillData.name}** added\n\nCategory: ${skillData.category}\nApplies to: ${skillData.applies_to.join(', ')}`
-            : '[No skill generated]'
-          if (skillData) {
-            createdSkill = skillData
-          }
-        }
+        // Solid entry is now stored in DB and will appear via subscription
+        // Just update local entry to mark as processed
+        setEntries(prev => prev.map(e => 
+          e.id === entry.id ? { ...e, response: '[Stored in solid]' } : e
+        ))
+
+        if (data.result?.skillData) createdSkill = data.result.skillData
 
         console.log('[App] Medium mode synthesis complete:', {
           solidId: data.stored?.solidId,
@@ -264,32 +239,23 @@ function App() {
         })
 
       } else {
-        // No frame selected - use legacy mode (direct text/face call)
+        // No frame selected - use legacy mode
         const res = await fetch(GENERATE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ 
-            text: entry.text, 
-            face: entry.face, 
-            frame_id: null, 
-            user_id: userId 
-          }),
+          body: JSON.stringify({ text: entry.text, face: entry.face, frame_id: null, user_id: userId }),
         })
         const data = await res.json()
 
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
 
-        responseText = data.text
-        createdSkill = data.created_skill || null
-        skillsUsed = data.metadata?.skills_used || []
+        setEntries(prev => prev.map(e => 
+          e.id === entry.id ? { ...e, response: data.text, createdSkill: data.created_skill } : e
+        ))
       }
 
       if (createdSkill && solidView === 'dir') loadFrameSkills()
 
-      // Add response to entry
-      setEntries(prev => prev.map(e => 
-        e.id === entry.id ? { ...e, response: responseText, skillsUsed, createdSkill } : e
-      ))
     } catch (error) {
       console.error('Generation error:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -301,7 +267,7 @@ function App() {
     }
   }
 
-  // Core query function - can be called with specific text
+  // Core query function
   const executeQuery = async (textToSend: string, currentFace: Face, currentFrameId: string | null) => {
     if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
       setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: `[Soft-LLM would process: "${textToSend}"]`, softType: 'refine', face: currentFace, frameId: currentFrameId })
@@ -311,7 +277,7 @@ function App() {
     const res = await fetch(GENERATE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ text: textToSend, face: currentFace, frame_id: currentFrameId, user_id: userId, mode: 'soft' as LLMMode }),
+      body: JSON.stringify({ text: textToSend, face: currentFace, frame_id: currentFrameId, user_id: userId, user_name: userName, mode: 'soft' as LLMMode }),
     })
     const data = await res.json()
     if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
@@ -319,7 +285,6 @@ function App() {
     const softType: SoftType = data.soft_type || 'refine'
     
     if (softType === 'artifact' && data.document) {
-      // Push directly to liquid - REPLACE the current active entry
       const artifact = parseArtifactFromText(data.document, currentFace)
       const newEntry: ShelfEntry = { 
         id: crypto.randomUUID(), 
@@ -332,10 +297,27 @@ function App() {
         artifactType: artifact?.type 
       }
       replaceActiveEntry(newEntry, currentFace)
-      // Show brief confirmation in vapor
-      setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'artifact', face: currentFace, frameId: currentFrameId })
+      setSoftResponse(null) // Artifact went to liquid, no vapor response needed
+    } else if (softType === 'action') {
+      // Player action - refined intention goes to liquid
+      const newEntry: ShelfEntry = { 
+        id: crypto.randomUUID(), 
+        text: data.text, 
+        face: currentFace, 
+        frameId: currentFrameId, 
+        state: 'submitted', 
+        timestamp: new Date().toISOString()
+      }
+      replaceActiveEntry(newEntry, currentFace)
+      setInput('')
+      setSoftResponse(null)
+      if (currentFrameId && visibility.shareLiquid) upsertLiquid({ userName, face: currentFace, content: data.text })
+    } else if (softType === 'info') {
+      // Info request - response stays in vapor (dismissible)
+      setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'info', face: currentFace, frameId: currentFrameId })
+      setInput('')
     } else {
-      // clarify = options, refine = conversational response
+      // clarify or refine - stays in vapor
       setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType, options: data.options, face: currentFace, frameId: currentFrameId })
     }
   }
@@ -369,7 +351,7 @@ function App() {
   }
 
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
-    setVaporFocused(false)  // Editing liquid removes vapor focus
+    setVaporFocused(false)
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, text: newText, isEditing: true } : e))
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = window.setTimeout(() => {
@@ -384,13 +366,12 @@ function App() {
     if (parsed.route === 'liquid') { handleSubmitDirect(parsed.text); return }
     if (parsed.route === 'solid') { handleCommitDirect(parsed.text); return }
     
-    // Capture input and refocus IMMEDIATELY - user can keep typing
     const textToSend = parsed.text
     const currentFace = face
     const currentFrameId = frameId
     
     setIsQuerying(true)
-    setTimeout(() => inputAreaRef.current?.focus(), 10) // Refocus immediately
+    setTimeout(() => inputAreaRef.current?.focus(), 10)
     
     try {
       await executeQuery(textToSend, currentFace, currentFrameId)
@@ -448,7 +429,6 @@ function App() {
     }
     setInput('')
     replaceActiveEntry(entry, face)
-    // Note: deleteLiquid is now handled inside generateResponse after commitLiquid
     await generateResponse(entry)
   }
 
@@ -456,7 +436,6 @@ function App() {
     const entry = entries.find(e => e.id === entryId)
     if (!entry) return
     
-    // Mark as committed (stays in liquid, will also appear in solid once response arrives)
     const artifact = parseArtifactFromText(entry.text, entry.face)
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false, artifactName: artifact?.name, artifactType: artifact?.type } : e
@@ -470,7 +449,6 @@ function App() {
       await handleCommitDirect(parsed.text)
       return
     }
-    // Commit the current liquid entry (if any)
     const currentLiquid = liquidEntries[0]
     if (currentLiquid && currentLiquid.state === 'submitted') {
       await handleCommitEntry(currentLiquid.id)
@@ -480,7 +458,6 @@ function App() {
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
-    // Remove the current active entry for this face (not history)
     setEntries(prev => {
       const sorted = [...prev]
         .filter(e => e.face === face)
@@ -488,9 +465,9 @@ function App() {
       const activeEntry = sorted[0]
       
       return prev.filter(e => {
-        if (e.face !== face) return true // Keep other faces
-        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true // Keep old history
-        if (e.id === activeEntry?.id) return false // Remove active entry
+        if (e.face !== face) return true
+        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true
+        if (e.id === activeEntry?.id) return false
         return true
       })
     })
@@ -505,7 +482,6 @@ function App() {
     setUserName(name)
   }
 
-  // When user selects an option, EXECUTE it immediately
   const handleSelectOption = async (opt: string) => {
     setSoftResponse(null)
     setIsQuerying(true)
@@ -565,7 +541,7 @@ function App() {
           <SolidPanel
             solidView={solidView}
             onViewChange={setSolidView}
-            solidEntries={solidEntries}
+            solidEntries={dbSolidEntries}
             frameSkills={frameSkills}
             directoryEntries={directoryEntries}
             face={face}
@@ -585,7 +561,6 @@ function App() {
             onEdit={handleLiquidEdit}
             onCommit={handleCommitEntry}
             onDismiss={(id) => {
-              // Dismiss = clear active entry
               setEntries(prev => prev.filter(e => e.id !== id))
             }}
           />

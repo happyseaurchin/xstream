@@ -4,7 +4,7 @@ export type Face = 'player' | 'author' | 'designer'
 export type TextState = 'draft' | 'submitted' | 'committed'
 export type LLMMode = 'soft' | 'medium'
 export type SolidView = 'log' | 'dir'
-export type SoftType = 'artifact' | 'clarify' | 'refine'
+export type SoftType = 'artifact' | 'clarify' | 'refine' | 'action' | 'info'
 
 // Frame definition
 export interface Frame {
@@ -79,3 +79,4 @@ export interface ParsedArtifact {
 
 // Re-export hook types for convenience
 export type { LiquidEntry } from '../hooks/useLiquidSubscription'
+export type { SolidEntry } from '../hooks/useSolidSubscription'

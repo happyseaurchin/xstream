@@ -1,10 +1,12 @@
-import type { ShelfEntry, FrameSkill, Face, SolidView } from '../types'
+import type { FrameSkill, Face, SolidView } from '../types'
+import type { SolidEntry } from '../hooks/useSolidSubscription'
+import type { ShelfEntry } from '../types'
 import { parseArtifactFromText } from '../utils/parsing'
 
 interface SolidPanelProps {
   solidView: SolidView
   onViewChange: (view: SolidView) => void
-  solidEntries: ShelfEntry[]
+  solidEntries: SolidEntry[]  // From database
   frameSkills: FrameSkill[]
   directoryEntries: ShelfEntry[]
   face: Face
@@ -49,7 +51,7 @@ export function SolidPanel({
       </div>
       
       {solidView === 'log' ? (
-        <LogView entries={solidEntries} showMeta={showMeta} />
+        <LogView entries={solidEntries} face={face} showMeta={showMeta} />
       ) : (
         <DirectoryView
           face={face}
@@ -65,9 +67,12 @@ export function SolidPanel({
   )
 }
 
-// Log view subcomponent
-function LogView({ entries, showMeta }: { entries: ShelfEntry[], showMeta: boolean }) {
-  if (entries.length === 0) {
+// Log view - shows narrative from solid table
+function LogView({ entries, face, showMeta }: { entries: SolidEntry[], face: Face, showMeta: boolean }) {
+  // Filter to current face
+  const faceEntries = entries.filter(e => e.face === face)
+  
+  if (faceEntries.length === 0) {
     return (
       <div className="empty-state">
         No committed results yet. Submit and commit to generate.
@@ -77,26 +82,17 @@ function LogView({ entries, showMeta }: { entries: ShelfEntry[], showMeta: boole
 
   return (
     <>
-      {entries.map(entry => (
-        <div key={entry.id} className={`solid-entry ${entry.error ? 'error' : ''}`}>
+      {faceEntries.map(entry => (
+        <div key={entry.id} className="solid-entry">
           <div className="entry-header">
             <span className="face-badge">{entry.face}</span>
-            {entry.frameId && <span className="frame-badge">test-frame</span>}
             <span className="state-badge committed">committed</span>
-            {entry.artifactName && (
-              <span className="artifact-badge">{entry.artifactName}</span>
-            )}
-            {entry.createdSkill && (
-              <span className="skill-created-badge">+ skill</span>
-            )}
+            <span className="timestamp">{new Date(entry.createdAt).toLocaleTimeString()}</span>
           </div>
-          <div className="entry-input">
-            "{entry.text.slice(0, 100)}{entry.text.length > 100 ? '...' : ''}"
-          </div>
-          <div className="entry-response">{entry.response}</div>
-          {showMeta && entry.skillsUsed && entry.skillsUsed.length > 0 && (
+          <div className="entry-response">{entry.narrative || '[No narrative]'}</div>
+          {showMeta && entry.participantUserIds.length > 0 && (
             <div className="skills-meta">
-              Skills: {entry.skillsUsed.map(s => s.name).join(', ')}
+              Participants: {entry.participantUserIds.length}
             </div>
           )}
         </div>
