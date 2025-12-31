@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleMediumMode } from "./synthesis/handler.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -723,7 +724,40 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Parse request
+    // ========================================
+    // MEDIUM MODE: Phase 0.7 Synthesis
+    // Triggered when user commits liquid entry
+    // ========================================
+    if (body.mode === 'medium') {
+      if (!body.liquid_id) {
+        throw new Error('medium mode requires liquid_id');
+      }
+      
+      console.log('[Router] Medium mode - starting synthesis for liquid:', body.liquid_id);
+      
+      const result = await handleMediumMode(
+        supabase,
+        anthropicKey,
+        body.liquid_id,
+        getOrCreateFramePackage
+      );
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Synthesis failed');
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: 'medium',
+          result: result.result,
+          stored: result.stored,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse request for soft/legacy modes
     let entry: ShelfEntry;
 
     if (body.shelf_entry_id) {
@@ -787,7 +821,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // MEDIUM MODE: Standard generation with skill loading
+    // LEGACY MODE: Standard generation with skill loading
+    // (This was the default before phase 0.7)
     const skills = await loadSkills(supabase, entry.face, entry.frame_id, entry.user_id);
 
     console.log('Loaded skills:', {
