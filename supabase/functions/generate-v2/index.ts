@@ -51,7 +51,7 @@ interface SkillCreateRequest {
 interface SoftResponse {
   type: 'artifact' | 'clarify' | 'refine';
   text: string;
-  document?: string;  // For artifact type - the full SKILL_CREATE document
+  document?: string;  // For artifact type - the full SKILL_CREATE or WORLD_CREATE document
   options?: string[]; // For clarify type
 }
 
@@ -633,23 +633,170 @@ ${parsed.content.split('\n').map(line => '  ' + line).join('\n')}`;
 }
 
 /**
- * Handle soft-mode for player/author faces.
- * Standard refinement without thinking mode.
+ * Handle soft-mode for author face.
+ * Uses extended thinking to classify intent - creates WORLD_CREATE artifacts for content.
  */
-async function handleStandardSoftMode(
+async function handleAuthorSoftMode(
   anthropicKey: string,
   userInput: string,
-  face: string,
   frameId: string | null
 ): Promise<SoftResponse> {
   
-  const systemPrompt = face === 'player'
-    ? `You are Soft-LLM helping a player refine their character's intentions.
-Rewrite their input as clear, actionable text suitable for the narrative.
-Keep it concise but evocative. Output only the refined text.`
-    : `You are Soft-LLM helping an author craft world content.
-Refine their input into clear, atmospheric prose suitable for lore.
-Keep it concise but evocative. Output only the refined text.`;
+  const systemPrompt = `You are Soft-LLM helping an author create world content for a narrative coordination system.
+
+CONTENT TYPES (choose the most appropriate):
+- location: Places, rooms, buildings, regions, geographic features
+- npc: Non-player characters, people, creatures with agency
+- item: Objects, artifacts, equipment, tools
+- faction: Groups, organizations, cultures, societies
+- event: Historical events, scheduled occurrences, temporal markers
+- lore: Background information, legends, rules of the world
+
+YOUR TASK:
+1. Analyze the user's request
+2. Determine if it's a CLEAR content creation request
+3. If CLEAR: Generate a complete WORLD_CREATE document
+4. If AMBIGUOUS: Ask clarifying questions or help them develop the idea
+
+OUTPUT FORMAT:
+If creating content, respond with ONLY the WORLD_CREATE block:
+
+WORLD_CREATE
+type: [one of the content types above]
+name: [the name of the content]
+description: |
+  [Rich, evocative description suitable for narrative use.
+   Include sensory details, atmosphere, and distinctive features.
+   For NPCs: personality, appearance, mannerisms, motivations.
+   For locations: sights, sounds, smells, atmosphere.
+   For items: appearance, properties, significance.]
+
+If the input is vague or needs development, respond conversationally to help them clarify.
+If they're just chatting or asking questions, respond helpfully without creating content.`;
+
+  // Use extended thinking to reason about the request
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': anthropicKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 16000,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: 5000,
+      },
+      system: systemPrompt,
+      messages: [{ 
+        role: 'user', 
+        content: `${frameId ? `[Frame selected: ${frameId.slice(0, 8)}]` : '[No frame selected]'}
+
+Author request: ${userInput}`
+      }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const claudeResponse = await response.json();
+  
+  // Extract the text response (skip thinking blocks)
+  let generatedText = '';
+  for (const block of claudeResponse.content || []) {
+    if (block.type === 'text') {
+      generatedText = block.text;
+      break;
+    }
+  }
+
+  console.log('[Soft-LLM Author] Generated:', generatedText.slice(0, 200) + '...');
+
+  // Check if it's a WORLD_CREATE artifact
+  if (generatedText.includes('WORLD_CREATE')) {
+    const parsed = parseWorldCreateFromResponse(generatedText);
+    if (parsed) {
+      // Format as full document for liquid
+      const document = `WORLD_CREATE
+type: ${parsed.type}
+name: ${parsed.name}
+description: |
+${parsed.description.split('\n').map(line => '  ' + line).join('\n')}`;
+
+      return {
+        type: 'artifact',
+        text: `Creating **${parsed.name}** (${parsed.type})`,
+        document,
+      };
+    }
+  }
+
+  // It's a clarification/development response
+  const optionMatches = generatedText.match(/(?:^|\n)[a-d]\)|(?:^|\n)\d\./gm);
+  const hasOptions = optionMatches && optionMatches.length >= 2;
+
+  return {
+    type: hasOptions ? 'clarify' : 'refine',
+    text: generatedText,
+    options: hasOptions ? undefined : undefined,
+  };
+}
+
+/**
+ * Parse world content creation request from LLM response.
+ * Looks for WORLD_CREATE block in response.
+ */
+function parseWorldCreateFromResponse(response: string): { type: string; name: string; description: string } | null {
+  const worldMatch = response.match(/WORLD_CREATE\s*\n([\s\S]*?)(?:\n```|$)/);
+  if (!worldMatch) return null;
+
+  const block = worldMatch[1];
+  
+  const typeMatch = block.match(/type:\s*(.+)/);
+  const nameMatch = block.match(/name:\s*(.+)/);
+  const descMatch = block.match(/description:\s*\|?\s*\n([\s\S]*)/);
+
+  if (!typeMatch || !nameMatch || !descMatch) {
+    return null;
+  }
+
+  const type = typeMatch[1].trim();
+  const name = nameMatch[1].trim();
+  const description = descMatch[1].trim();
+
+  const validTypes = ['location', 'npc', 'item', 'faction', 'event', 'lore'];
+  if (!validTypes.includes(type)) {
+    console.warn(`Invalid content type: ${type}`);
+    return null;
+  }
+
+  return { type, name, description };
+}
+
+/**
+ * Handle soft-mode for player face.
+ * Standard refinement - helps clarify intentions.
+ */
+async function handlePlayerSoftMode(
+  anthropicKey: string,
+  userInput: string,
+  frameId: string | null
+): Promise<SoftResponse> {
+  
+  const systemPrompt = `You are Soft-LLM helping a player refine their character's intentions.
+
+Your job is to help them express what their character wants to do more clearly.
+- Keep it concise but evocative
+- Focus on the action/intention, not the outcome
+- Maintain their voice and style
+- Output only the refined text, nothing else
+
+If the input is already clear and actionable, return it with minimal changes.`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -785,7 +932,7 @@ Deno.serve(async (req: Request) => {
       throw new Error('Either shelf_entry_id or (text + face) required');
     }
 
-    // SOFT MODE: Handle with specialized soft-LLM
+    // SOFT MODE: Handle with specialized soft-LLM per face
     if (body.mode === 'soft') {
       let softResponse: SoftResponse;
       
@@ -795,11 +942,16 @@ Deno.serve(async (req: Request) => {
           entry.text,
           entry.frame_id
         );
-      } else {
-        softResponse = await handleStandardSoftMode(
+      } else if (entry.face === 'author') {
+        softResponse = await handleAuthorSoftMode(
           anthropicKey,
           entry.text,
-          entry.face,
+          entry.frame_id
+        );
+      } else {
+        softResponse = await handlePlayerSoftMode(
+          anthropicKey,
+          entry.text,
           entry.frame_id
         );
       }
