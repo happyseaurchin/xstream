@@ -20,12 +20,16 @@ import { routePlayerResult, routeAuthorResult, routeDesignerResult, markLiquidPr
 /**
  * Main synthesis handler.
  * Called when mode='medium' in the generate-v2 request.
+ * 
+ * @param informational - If true, returns narrative without storing to solid.
+ *                        Used for info requests ("where am I?") that don't affect world state.
  */
 export async function handleMediumMode(
   supabase: any,
   anthropicKey: string,
   liquidId: string,
-  getOrCreateFramePackage: (supabase: any, frameId: string, userId: string) => Promise<string>
+  getOrCreateFramePackage: ((supabase: any, frameId: string, userId: string) => Promise<string>) | null,
+  informational: boolean = false
 ): Promise<{
   success: boolean;
   result?: SynthesisResult;
@@ -39,7 +43,7 @@ export async function handleMediumMode(
   
   try {
     // 1. GATHER: Collect all context
-    console.log('[Medium-LLM] Gathering context for liquid:', liquidId);
+    console.log('[Medium-LLM] Gathering context for liquid:', liquidId, informational ? '(informational)' : '');
     const context = await gatherContext(supabase, liquidId);
     
     const face = context.trigger.entry.face;
@@ -111,7 +115,7 @@ export async function handleMediumMode(
     };
     
     let result: SynthesisResult;
-    let stored: { solidId: string; contentId?: string; skillId?: string };
+    let stored: { solidId: string; contentId?: string; skillId?: string } | undefined;
     
     switch (face) {
       case 'player': {
@@ -125,8 +129,13 @@ export async function handleMediumMode(
           tokens,
         };
         
-        const solidResult = await routePlayerResult(supabase, context, result);
-        stored = { solidId: solidResult.id };
+        // Skip solid storage for informational requests
+        if (!informational) {
+          const solidResult = await routePlayerResult(supabase, context, result);
+          stored = { solidId: solidResult.id };
+        } else {
+          console.log('[Medium-LLM] Informational mode - skipping solid storage');
+        }
         break;
       }
       
@@ -146,6 +155,7 @@ export async function handleMediumMode(
           tokens,
         };
         
+        // Authors always store (informational doesn't apply)
         const authorResult = await routeAuthorResult(supabase, context, result);
         stored = {
           solidId: authorResult.solid.id,
@@ -170,6 +180,10 @@ export async function handleMediumMode(
           tokens,
         };
         
+        // Designers always store (informational doesn't apply)
+        if (!getOrCreateFramePackage) {
+          throw new Error('Designer mode requires getOrCreateFramePackage');
+        }
         const designerResult = await routeDesignerResult(
           supabase,
           context,
@@ -187,8 +201,10 @@ export async function handleMediumMode(
         throw new Error(`Unknown face: ${face}`);
     }
     
-    // 5. CLEANUP: Mark processed liquid entries
-    await markLiquidProcessed(supabase, result.sourceLiquidIds);
+    // 5. CLEANUP: Mark processed liquid entries (skip for informational)
+    if (!informational) {
+      await markLiquidProcessed(supabase, result.sourceLiquidIds);
+    }
     
     return { success: true, result, stored };
     

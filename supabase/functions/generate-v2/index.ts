@@ -49,10 +49,11 @@ interface SkillCreateRequest {
 
 // Soft-LLM response types
 interface SoftResponse {
-  type: 'artifact' | 'clarify' | 'refine';
+  type: 'artifact' | 'clarify' | 'action' | 'info';
   text: string;
   document?: string;  // For artifact type - the full SKILL_CREATE or WORLD_CREATE document
   options?: string[]; // For clarify type
+  liquid_id?: string; // For info type - the liquid entry created
 }
 
 /**
@@ -614,21 +615,16 @@ ${parsed.content.split('\n').map(line => '  ' + line).join('\n')}`;
 
       return {
         type: 'artifact',
-        text: `Creating **${parsed.name}** (${parsed.category} skill for ${parsed.applies_to.join(', ')})`,
+        text: '', // No summary text - artifact goes to liquid
         document,
       };
     }
   }
 
   // It's a clarification/options response
-  // Check for numbered options
-  const optionMatches = generatedText.match(/(?:^|\n)[a-d]\)|(?:^|\n)\d\./gm);
-  const hasOptions = optionMatches && optionMatches.length >= 2;
-
   return {
-    type: hasOptions ? 'clarify' : 'refine',
+    type: 'clarify',
     text: generatedText,
-    options: hasOptions ? undefined : undefined, // Could parse options if needed
   };
 }
 
@@ -730,20 +726,16 @@ ${parsed.description.split('\n').map(line => '  ' + line).join('\n')}`;
 
       return {
         type: 'artifact',
-        text: `Creating **${parsed.name}** (${parsed.type})`,
+        text: '', // No summary text - artifact goes to liquid
         document,
       };
     }
   }
 
   // It's a clarification/development response
-  const optionMatches = generatedText.match(/(?:^|\n)[a-d]\)|(?:^|\n)\d\./gm);
-  const hasOptions = optionMatches && optionMatches.length >= 2;
-
   return {
-    type: hasOptions ? 'clarify' : 'refine',
+    type: 'clarify',
     text: generatedText,
-    options: hasOptions ? undefined : undefined,
   };
 }
 
@@ -780,23 +772,55 @@ function parseWorldCreateFromResponse(response: string): { type: string; name: s
 
 /**
  * Handle soft-mode for player face.
- * Standard refinement - helps clarify intentions.
+ * Classifies input as ACTION, INFO_REQUEST, or CLARIFY.
+ * 
+ * - ACTION: Returns refined intention for liquid
+ * - INFO_REQUEST: Creates liquid entry, calls medium-LLM, returns world info for vapor
+ * - CLARIFY: Returns question for vapor
  */
 async function handlePlayerSoftMode(
+  supabase: any,
   anthropicKey: string,
   userInput: string,
-  frameId: string | null
+  frameId: string | null,
+  userId: string,
+  userName: string
 ): Promise<SoftResponse> {
   
-  const systemPrompt = `You are Soft-LLM helping a player refine their character's intentions.
+  const systemPrompt = `You are Soft-LLM facilitating a player's relationship with their character in a narrative world.
 
-Your job is to help them express what their character wants to do more clearly.
-- Keep it concise but evocative
-- Focus on the action/intention, not the outcome
-- Maintain their voice and style
-- Output only the refined text, nothing else
+YOUR ROLE:
+Classify the player's input and respond appropriately. You facilitate action, you don't explain.
 
-If the input is already clear and actionable, return it with minimal changes.`;
+CLASSIFICATION:
+1. ACTION - Player wants their character to DO something that affects the world
+   Examples: "I grab the sword", "I talk to the bartender", "I sneak past", "I order a drink"
+   
+2. INFO_REQUEST - Player wants to PERCEIVE/OBSERVE/REMEMBER something
+   Examples: "Where am I?", "What do I see?", "Do I recognize this person?", "What's around me?"
+   
+3. CLARIFY - Input is unclear, incomplete, or you need more information
+   Examples: Ambiguous pronouns, unclear intentions, contradictory requests
+
+OUTPUT FORMAT:
+Respond with ONLY a classification block:
+
+For ACTION:
+ACTION
+intention: [refined character intention - concise, evocative, first person]
+
+For INFO_REQUEST:
+INFO_REQUEST
+intention: [what the character is doing - e.g., "I look around", "I study the room"]
+
+For CLARIFY:
+CLARIFY
+question: [your clarifying question to the player]
+
+IMPORTANT:
+- No explanations, no summaries, no meta-commentary
+- Keep intentions brief and character-voiced
+- For INFO_REQUEST, the intention should be observable by others (e.g., "looking around")`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -807,7 +831,11 @@ If the input is already clear and actionable, return it with minimal changes.`;
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
+      max_tokens: 1024,
+      thinking: {
+        type: 'enabled',
+        budget_tokens: 3000,
+      },
       system: systemPrompt,
       messages: [{ role: 'user', content: userInput }],
     }),
@@ -819,11 +847,98 @@ If the input is already clear and actionable, return it with minimal changes.`;
   }
 
   const claudeResponse = await response.json();
-  const generatedText = claudeResponse.content?.[0]?.text || '';
+  
+  let generatedText = '';
+  for (const block of claudeResponse.content || []) {
+    if (block.type === 'text') {
+      generatedText = block.text;
+      break;
+    }
+  }
 
+  console.log('[Soft-LLM Player] Classification:', generatedText);
+
+  // Parse the classification
+  if (generatedText.includes('ACTION')) {
+    const intentionMatch = generatedText.match(/intention:\s*(.+)/s);
+    let intention = intentionMatch ? intentionMatch[1].trim() : userInput;
+    // Clean up any trailing content
+    intention = intention.split('\n')[0].trim();
+    
+    return {
+      type: 'action',
+      text: intention,
+    };
+  }
+  
+  if (generatedText.includes('INFO_REQUEST')) {
+    const intentionMatch = generatedText.match(/intention:\s*(.+)/s);
+    let intention = intentionMatch ? intentionMatch[1].trim() : 'I observe my surroundings';
+    intention = intention.split('\n')[0].trim();
+    
+    if (!frameId) {
+      return {
+        type: 'clarify',
+        text: 'You need to be in a frame to observe your surroundings.',
+      };
+    }
+    
+    // Create liquid entry for the observable intention
+    const liquidId = crypto.randomUUID();
+    const { error: liquidError } = await supabase
+      .from('liquid')
+      .insert({
+        id: liquidId,
+        frame_id: frameId,
+        user_id: userId,
+        user_name: userName,
+        face: 'player',
+        content: intention,
+        committed: true, // Auto-commit info requests
+      });
+    
+    if (liquidError) {
+      console.error('Error creating liquid for info request:', liquidError);
+      throw new Error('Failed to create liquid entry');
+    }
+    
+    console.log('[Soft-LLM Player] Created info request liquid:', liquidId);
+    
+    // Call medium-LLM in informational mode (returns response, skips solid)
+    const infoResult = await handleMediumMode(
+      supabase,
+      anthropicKey,
+      liquidId,
+      null, // getOrCreateFramePackage not needed for info requests
+      true  // informational flag - skip solid storage
+    );
+    
+    if (!infoResult.success) {
+      throw new Error(infoResult.error || 'Info request synthesis failed');
+    }
+    
+    return {
+      type: 'info',
+      text: infoResult.result?.narrative || 'You observe your surroundings.',
+      liquid_id: liquidId,
+    };
+  }
+  
+  if (generatedText.includes('CLARIFY')) {
+    const questionMatch = generatedText.match(/question:\s*(.+)/s);
+    let question = questionMatch ? questionMatch[1].trim() : 'Could you clarify what you want to do?';
+    question = question.split('\n')[0].trim();
+    
+    return {
+      type: 'clarify',
+      text: question,
+    };
+  }
+  
+  // Fallback to action
   return {
-    type: 'refine',
-    text: generatedText,
+    type: 'action',
+    text: userInput,
   };
 }
 
@@ -886,7 +1001,8 @@ Deno.serve(async (req: Request) => {
         supabase,
         anthropicKey,
         body.liquid_id,
-        getOrCreateFramePackage
+        getOrCreateFramePackage,
+        false // not informational - store to solid
       );
       
       if (!result.success) {
@@ -949,10 +1065,14 @@ Deno.serve(async (req: Request) => {
           entry.frame_id
         );
       } else {
+        // Player face - needs supabase and user info for info requests
         softResponse = await handlePlayerSoftMode(
+          supabase,
           anthropicKey,
           entry.text,
-          entry.frame_id
+          entry.frame_id,
+          entry.user_id,
+          body.user_name || `user-${entry.user_id.slice(0, 8)}`
         );
       }
 
@@ -963,6 +1083,7 @@ Deno.serve(async (req: Request) => {
           soft_type: softResponse.type,
           document: softResponse.document,
           options: softResponse.options,
+          liquid_id: softResponse.liquid_id,
           metadata: {
             face: entry.face,
             frame_id: entry.frame_id,
