@@ -32,7 +32,15 @@ export interface UseLiquidSubscriptionReturn {
     face: Face
     content: string
     softLlmResponse?: string | null
-  }) => Promise<void>
+  }) => Promise<string | null>
+  
+  // Commit liquid and return ID for medium mode synthesis
+  commitLiquid: (data: {
+    userName: string
+    face: Face
+    content: string
+  }) => Promise<string | null>
+  
   markCommitted: (entryId: string) => Promise<void>
   deleteLiquid: () => Promise<void>
   
@@ -142,17 +150,17 @@ export function useLiquidSubscription({
     }
   }, [frameId])
 
-  // Upsert liquid entry (one per user per frame)
+  // Upsert liquid entry (one per user per frame) - returns ID
   const upsertLiquid = useCallback(async (data: {
     userName: string
     face: Face
     content: string
     softLlmResponse?: string | null
-  }) => {
-    if (!frameId || !supabase) return
+  }): Promise<string | null> => {
+    if (!frameId || !supabase) return null
 
     try {
-      const { error: err } = await supabase
+      const { data: result, error: err } = await supabase
         .from('liquid')
         .upsert({
           frame_id: frameId,
@@ -165,12 +173,51 @@ export function useLiquidSubscription({
         }, {
           onConflict: 'frame_id,user_id',
         })
+        .select('id')
+        .single()
 
       if (err) throw err
-      console.log('[Liquid] Upserted successfully')
+      console.log('[Liquid] Upserted successfully, id:', result?.id)
+      return result?.id || null
     } catch (err) {
       console.error('[Liquid] Upsert error:', err)
       setError(err instanceof Error ? err.message : 'Failed to save liquid')
+      return null
+    }
+  }, [frameId, userId])
+
+  // Commit liquid entry and return ID for medium mode synthesis
+  // This upserts with committed=true and returns the ID
+  const commitLiquid = useCallback(async (data: {
+    userName: string
+    face: Face
+    content: string
+  }): Promise<string | null> => {
+    if (!frameId || !supabase) return null
+
+    try {
+      const { data: result, error: err } = await supabase
+        .from('liquid')
+        .upsert({
+          frame_id: frameId,
+          user_id: userId,
+          user_name: data.userName,
+          face: data.face,
+          content: data.content,
+          committed: true,
+        }, {
+          onConflict: 'frame_id,user_id',
+        })
+        .select('id')
+        .single()
+
+      if (err) throw err
+      console.log('[Liquid] Committed successfully, id:', result?.id)
+      return result?.id || null
+    } catch (err) {
+      console.error('[Liquid] Commit error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to commit liquid')
+      return null
     }
   }, [frameId, userId])
 
@@ -214,6 +261,7 @@ export function useLiquidSubscription({
   return {
     liquidEntries,
     upsertLiquid,
+    commitLiquid,
     markCommitted,
     deleteLiquid,
     isLoading,
