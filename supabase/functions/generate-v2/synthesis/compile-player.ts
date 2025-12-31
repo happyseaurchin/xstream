@@ -4,20 +4,18 @@
  * KEY INSIGHT: 30% match conditions, 70% future intentions
  * 
  * The narrative should primarily enable what players are TRYING to do,
- * not just react to what has happened. This creates forward momentum
- * and makes players feel their intentions matter.
+ * not just react to what has happened.
  */
 
 import type { SynthesisContext, CompiledPrompt } from './types.ts';
 import { formatLiquidForPrompt, formatContentForPrompt, formatSolidForPrompt } from './gather.ts';
+import { applyFormatSkill, applyConstraintSkill, applyApertureSkill } from './skills.ts';
 
 /**
- * Compile the synthesis prompt for player face.
- * This is the heart of xstream's narrative coordination.
+ * Platform default system prompt for player synthesis.
+ * Can be modified by format and constraint skills.
  */
-export function compilePlayerPrompt(context: SynthesisContext): CompiledPrompt {
-  
-  const systemPrompt = `You are Medium-LLM, the narrative synthesis engine for a collaborative storytelling system.
+const PLATFORM_PLAYER_PROMPT = `You are Medium-LLM, the narrative synthesis engine for a collaborative storytelling system.
 
 YOUR ROLE:
 Synthesize multiple player intentions into coherent narrative. You are NOT a referee or simulator.
@@ -27,10 +25,6 @@ CRITICAL ORIENTATION (30/70 RULE):
 - 30% of your output should match established conditions (world state, character positions, recent events)
 - 70% of your output should ENABLE player intentions (what they're trying to do)
 
-This means: If a player says "I try to sneak past the guard", your job is primarily to CREATE
-an interesting narrative where their attempt happens and has consequences - NOT to simulate whether
-a guard would realistically notice them.
-
 NARRATIVE SYNTHESIS PRINCIPLES:
 1. INCLUDE everyone's committed actions in the output
 2. WEAVE actions together into one coherent moment
@@ -38,22 +32,35 @@ NARRATIVE SYNTHESIS PRINCIPLES:
 4. HONOR established world content (locations, NPCs, items)
 5. MAINTAIN continuity with recent narrative
 6. KEEP IT BRIEF - this is one beat in an ongoing story (20-100 words typically)
+7. PRESERVE quoted dialogue - if a player writes "I say 'Hello friend'", include the exact quote
 
 WHEN ACTIONS CONFLICT:
 - Both actions happen, with interesting interplay
 - Let the narrative create tension, not block anyone
-- If truly incompatible, show the moment of interference
 
 TONE:
 - Present tense, active voice
 - Evocative but concise
 - No meta-commentary or GM voice
-- No "let me tell you what happens" framing
 
 OUTPUT:
-Write ONLY the narrative text. No explanations, no options, no questions.
-This text becomes the settled reality that all players will see.`;
+Write ONLY the narrative text. No explanations, no options, no questions.`;
 
+/**
+ * Compile the synthesis prompt for player face.
+ * Applies skills to modify the base prompt.
+ */
+export function compilePlayerPrompt(context: SynthesisContext): CompiledPrompt {
+  
+  // Start with platform default
+  let systemPrompt = PLATFORM_PLAYER_PROMPT;
+  
+  // Apply format skill (modifies output style)
+  systemPrompt = applyFormatSkill(systemPrompt, context.skills.format);
+  
+  // Apply constraint skill (adds rules)
+  systemPrompt = applyConstraintSkill(systemPrompt, context.skills.constraint);
+  
   // Build the user prompt with all context
   const parts: string[] = [];
   
@@ -78,9 +85,12 @@ This text becomes the settled reality that all players will see.`;
   
   const userPrompt = parts.join('\n\n---\n\n');
   
+  // Apply aperture skill to token limit
+  const maxTokens = applyApertureSkill(512, context.skills.aperture);
+  
   return {
     systemPrompt,
     userPrompt,
-    maxTokens: 512, // Phase 0.7: Fixed. Phase 0.7.5: Derived from pscale
+    maxTokens,
   };
 }
