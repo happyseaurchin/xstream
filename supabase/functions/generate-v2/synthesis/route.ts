@@ -12,6 +12,26 @@
 import type { SynthesisContext, SynthesisResult, StoredSolid } from './types.ts';
 
 /**
+ * Ensure user exists in database before FK operations.
+ */
+async function ensureUserExists(
+  supabase: any,
+  userId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .upsert(
+      { id: userId, name: `user-${userId.slice(0, 8)}` },
+      { onConflict: 'id', ignoreDuplicates: true }
+    );
+
+  if (error) {
+    console.error('Error ensuring user exists:', error);
+    throw new Error('Failed to ensure user exists');
+  }
+}
+
+/**
  * Route player synthesis result to solid table.
  */
 export async function routePlayerResult(
@@ -72,6 +92,9 @@ export async function routeAuthorResult(
   if (!result.contentData) {
     throw new Error('Author result missing contentData');
   }
+  
+  // Ensure user exists before FK insert
+  await ensureUserExists(supabase, context.trigger.userId);
   
   // First, store in content table
   const { data: contentData, error: contentError } = await supabase
