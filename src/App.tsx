@@ -83,6 +83,7 @@ function App() {
   const {
     liquidEntries: dbLiquidEntries,
     upsertLiquid,
+    commitLiquid,
     deleteLiquid,
   } = useLiquidSubscription({ frameId, userId })
 
@@ -195,6 +196,7 @@ function App() {
     }
   }
 
+  // Phase 0.7: Generate response using Medium-LLM synthesis
   const generateResponse = async (entry: ShelfEntry) => {
     setIsLoading(true)
     try {
@@ -204,21 +206,89 @@ function App() {
         return
       }
 
-      const res = await fetch(GENERATE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ text: entry.text, face: entry.face, frame_id: entry.frameId, user_id: userId, mode: 'medium' as LLMMode }),
-      })
-      const data = await res.json()
+      let responseText: string
+      let createdSkill = null
+      let skillsUsed: any[] = []
 
-      if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+      // If we have a frame, use medium mode with liquid_id (Phase 0.7 synthesis)
+      if (entry.frameId) {
+        // Step 1: Commit to liquid table and get liquid_id
+        console.log('[App] Committing to liquid for medium mode synthesis')
+        const liquidId = await commitLiquid({
+          userName,
+          face: entry.face,
+          content: entry.text,
+        })
 
-      const createdSkill = data.created_skill || null
+        if (!liquidId) {
+          throw new Error('Failed to commit to liquid table')
+        }
+        console.log('[App] Got liquid_id:', liquidId)
+
+        // Step 2: Call medium mode with liquid_id
+        const res = await fetch(GENERATE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ 
+            mode: 'medium' as LLMMode, 
+            liquid_id: liquidId 
+          }),
+        })
+        const data = await res.json()
+
+        if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+
+        // Extract response based on face
+        if (entry.face === 'player') {
+          responseText = data.result?.narrative || '[No narrative generated]'
+        } else if (entry.face === 'author') {
+          const contentData = data.result?.contentData
+          responseText = contentData 
+            ? `**${contentData.name}** (${contentData.type})\n\n${contentData.data?.description || JSON.stringify(contentData.data)}`
+            : '[No content generated]'
+        } else {
+          // Designer
+          const skillData = data.result?.skillData
+          responseText = skillData
+            ? `**${skillData.name}** added\n\nCategory: ${skillData.category}\nApplies to: ${skillData.applies_to.join(', ')}`
+            : '[No skill generated]'
+          if (skillData) {
+            createdSkill = skillData
+          }
+        }
+
+        console.log('[App] Medium mode synthesis complete:', {
+          solidId: data.stored?.solidId,
+          contentId: data.stored?.contentId,
+          skillId: data.stored?.skillId,
+        })
+
+      } else {
+        // No frame selected - use legacy mode (direct text/face call)
+        const res = await fetch(GENERATE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ 
+            text: entry.text, 
+            face: entry.face, 
+            frame_id: null, 
+            user_id: userId 
+          }),
+        })
+        const data = await res.json()
+
+        if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+
+        responseText = data.text
+        createdSkill = data.created_skill || null
+        skillsUsed = data.metadata?.skills_used || []
+      }
+
       if (createdSkill && solidView === 'dir') loadFrameSkills()
 
-      // Add response to entry - entry stays in liquid (shows prompt), also shows in solid (shows response)
+      // Add response to entry
       setEntries(prev => prev.map(e => 
-        e.id === entry.id ? { ...e, response: data.text, skillsUsed: data.metadata?.skills_used || [], createdSkill } : e
+        e.id === entry.id ? { ...e, response: responseText, skillsUsed, createdSkill } : e
       ))
     } catch (error) {
       console.error('Generation error:', error)
@@ -378,7 +448,7 @@ function App() {
     }
     setInput('')
     replaceActiveEntry(entry, face)
-    if (frameId) deleteLiquid()
+    // Note: deleteLiquid is now handled inside generateResponse after commitLiquid
     await generateResponse(entry)
   }
 
@@ -391,7 +461,6 @@ function App() {
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false, artifactName: artifact?.name, artifactType: artifact?.type } : e
     ))
-    if (frameId) deleteLiquid()
     await generateResponse(entry)
   }
 
