@@ -1,7 +1,44 @@
 # Phase 0.7: Medium-LLM Synthesis Architecture
 
-**Status**: Draft specification for review  
+**Status**: ✅ COMPLETE (2024-12-31)  
 **Structure**: Each component shows 0.7 minimal and 0.7.5 extension side-by-side
+
+---
+
+## Completion Summary
+
+### What's Working
+
+| Feature | Status |
+|---------|--------|
+| **Player face** | ✅ Commit → synthesis → shared solid |
+| **Author face** | ✅ WORLD_CREATE → content table → solid record |
+| **Designer face** | ✅ SKILL_CREATE → skills table → solid record |
+| **Skill loading** | ✅ Platform → frame → user resolution |
+| **Skill application** | ✅ Format, constraint, aperture skills affect prompts |
+| **Solid persistence** | ✅ Database-backed with realtime subscription |
+| **Multi-user sync** | ✅ All players see same solid via realtime |
+
+### Key Files
+
+```
+supabase/functions/generate-v2/
+  index.ts                    # Router: soft/medium modes
+  synthesis/
+    types.ts                  # Interfaces
+    skills.ts                 # Skill loading + application
+    gather.ts                 # Context gathering
+    compile-player.ts         # Player synthesis prompt
+    compile-author.ts         # Author synthesis prompt  
+    compile-designer.ts       # Designer synthesis prompt
+    handler.ts                # Medium-LLM orchestration
+    route.ts                  # Store + broadcast results
+
+src/
+  hooks/
+    useSolidSubscription.ts   # Realtime solid updates
+    useLiquidSubscription.ts  # Realtime liquid updates
+```
 
 ---
 
@@ -340,23 +377,23 @@ Each extension is ADDITIVE. 0.7 code doesn't break — it gains new capabilities
 
 ## Implementation Order
 
-### 0.7 (All Faces)
+### 0.7 (All Faces) ✅ COMPLETE
 
-1. Create `solid` table migration
-2. Create `content` table migration (if missing)
-3. Create synthesis/ folder with handler files
-4. Implement gather.ts (context gathering)
-5. Implement compile-player.ts (30/70 prompt)
-6. Implement compile-author.ts (content structure)
-7. Implement compile-designer.ts (designer structure)
-8. Implement route.ts (store + broadcast)
-9. Add 'medium' mode to index.ts router
-10. Add commit lock mechanism
-11. Frontend: useSolidSubscription hook
-12. Frontend: SolidPanel display
-13. Test: Pub Test scenario
+1. ✅ Create `solid` table migration
+2. ✅ Create `content` table migration (if missing)
+3. ✅ Create synthesis/ folder with handler files
+4. ✅ Implement gather.ts (context gathering)
+5. ✅ Implement compile-player.ts (30/70 prompt)
+6. ✅ Implement compile-author.ts (content structure)
+7. ✅ Implement compile-designer.ts (designer structure)
+8. ✅ Implement route.ts (store + broadcast)
+9. ✅ Add 'medium' mode to index.ts router
+10. ⚠️ Commit lock mechanism (not yet implemented)
+11. ✅ Frontend: useSolidSubscription hook
+12. ✅ Frontend: SolidPanel display
+13. ✅ Test: Multi-player scenario
 
-### 0.7.5 (Player Timing)
+### 0.7.5 (Player Timing) - NEXT
 
 1. Add timing columns migration
 2. Implement timer.ts (window management)
