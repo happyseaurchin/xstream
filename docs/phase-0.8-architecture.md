@@ -1,525 +1,507 @@
 # Phase 0.8: Hard-LLM & World Context Architecture
 
-**Status**: ⏳ PLANNED (after 0.7.5)  
-**Depends on**: 0.7.5 (per-character Medium-LLM, timer windows)
+**Status**: ⏳ PLANNED  
+**Depends on**: 0.7 (commit triggers synthesis, shared solid)  
+**Note**: Does NOT require 0.7.5 (personalized narratives) - builds directly on 0.7
 
 ---
 
 ## The Core Insight
 
-> "Hard never faces users directly. Hard ensures that when users affect each other, the effects propagate coherently."
+> "Hard-LLM performs the unenviable task of locating the user in the narrative/content/code space they are operating in."
 
-Hard-LLM is the **background metabolism** of the system:
-- Soft-LLM: Heartbeat (<500ms) - immediate response
-- Medium-LLM: Breath (2-10s) - coordination synthesis  
-- Hard-LLM: Metabolism (10-30s+) - world coherence
+Hard-LLM is **per-character** (part of each user's soft-medium-hard triad). It:
+- Locates the character in pscale space (spatial, temporal, identity)
+- Coordinates with OTHER Hard-LLMs to discover proximity
+- Filters content so Medium-LLM receives curated context, not everything
+
+This is **not** a centralized process. Proximity **emerges** from Hard-LLM to Hard-LLM coordination - like the murmuration model.
+
+---
+
+## The Problem 0.8 Solves
+
+In v3, we dumped huge amounts of context into the narrative LLM. Result: grinding prose, too long, unfocused.
+
+**0.8 Solution**: Hard-LLM pre-filters content before Medium-LLM ever sees it.
 
 ---
 
 ## Overview
 
-| Component | Purpose |
-|-----------|--------|
-| **Proximity Manager** | Tracks who can perceive whom (close/nearby/distant/far) |
-| **Context Compiler** | Gathers world content for Medium-LLM aperture |
-| **Content Generator** | Procedurally creates missing world elements |
-| **Coherence Monitor** | Detects contradictions, maintains world consistency |
+| Component | Purpose | Priority |
+|-----------|---------|----------|
+| **Proximity Determination** | Who's close/nearby/distant/far via pscale coordinates | Core |
+| **Aperture Filtering** | What content feeds Medium-LLM based on pscale | Core |
+| **Hard-LLM Coordination** | How Hard-LLMs find each other | Core |
+| **Procedural Content** | Generate missing locations/NPCs | → 0.8.5 (deferred) |
 
 ---
 
-## Part I: Proximity Architecture
+## Part I: Pscale Coordinates as Location
+
+### The Three Dimensions
+
+Every character (and every piece of content) has pscale coordinates:
+
+| Dimension | What It Locates | Example Values |
+|-----------|-----------------|----------------|
+| **Spatial** | Where in the world hierarchy | 0 = room, +3 = city, +6 = nation |
+| **Temporal** | When in the action/history | -2 = this moment, +1 = this scene, +4 = this era |
+| **Identity** | Who (individual → group → faction) | 0 = individual, +2 = party, +5 = civilization |
+
+### Lamina Structure
+
+```typescript
+interface CharacterLamina {
+  character_id: string;
+  
+  // Spatial location
+  location_id?: string;           // Content reference
+  spatial_pscale: number;         // 0 = room, +3 = city, etc.
+  
+  // Temporal location  
+  temporal_pscale: number;        // Current action scale
+  
+  // Identity location
+  identity_pscale?: number;       // 0 = solo, +2 = party, etc.
+  
+  // Attention (optional narrowing)
+  focus?: string;                 // What they're attending to
+}
+```
+
+### Content Also Has Pscale
+
+```typescript
+interface ContentLamina {
+  // What pscale range this content is relevant for
+  pscale_floor: number;           // Minimum scale (detail level)
+  pscale_ceiling: number;         // Maximum scale (scope level)
+  
+  // Location in world
+  spatial_pscale: number;
+  temporal_pscale?: number;       // When this exists/happened
+}
+```
+
+---
+
+## Part II: Proximity via Pscale Overlap
+
+### How Proximity Emerges
+
+Two characters are **narratively proximate** when their pscale coordinates overlap sufficiently:
+
+```
+Character A: spatial=0 (room), temporal=-2 (combat moment)
+Character B: spatial=0 (same room), temporal=-2 (same moment)
+→ CLOSE: coordinates match closely
+
+Character C: spatial=+1 (building), temporal=-1 (this scene)
+→ NEARBY: same building, slightly different focus
+
+Character D: spatial=+3 (city), temporal=0 (this hour)
+→ DISTANT: same city, different immediate context
+```
 
 ### The Four Proximity States
 
-| State | Meaning | Effect on Medium-LLM |
-|-------|---------|---------------------|
-| **Close** | Sensorially aware (sight, sound, touch) | Share initiative window - actions affect each other directly |
-| **Nearby** | Same general area, not in direct engagement | Separate windows - outcomes visible but not immediate |
-| **Distant** | Same region/scene, requires travel to interact | Context only - events summarized, not live |
-| **Far** | Different location entirely | No direct effect - only high-pscale events propagate |
+| State | Pscale Overlap | Effect |
+|-------|----------------|--------|
+| **Close** | Spatial ≤1 apart, temporal ≤1 apart | Actions affect each other directly |
+| **Nearby** | Spatial ≤2 apart, temporal ≤2 apart | Outcomes visible but not immediate |
+| **Distant** | Spatial ≤4 apart | Context only, events summarized |
+| **Far** | Spatial >4 apart | Only high-pscale events propagate |
 
-### Blob Model
+### Blob Formation
 
-Characters in mutual `close` relationship form a **blob** - they experience synchronized narrative.
+Characters in mutual `close` relationship form a **blob**:
+- Their Medium-LLMs coordinate
+- They share the same solid narrative
+- Their actions resolve together
 
-```
-Blob A: [Player1, Player2, NPC_barkeep]
-  - All see each other's actions immediately
-  - Medium-LLMs coordinate outcomes
-  - Share same solid narrative (with personal perspective)
+---
 
-Blob B: [Player3, Player4]
-  - Nearby to Blob A
-  - See Blob A's outcomes after resolution
-  - Actions don't directly interfere
+## Part III: Hard-LLM to Hard-LLM Coordination
+
+### The Murmuration Model
+
+Hard-LLMs don't check against a central registry. They **find each other**:
+
+1. Each Hard-LLM publishes its character's pscale coordinates
+2. Each Hard-LLM queries for nearby coordinates
+3. Overlap determines proximity
+4. Proximity lists are mutually updated
+
+```typescript
+// Hard-LLM A's perspective
+interface HardLLMState {
+  my_character_id: string;
+  my_coordinates: CharacterLamina;
+  
+  // Discovered through coordination
+  close: string[];      // Other character IDs
+  nearby: string[];
+  distant: string[];
+  
+  // Last coordination timestamp
+  coordinated_at: string;
+}
 ```
 
 ### Convergence & Divergence
 
 **Convergence**: Characters move from `nearby` → `close`
-- Triggered by: Movement toward, narrative intersection, explicit approach
-- Effect: Blobs merge, subscribe to each other's outcomes
+- Hard-LLM detects coordinate overlap after narrative action
+- Updates its close list
+- Other character's Hard-LLM does the same
 
 **Divergence**: Characters move from `close` → `nearby`
-- Triggered by: Movement away, narrative separation, explicit departure
-- Effect: Blob splits, unsubscribe from direct coordination
-
-### Hard-LLM Proximity Check
-
-After each synthesis cycle, Hard-LLM evaluates:
-
-```typescript
-interface ProximityCheckInput {
-  character_id: string;
-  recent_narrative: string;        // What just happened
-  current_close: string[];         // Who they're with
-  current_nearby: string[];        // Who's around
-  nearby_narratives: string[];     // What nearby characters experienced
-}
-
-interface ProximityCheckOutput {
-  converge_with: string[];         // Move to close
-  diverge_from: string[];          // Move to nearby
-  reasoning: string;               // Why (for debugging)
-}
-```
+- Hard-LLM detects coordinate separation
+- Blob splits
 
 ### Blob Representative Optimization
 
-When checking proximity, don't compare against every nearby character - compare against **one representative per blob**:
+When checking proximity, compare against **one representative per blob**:
 
 ```
 Nearby: [A, B, C, D, E]
 A.close = [B, C]  → A is representative, B and C covered
 D.close = [E]     → D is representative, E covered
 
-Representatives: [A, D]  ← only 2 comparisons, not 5
+Representatives: [A, D]  ← only 2 LLM comparisons, not 5
 ```
 
 ---
 
-## Part II: Context Compilation
+## Part IV: Aperture Filtering
 
-### What Medium-LLM Needs
+### The Core Problem
 
-Medium-LLM synthesis requires world context. Hard-LLM compiles this:
+Medium-LLM needs world context. But ALL context = grinding prose.
 
-```typescript
-interface WorldContext {
-  // Location context
-  current_location: {
-    id: string;
-    description: string;
-    features: string[];           // Things that can be interacted with
-    atmosphere: string;           // Mood, lighting, sounds
-  };
-  
-  // Nearby locations (for movement options)
-  adjacent_locations: {
-    id: string;
-    name: string;
-    direction: string;            // "north", "through the door", etc.
-  }[];
-  
-  // NPCs present
-  npcs_present: {
-    id: string;
-    name: string;
-    disposition: string;          // Current attitude
-    activity: string;             // What they're doing
-  }[];
-  
-  // Recent events (high-pscale outcomes that affect this location)
-  active_events: {
-    description: string;
-    pscale: number;
-    relevance: string;            // How it affects current scene
-  }[];
-  
-  // Time/weather if relevant
-  environmental: {
-    time_of_day?: string;
-    weather?: string;
-    special_conditions?: string[];
-  };
-}
-```
+### The Solution: Pscale Aperture
 
-### Aperture Selection
-
-Hard-LLM determines what's **in scope** for each character based on:
-
-1. **Spatial pscale**: Character's location in world hierarchy
-2. **Temporal pscale**: How long their action takes (affects what can change)
-3. **Attention focus**: What the character is paying attention to
-4. **Proximity network**: Who they can perceive
+Hard-LLM determines what content is **in scope** based on character's current pscale:
 
 ```typescript
 interface ApertureConfig {
+  // Spatial filtering
   spatial_floor: number;    // Don't include details smaller than this
   spatial_ceiling: number;  // Don't include context larger than this
+  
+  // Temporal filtering
   temporal_window: number;  // How far back to include events
-  focus_filter?: string;    // Optional attention narrowing
+  
+  // Optional narrowing
+  focus_filter?: string;    // Character's current attention
 }
 ```
 
-### Context Flow
+### Aperture Examples
 
-```
-Hard-LLM (background, 10-30s)
-  │
-  ├── Queries content table for character's location
-  ├── Queries nearby characters' positions
-  ├── Queries recent outcomes affecting this area
-  ├── Compiles WorldContext
-  │
-  └── Stores in character_context table
-          │
-          ▼
-Medium-LLM (on wake)
-  │
-  ├── Reads character_context
-  ├── Includes in synthesis prompt
-  │
-  └── Generates narrative with world awareness
+**Combat moment** (pscale -2):
+```typescript
+aperture = {
+  spatial_floor: -2,    // Include object-level details
+  spatial_ceiling: 0,   // Don't include city-level context
+  temporal_window: -3   // Only last few seconds relevant
+}
 ```
 
----
+**Exploring a city** (pscale +2):
+```typescript
+aperture = {
+  spatial_floor: +1,    // Building-level minimum
+  spatial_ceiling: +4,  // Regional context
+  temporal_window: +1   // Recent events relevant
+}
+```
 
-## Part III: Procedural Content Generation
-
-### The Problem
-
-Player enters a room that Author hasn't described. What happens?
-
-### The Solution: Author-LLM Content Generation
-
-Hard-LLM detects missing content and generates it:
+### Content Selection
 
 ```typescript
-interface ContentGap {
-  type: 'location' | 'npc' | 'item' | 'event';
-  trigger: string;                // What prompted the need
-  context: {
-    parent_location?: string;     // Where this fits
-    nearby_content?: string[];    // What's already established
-    player_expectation?: string;  // What player seems to be looking for
-  };
-}
-
-interface GeneratedContent {
-  id: string;
-  content_type: string;
-  data: {
-    name: string;
-    description: string;
-    features?: string[];
-    connections?: string[];
-  };
-  pscale_aperture: number;
-  determinancy: number;           // 0.0-1.0, how fixed this is
-  generated_by: 'hard-llm';       // Mark as procedural
-}
-```
-
-### Generation Principles
-
-1. **Consistency**: Generated content must fit established world
-2. **Minimalism**: Generate only what's needed for current action
-3. **Determinancy gradient**: New content starts with low determinancy (can be revised)
-4. **Author override**: Human authors can replace generated content later
-
-### Example Flow
-
-```
-Player: "I go through the back door"
-  │
-  ▼
-Medium-LLM: Needs to know what's behind the door
-  │
-  ▼
-Hard-LLM: Checks content table → No entry for "back room"
-  │
-  ▼
-Hard-LLM: Generates content based on:
-  - Parent: "The Rusty Anchor" (pub)
-  - Nearby: Kitchen, cellar stairs
-  - World: URB, industrial fantasy
-  │
-  ▼
-Generated: {
-  name: "Storage Room",
-  description: "Cramped space stacked with crates and barrels...",
-  features: ["crates", "barrels", "dust", "small window"],
-  determinancy: 0.3  // Can be revised
-}
-  │
-  ▼
-Stored to content table with generated_by: 'hard-llm'
-  │
-  ▼
-Medium-LLM: Now has context for player's action
-```
-
----
-
-## Part IV: Coherence Monitoring
-
-### Contradiction Detection
-
-Hard-LLM monitors for inconsistencies:
-
-- Character in two places simultaneously
-- Dead NPC appearing alive
-- Time paradoxes (event B before event A that caused it)
-- Physics violations (unless magic explains it)
-
-### Resolution Strategies
-
-| Contradiction Type | Resolution |
-|-------------------|------------|
-| **Minor** | Ignore, let narrative smooth over |
-| **Moderate** | Flag for Author review |
-| **Severe** | Inject correction into next synthesis |
-| **Critical** | Pause affected characters, notify Designer |
-
-### Coherence Context
-
-```typescript
-interface CoherenceAlert {
-  severity: 'minor' | 'moderate' | 'severe' | 'critical';
-  type: string;
-  description: string;
-  affected_characters: string[];
-  suggested_resolution?: string;
-  auto_resolved: boolean;
+function selectContent(
+  character: CharacterLamina,
+  aperture: ApertureConfig,
+  allContent: Content[]
+): Content[] {
+  return allContent.filter(content => {
+    // Spatial match
+    const spatialMatch = 
+      content.spatial_pscale >= aperture.spatial_floor &&
+      content.spatial_pscale <= aperture.spatial_ceiling;
+    
+    // Location relevance (same branch of world tree)
+    const locationRelevant = 
+      isInSameLocation(character.location_id, content.id, aperture.spatial_ceiling);
+    
+    return spatialMatch && locationRelevant;
+  });
 }
 ```
 
 ---
 
-## Part V: Data Model
+## Part V: Open Questions
+
+### How Do Frames Relate to Proximity?
+
+This is **not yet resolved**. Possibilities:
+
+1. **Frame as scope**: Hard-LLMs can only see each other within same frame
+2. **Frame as configuration**: Frame sets default aperture, proximity operates within
+3. **Frame as cosmology boundary**: Characters in different cosmologies can't be close
+4. **Proximity independent of frame**: Characters find each other by coordinates alone
+
+**Current assumption**: Frame provides the **pool** of characters whose Hard-LLMs can coordinate. Proximity determines relationships **within** that pool.
+
+### How Does Identity Pscale Work?
+
+Not fully specified. Intuition:
+- Identity pscale 0 = individual character
+- Identity pscale +2 = party/group acting together
+- Identity pscale +5 = faction/nation acting
+
+Higher identity pscale might mean character's actions are **on behalf of** the group, affecting content at that scale.
+
+---
+
+## Part VI: Data Model
 
 ### New Tables
 
 ```sql
--- Character proximity subscriptions
-CREATE TABLE character_subscriptions (
+-- Character pscale coordinates (updated by Hard-LLM)
+CREATE TABLE character_coordinates (
+  character_id UUID PRIMARY KEY REFERENCES characters(id),
+  frame_id UUID REFERENCES frames(id),
+  
+  -- Pscale location
+  spatial_pscale INTEGER DEFAULT 0,
+  temporal_pscale INTEGER DEFAULT 0,
+  identity_pscale INTEGER DEFAULT 0,
+  
+  -- Content location reference
+  location_id UUID REFERENCES content(id),
+  
+  -- Attention
+  focus TEXT,
+  
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Character proximity (discovered by Hard-LLM coordination)
+CREATE TABLE character_proximity (
   character_id UUID PRIMARY KEY REFERENCES characters(id),
   close UUID[] DEFAULT '{}',
   nearby UUID[] DEFAULT '{}',
   distant UUID[] DEFAULT '{}',
   far UUID[] DEFAULT '{}',
-  updated_at TIMESTAMPTZ DEFAULT now()
+  coordinated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Compiled world context (cache)
+-- Cached context for Medium-LLM (compiled by Hard-LLM)
 CREATE TABLE character_context (
   character_id UUID PRIMARY KEY REFERENCES characters(id),
   frame_id UUID REFERENCES frames(id),
-  world_context JSONB NOT NULL,
+  
+  -- Filtered content
+  context_content JSONB NOT NULL,
+  
+  -- Aperture used
   aperture_config JSONB,
+  
   compiled_at TIMESTAMPTZ DEFAULT now(),
   expires_at TIMESTAMPTZ  -- Context goes stale
 );
 
--- Hard-LLM job queue
-CREATE TABLE hard_llm_jobs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_type TEXT NOT NULL,  -- 'proximity_check', 'context_compile', 'content_generate', 'coherence_check'
-  character_id UUID REFERENCES characters(id),
-  frame_id UUID REFERENCES frames(id),
-  input JSONB NOT NULL,
-  output JSONB,
-  status TEXT DEFAULT 'pending',  -- 'pending', 'processing', 'complete', 'failed'
-  created_at TIMESTAMPTZ DEFAULT now(),
-  completed_at TIMESTAMPTZ
-);
-
--- Index for job processing
-CREATE INDEX hard_llm_jobs_pending ON hard_llm_jobs(status, created_at) 
-  WHERE status = 'pending';
+-- Enable realtime for coordination
+ALTER PUBLICATION supabase_realtime ADD TABLE character_coordinates;
+ALTER PUBLICATION supabase_realtime ADD TABLE character_proximity;
 ```
 
-### Modified Tables
+### Indexes
 
 ```sql
--- Add to content table
-ALTER TABLE content ADD COLUMN IF NOT EXISTS generated_by TEXT;  -- null = author, 'hard-llm' = procedural
-ALTER TABLE content ADD COLUMN IF NOT EXISTS determinancy DECIMAL(3,2) DEFAULT 1.0;
+-- For Hard-LLM coordinate discovery
+CREATE INDEX character_coordinates_frame 
+  ON character_coordinates(frame_id, spatial_pscale);
 
--- Add to characters table  
-ALTER TABLE characters ADD COLUMN IF NOT EXISTS current_location_id UUID REFERENCES content(id);
-ALTER TABLE characters ADD COLUMN IF NOT EXISTS attention_focus TEXT;
+-- For proximity lookups
+CREATE INDEX character_proximity_close 
+  ON character_proximity USING GIN(close);
 ```
 
 ---
 
-## Part VI: Edge Functions
+## Part VII: Hard-LLM Operations
 
-### hard-llm-processor
+### Operation 1: Update Coordinates
 
-Background worker that processes Hard-LLM jobs:
+After synthesis, Hard-LLM analyzes narrative to update character's position:
 
 ```typescript
-// Triggered by: cron (every 10s) or on-demand
+interface CoordinateUpdateInput {
+  character_id: string;
+  recent_narrative: string;     // What just happened
+  current_coordinates: CharacterLamina;
+}
 
-async function processHardLLMJobs() {
-  // Get pending jobs, oldest first
-  const jobs = await getPendingJobs(limit: 10);
-  
-  for (const job of jobs) {
-    switch (job.job_type) {
-      case 'proximity_check':
-        await processProximityCheck(job);
-        break;
-      case 'context_compile':
-        await processContextCompile(job);
-        break;
-      case 'content_generate':
-        await processContentGenerate(job);
-        break;
-      case 'coherence_check':
-        await processCoherenceCheck(job);
-        break;
-    }
-  }
+interface CoordinateUpdateOutput {
+  new_coordinates: CharacterLamina;
+  movement_detected: boolean;
+  reasoning: string;
 }
 ```
 
-### Job Scheduling
+### Operation 2: Discover Proximity
 
-Jobs are created by:
+Hard-LLM queries for other characters with overlapping coordinates:
 
-1. **Medium-LLM completion** → Queue proximity_check for all involved characters
-2. **Timer expiry approaching** → Queue context_compile for character
-3. **Missing content detected** → Queue content_generate
-4. **Periodic sweep** → Queue coherence_check for active frames
+```typescript
+interface ProximityDiscoveryInput {
+  character_id: string;
+  my_coordinates: CharacterLamina;
+  frame_id: string;             // Scope of discovery
+}
+
+interface ProximityDiscoveryOutput {
+  close: string[];
+  nearby: string[];
+  distant: string[];
+  changed: boolean;
+}
+```
+
+### Operation 3: Compile Context
+
+Hard-LLM filters content for Medium-LLM:
+
+```typescript
+interface ContextCompileInput {
+  character_id: string;
+  coordinates: CharacterLamina;
+  proximity: { close: string[], nearby: string[] };
+}
+
+interface ContextCompileOutput {
+  content: ContentEntry[];      // Filtered content
+  close_character_states: any[]; // What close characters are doing
+  aperture_used: ApertureConfig;
+}
+```
 
 ---
 
-## Part VII: Integration with 0.7.5
+## Part VIII: Integration with 0.7
 
-### Medium-LLM Now Reads Context
+### What 0.7 Provides
+
+- Commit triggers synthesis
+- Single Medium-LLM per frame
+- Shared solid for all participants
+- Liquid table with committed entries
+
+### What 0.8 Adds
+
+- Multiple characters can be in same frame
+- Hard-LLM determines who's "close"
+- Close characters' actions coordinate in Medium-LLM
+- Hard-LLM filters content by pscale aperture
+- Medium-LLM receives curated context
+
+### Modified Gather.ts
 
 ```typescript
-// In gather.ts (modified for 0.8)
+// gather.ts with 0.8
 
-async function gatherContext(characterId: string, frameId: string): Promise<SynthesisContext> {
-  // ... existing gathering ...
+async function gatherContext(
+  frameId: string,
+  committedLiquid: LiquidEntry[]
+): Promise<SynthesisContext> {
   
-  // NEW: Get Hard-LLM compiled context
-  const { data: hardContext } = await supabase
-    .from('character_context')
-    .select('world_context, aperture_config')
-    .eq('character_id', characterId)
-    .single();
+  // Get character IDs from committed entries
+  const characterIds = committedLiquid.map(l => l.character_id);
+  
+  // NEW: Check if characters are close
+  const proximityGroups = await getProximityGroups(characterIds);
+  
+  // Only synthesize together if in same blob
+  const closeGroup = proximityGroups.find(g => 
+    characterIds.every(id => g.includes(id))
+  );
+  
+  if (!closeGroup) {
+    // Characters not close - synthesize separately
+    // (or queue for later when they converge)
+  }
+  
+  // NEW: Get Hard-LLM compiled context for the group
+  const worldContext = await getCompiledContext(closeGroup[0]);
   
   return {
-    ...existingContext,
-    worldContext: hardContext?.world_context,
-    aperture: hardContext?.aperture_config
+    liquid: committedLiquid,
+    worldContext,
+    participants: closeGroup
   };
 }
 ```
 
-### Proximity Affects Outcome Visibility
+---
 
-```typescript
-// In route.ts (modified for 0.8)
+## Part IX: Implementation Order
 
-async function broadcastOutcome(outcome: ActionOutcome) {
-  const { data: subs } = await supabase
-    .from('character_subscriptions')
-    .select('*')
-    .eq('character_id', outcome.source_character_id)
-    .single();
-  
-  // Close characters: Full outcome immediately
-  for (const charId of subs.close) {
-    await deliverOutcome(charId, outcome, 'full');
-  }
-  
-  // Nearby characters: Outcome summary on their next wake
-  for (const charId of subs.nearby) {
-    await queueOutcomeSummary(charId, outcome);
-  }
-  
-  // Distant/Far: Only if high pscale
-  if (outcome.pscale >= 2) {
-    for (const charId of [...subs.distant, ...subs.far]) {
-      await queueDistantEvent(charId, outcome);
-    }
-  }
-}
-```
+### 0.8 Core (Proximity + Aperture)
+
+1. **Database**: Create character_coordinates table
+2. **Database**: Create character_proximity table  
+3. **Database**: Create character_context table
+4. **Edge Function**: Create hard-llm-coordinate-update
+5. **Edge Function**: Create hard-llm-proximity-discover
+6. **Edge Function**: Create hard-llm-context-compile
+7. **Integration**: Modify gather.ts to use proximity
+8. **Integration**: Modify gather.ts to use compiled context
+9. **Trigger**: Call Hard-LLM after Medium-LLM synthesis
+10. **Frontend**: Debug view for coordinates/proximity
+11. **Test**: Two characters converge when entering same room
+
+### 0.8.5 (Procedural Content) - DEFERRED
+
+- Author-LLM generates missing content
+- Determinancy tracking
+- Content gap detection
 
 ---
 
-## Part VIII: Implementation Order
+## Part X: Success Criteria
 
-### Prerequisites (from 0.7.5)
-- ✅ Per-character Medium-LLM
-- ✅ Outcomes table with broadcast
-- ✅ Timer windows
-- ✅ Personal narratives
+1. **Coordinates track**: Character movement updates pscale coordinates
+2. **Proximity emerges**: Characters with overlapping coordinates become close
+3. **Blobs form**: Close characters' actions coordinate in synthesis
+4. **Aperture filters**: Medium-LLM receives appropriate content, not everything
+5. **No grinding prose**: Narrative stays focused due to filtered context
+6. **Performance**: Hard-LLM background doesn't block player experience
 
-### 0.8 Implementation Steps
+### The Convergence Test
 
-1. **Database**: Create character_subscriptions, character_context, hard_llm_jobs tables
-2. **Database**: Add columns to content and characters tables
-3. **Edge Function**: Create hard-llm-processor with job types
-4. **Proximity**: Implement proximity_check job (convergence/divergence)
-5. **Context**: Implement context_compile job (world context gathering)
-6. **Generate**: Implement content_generate job (procedural content)
-7. **Coherence**: Implement coherence_check job (contradiction detection)
-8. **Integration**: Modify gather.ts to read character_context
-9. **Integration**: Modify route.ts to use proximity for delivery
-10. **Scheduling**: Add job creation triggers
-11. **Frontend**: Debug view for proximity network
-12. **Test**: Player enters unnamed room → generates content
+1. Two players start in same frame, different rooms (nearby)
+2. Player A moves toward Player B's room
+3. Hard-LLM detects coordinate overlap
+4. Both become close
+5. Next commit from either triggers synthesis including both
+6. Both see shared solid narrative
 
 ---
 
-## Part IX: Success Criteria
-
-1. **Proximity works**: Characters moving together converge into blob
-2. **Context flows**: Medium-LLM receives world context from Hard-LLM
-3. **Content generates**: Missing locations created on-demand
-4. **Coherence holds**: Contradictions detected and flagged
-5. **Performance**: Hard-LLM background doesn't block player experience
-6. **The Room Test**: Player enters unnamed room → Hard-LLM generates description from nearby content patterns → Medium-LLM uses it naturally
-
----
-
-## Part X: Key Quotes from Design Docs
+## Part XI: Key Quotes
 
 From onen_v4_synthesis:
 > "Hard-LLM operates in background. Maintains coherence across the entire system. Exchanges semantic coordinates with other Hard-LLMs."
 
 From soft_medium_coordination_architecture:
-> "Hard-LLM (proximity + world): Maintains semantic proximity networks (close/nearby/distant/far), Background scene monitoring, NPC generation and world-level changes"
+> "Hard-LLM (proximity + world): Maintains semantic proximity networks (close/nearby/distant/far)"
 
 From plex-1-specification:
-> "Hard-LLM: Monitors character position via narrative analysis, Maintains subscription networks (close/nearby/far), Updates which actions are visible to which characters"
-
----
-
-## Appendix: Cron Configuration
-
-For Supabase pg_cron (or external scheduler):
-
-```sql
--- Process Hard-LLM jobs every 10 seconds
-SELECT cron.schedule(
-  'hard-llm-processor',
-  '*/10 * * * * *',  -- Every 10 seconds
-  $$SELECT net.http_post(
-    'https://piqxyfmzzywxzqkzmpmm.supabase.co/functions/v1/hard-llm-processor',
-    '{}',
-    '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb
-  )$$
-);
-```
-
-Alternatively, use Supabase Edge Function with `Deno.cron` (if available) or external scheduler like n8n.
+> "Hard-LLM: Independent per character, healthy redundancy/convergence"
