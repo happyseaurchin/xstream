@@ -6,6 +6,18 @@
 
 ---
 
+## Related Documents
+
+| Document | Relationship |
+|----------|-------------|
+| [`plex-1-specification.md`](plex-1-specification.md) | **Parent spec** — defines the kernel architecture, Triple-LLM stack, pscale, lamina |
+| [`frame-lamina-aperture.md`](frame-lamina-aperture.md) | **Essential companion** — clarifies that Frame is Hard-LLM's *output*, not its container |
+| [`phase-0.7-architecture.md`](phase-0.7-architecture.md) | **Prerequisite** — what 0.8 builds on |
+
+**Read `frame-lamina-aperture.md` before implementing.** It prevents the common mistake of treating frames as static containers rather than Hard-LLM's assembled output.
+
+---
+
 ## The Core Insight
 
 > "Hard-LLM performs the unenviable task of locating the user in the narrative/content/code space they are operating in."
@@ -14,6 +26,7 @@ Hard-LLM is **per-character** (part of each user's soft-medium-hard triad). It:
 - Locates the character in pscale space (spatial, temporal, identity)
 - Coordinates with OTHER Hard-LLMs to discover proximity
 - Filters content so Medium-LLM receives curated context, not everything
+- **Produces the operational frame** that Soft and Medium use
 
 This is **not** a centralized process. Proximity **emerges** from Hard-LLM to Hard-LLM coordination - like the murmuration model.
 
@@ -34,6 +47,7 @@ In v3, we dumped huge amounts of context into the narrative LLM. Result: grindin
 | **Proximity Determination** | Who's close/nearby/distant/far via pscale coordinates | Core |
 | **Aperture Filtering** | What content feeds Medium-LLM based on pscale | Core |
 | **Hard-LLM Coordination** | How Hard-LLMs find each other | Core |
+| **Frame Construction** | Assemble operational context for Soft/Medium | Core |
 | **Procedural Content** | Generate missing locations/NPCs | → 0.8.5 (deferred) |
 
 ---
@@ -51,6 +65,8 @@ Every character (and every piece of content) has pscale coordinates:
 | **Identity** | Who (individual → group → faction) | 0 = individual, +2 = party, +5 = civilization |
 
 ### Lamina Structure
+
+See [`frame-lamina-aperture.md`](frame-lamina-aperture.md) for full definition. Summary:
 
 ```typescript
 interface CharacterLamina {
@@ -133,6 +149,8 @@ Hard-LLMs don't check against a central registry. They **find each other**:
 2. Each Hard-LLM queries for nearby coordinates
 3. Overlap determines proximity
 4. Proximity lists are mutually updated
+
+See [`frame-lamina-aperture.md`](frame-lamina-aperture.md) for the full murmuration explanation.
 
 ```typescript
 // Hard-LLM A's perspective
@@ -244,18 +262,39 @@ function selectContent(
 
 ---
 
-## Part V: Open Questions
+## Part V: Frame as Hard-LLM Output
 
-### How Do Frames Relate to Proximity?
+**Critical architectural point** (see [`frame-lamina-aperture.md`](frame-lamina-aperture.md)):
 
-This is **not yet resolved**. Possibilities:
+The database `frames` table stores **configuration templates**:
+- cosmology_id, pscale floor/ceiling, XYZ config, package attachments
 
-1. **Frame as scope**: Hard-LLMs can only see each other within same frame
-2. **Frame as configuration**: Frame sets default aperture, proximity operates within
-3. **Frame as cosmology boundary**: Characters in different cosmologies can't be close
-4. **Proximity independent of frame**: Characters find each other by coordinates alone
+But the **operational frame** is what Hard-LLM **produces**:
+- Proximity (who's close)
+- Content (filtered by aperture)
+- Skills (resolved package stack)
+- Context (what Medium-LLM needs)
 
-**Current assumption**: Frame provides the **pool** of characters whose Hard-LLMs can coordinate. Proximity determines relationships **within** that pool.
+```
+Database "frame" = configuration template
+Hard-LLM output "frame" = live operational context
+```
+
+This distinction prevents the centralization trap. There's no central "frame state" — each user's Hard-LLM constructs their operational frame locally.
+
+---
+
+## Part VI: Open Questions
+
+### How Do Database Frames Relate to Operational Frames?
+
+Possibilities being explored:
+
+1. **Database frame as boundary**: Hard-LLMs can only coordinate within same frame template
+2. **Database frame as defaults**: Provides initial aperture, proximity operates freely
+3. **Database frame as cosmology scope**: Characters must share cosmology to be proximate
+
+**Current assumption**: Database frame provides the **pool** of characters whose Hard-LLMs can coordinate. Operational frame is constructed **per-user** within that pool.
 
 ### How Does Identity Pscale Work?
 
@@ -268,7 +307,7 @@ Higher identity pscale might mean character's actions are **on behalf of** the g
 
 ---
 
-## Part VI: Data Model
+## Part VII: Data Model
 
 ### New Tables
 
@@ -302,15 +341,13 @@ CREATE TABLE character_proximity (
   coordinated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Cached context for Medium-LLM (compiled by Hard-LLM)
+-- Cached operational frame (compiled by Hard-LLM)
 CREATE TABLE character_context (
   character_id UUID PRIMARY KEY REFERENCES characters(id),
   frame_id UUID REFERENCES frames(id),
   
-  -- Filtered content
+  -- The operational frame
   context_content JSONB NOT NULL,
-  
-  -- Aperture used
   aperture_config JSONB,
   
   compiled_at TIMESTAMPTZ DEFAULT now(),
@@ -336,7 +373,7 @@ CREATE INDEX character_proximity_close
 
 ---
 
-## Part VII: Hard-LLM Operations
+## Part VIII: Hard-LLM Operations
 
 ### Operation 1: Update Coordinates
 
@@ -375,27 +412,29 @@ interface ProximityDiscoveryOutput {
 }
 ```
 
-### Operation 3: Compile Context
+### Operation 3: Compile Operational Frame
 
-Hard-LLM filters content for Medium-LLM:
+Hard-LLM assembles everything Medium-LLM needs:
 
 ```typescript
-interface ContextCompileInput {
+interface FrameCompileInput {
   character_id: string;
   coordinates: CharacterLamina;
   proximity: { close: string[], nearby: string[] };
+  frame_template_id: string;    // Database frame for config
 }
 
-interface ContextCompileOutput {
+interface FrameCompileOutput {
   content: ContentEntry[];      // Filtered content
   close_character_states: any[]; // What close characters are doing
+  skills: SkillSet;             // Resolved package stack
   aperture_used: ApertureConfig;
 }
 ```
 
 ---
 
-## Part VIII: Integration with 0.7
+## Part IX: Integration with 0.7
 
 ### What 0.7 Provides
 
@@ -410,7 +449,7 @@ interface ContextCompileOutput {
 - Hard-LLM determines who's "close"
 - Close characters' actions coordinate in Medium-LLM
 - Hard-LLM filters content by pscale aperture
-- Medium-LLM receives curated context
+- Medium-LLM receives curated operational frame
 
 ### Modified Gather.ts
 
@@ -438,12 +477,13 @@ async function gatherContext(
     // (or queue for later when they converge)
   }
   
-  // NEW: Get Hard-LLM compiled context for the group
-  const worldContext = await getCompiledContext(closeGroup[0]);
+  // NEW: Get Hard-LLM compiled operational frame
+  const operationalFrame = await getCompiledContext(closeGroup[0]);
   
   return {
     liquid: committedLiquid,
-    worldContext,
+    worldContext: operationalFrame.content,
+    skills: operationalFrame.skills,
     participants: closeGroup
   };
 }
@@ -451,18 +491,18 @@ async function gatherContext(
 
 ---
 
-## Part IX: Implementation Order
+## Part X: Implementation Order
 
-### 0.8 Core (Proximity + Aperture)
+### 0.8 Core (Proximity + Aperture + Frame Construction)
 
 1. **Database**: Create character_coordinates table
 2. **Database**: Create character_proximity table  
 3. **Database**: Create character_context table
 4. **Edge Function**: Create hard-llm-coordinate-update
 5. **Edge Function**: Create hard-llm-proximity-discover
-6. **Edge Function**: Create hard-llm-context-compile
+6. **Edge Function**: Create hard-llm-frame-compile
 7. **Integration**: Modify gather.ts to use proximity
-8. **Integration**: Modify gather.ts to use compiled context
+8. **Integration**: Modify gather.ts to use compiled operational frame
 9. **Trigger**: Call Hard-LLM after Medium-LLM synthesis
 10. **Frontend**: Debug view for coordinates/proximity
 11. **Test**: Two characters converge when entering same room
@@ -475,14 +515,15 @@ async function gatherContext(
 
 ---
 
-## Part X: Success Criteria
+## Part XI: Success Criteria
 
 1. **Coordinates track**: Character movement updates pscale coordinates
 2. **Proximity emerges**: Characters with overlapping coordinates become close
 3. **Blobs form**: Close characters' actions coordinate in synthesis
 4. **Aperture filters**: Medium-LLM receives appropriate content, not everything
-5. **No grinding prose**: Narrative stays focused due to filtered context
-6. **Performance**: Hard-LLM background doesn't block player experience
+5. **Frame constructs**: Hard-LLM produces operational frame per-user
+6. **No grinding prose**: Narrative stays focused due to filtered context
+7. **Performance**: Hard-LLM background doesn't block player experience
 
 ### The Convergence Test
 
@@ -495,7 +536,7 @@ async function gatherContext(
 
 ---
 
-## Part XI: Key Quotes
+## Part XII: Key Quotes
 
 From onen_v4_synthesis:
 > "Hard-LLM operates in background. Maintains coherence across the entire system. Exchanges semantic coordinates with other Hard-LLMs."
@@ -505,3 +546,6 @@ From soft_medium_coordination_architecture:
 
 From plex-1-specification:
 > "Hard-LLM: Independent per character, healthy redundancy/convergence"
+
+From frame-lamina-aperture (companion doc):
+> "Frame isn't a static container that Hard-LLM operates within. Frame is what Hard-LLM produces — the assembled context that Soft and Medium need to do their work."
