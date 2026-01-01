@@ -1,551 +1,512 @@
-# Phase 0.8: Hard-LLM & World Context Architecture
+# Phase 0.8: Hard-LLM & Narrative Aperture (Revised)
 
 **Status**: ⏳ PLANNED  
 **Depends on**: 0.7 (commit triggers synthesis, shared solid)  
-**Note**: Does NOT require 0.7.5 (personalized narratives) - builds directly on 0.7
+**Revision**: Corrected pscale coordinate model per `pscale-coordinates-implementation.md`
 
 ---
 
-## Related Documents
+## Read First (in order)
 
-| Document | Relationship |
-|----------|-------------|
-| [`plex-1-specification.md`](plex-1-specification.md) | **Parent spec** — defines the kernel architecture, Triple-LLM stack, pscale, lamina |
-| [`frame-lamina-aperture.md`](frame-lamina-aperture.md) | **Essential companion** — clarifies that Frame is Hard-LLM's *output*, not its container |
-| [`phase-0.7-architecture.md`](phase-0.7-architecture.md) | **Prerequisite** — what 0.8 builds on |
-
-**Read `frame-lamina-aperture.md` before implementing.** It prevents the common mistake of treating frames as static containers rather than Hard-LLM's assembled output.
+1. `pscale-coordinates-implementation.md` — **CRITICAL**: Coordinates are hierarchical strings, not integers
+2. `frame-lamina-aperture.md` — Frame is Hard-LLM's OUTPUT, not container
+3. `plex-1-specification.md` — Kernel architecture
 
 ---
 
-## The Core Insight
+## What 0.8 Solves
 
-> "Hard-LLM performs the unenviable task of locating the user in the narrative/content/code space they are operating in."
+**v3 Problem**: Dumping all context into Medium-LLM produces grinding prose.
 
-Hard-LLM is **per-character** (part of each user's soft-medium-hard triad). It:
-- Locates the character in pscale space (spatial, temporal, identity)
-- Coordinates with OTHER Hard-LLMs to discover proximity
-- Filters content so Medium-LLM receives curated context, not everything
-- **Produces the operational frame** that Soft and Medium use
+**0.8 Solution**: Hard-LLM filters context before Medium-LLM sees it.
 
-This is **not** a centralized process. Proximity **emerges** from Hard-LLM to Hard-LLM coordination - like the murmuration model.
+**How**: Pscale coordinates locate characters; narrative aperture filters content; proximity determines who synthesizes together.
 
 ---
 
-## The Problem 0.8 Solves
+## Core Concepts
 
-In v3, we dumped huge amounts of context into the narrative LLM. Result: grinding prose, too long, unfocused.
+### Pscale Coordinates (Hierarchical Strings)
 
-**0.8 Solution**: Hard-LLM pre-filters content before Medium-LLM ever sees it.
+Each coordinate is a string where digit **position** = pscale level, digit **value** = semantic ID:
+
+```
+Spatial: "13.4"
+         │││ └─ pscale -1: digit 4 = {fireplace}
+         ││└─── pscale 0:  digit 3 = {kitchen}
+         │└──── pscale +1: digit 1 = {keep}
+         └───── decimal separates room (0) from furniture (-1)
+
+Temporal: "348.1"
+          ││││ └─ pscale -1: digit 1 = {minute-1}
+          │││└─── pscale 0:  digit 8 = {block-8} (40-50 mins)
+          ││└──── pscale +1: digit 4 = {hour-4}
+          │└───── pscale +2: digit 3 = {day-3}
+          └────── decimal separates 5-10min block (0) from minute (-1)
+```
+
+The digit **value** is arbitrary until mapped via cosmology tabulation. `1` means "keep" because the Author defined it so.
+
+### Aperture (Attention Scope)
+
+Aperture is a **range** (floor, ceiling) defining what pscale levels are visible from a position:
+
+```typescript
+interface Aperture {
+  floor: number;    // -2 = can see object details
+  ceiling: number;  // +1 = can see building context
+}
+```
+
+A character at `"13.4"` with aperture `{floor: -1, ceiling: 0}` sees:
+- The fireplace they're at (-1) ✓
+- The kitchen they're in (0) ✓
+- NOT the keep layout (+1) ✗
+- NOT items on the mantle (-2) ✗
+
+### Proximity via Prefix Overlap
+
+Characters are **close** when their coordinates share a prefix:
+
+```
+Character A: spatial = "13.4"  (keep, kitchen, fireplace)
+Character B: spatial = "13.2"  (keep, kitchen, window)
+Shared prefix: "13" → 2 digits → CLOSE
+
+Character C: spatial = "14."   (keep, bedroom)
+Shared prefix: "1" → 1 digit → NEARBY
+
+Character D: spatial = "21."   (tower, armory)
+Shared prefix: "" → 0 digits → DISTANT
+```
 
 ---
 
-## Overview
+## What We're Building
 
 | Component | Purpose | Priority |
 |-----------|---------|----------|
-| **Proximity Determination** | Who's close/nearby/distant/far via pscale coordinates | Core |
-| **Aperture Filtering** | What content feeds Medium-LLM based on pscale | Core |
-| **Hard-LLM Coordination** | How Hard-LLMs find each other | Core |
-| **Frame Construction** | Assemble operational context for Soft/Medium | Core |
-| **Procedural Content** | Generate missing locations/NPCs | → 0.8.5 (deferred) |
+| **Character Coordinates** | Track where each character IS | Core |
+| **Coordinate Update** | Hard-LLM parses narrative → updates position | Core |
+| **Proximity Discovery** | Calculate who's close via prefix overlap | Core |
+| **Aperture Calculation** | Determine attention scope from action context | Core |
+| **Content Filtering** | Select relevant content by coordinate + aperture | Core |
+| **Frame Compilation** | Assemble operational context for Medium-LLM | Core |
+
+**Deferred to 0.8.5:**
+- Identity coordinate tracking (group dynamics)
+- Procedural content generation (Author-LLM)
+- Determinancy cloud calculation
 
 ---
 
-## Part I: Pscale Coordinates as Location
-
-### The Three Dimensions
-
-Every character (and every piece of content) has pscale coordinates:
-
-| Dimension | What It Locates | Example Values |
-|-----------|-----------------|----------------|
-| **Spatial** | Where in the world hierarchy | 0 = room, +3 = city, +6 = nation |
-| **Temporal** | When in the action/history | -2 = this moment, +1 = this scene, +4 = this era |
-| **Identity** | Who (individual → group → faction) | 0 = individual, +2 = party, +5 = civilization |
-
-### Lamina Structure
-
-See [`frame-lamina-aperture.md`](frame-lamina-aperture.md) for full definition. Summary:
-
-```typescript
-interface CharacterLamina {
-  character_id: string;
-  
-  // Spatial location
-  location_id?: string;           // Content reference
-  spatial_pscale: number;         // 0 = room, +3 = city, etc.
-  
-  // Temporal location  
-  temporal_pscale: number;        // Current action scale
-  
-  // Identity location
-  identity_pscale?: number;       // 0 = solo, +2 = party, etc.
-  
-  // Attention (optional narrowing)
-  focus?: string;                 // What they're attending to
-}
-```
-
-### Content Also Has Pscale
-
-```typescript
-interface ContentLamina {
-  // What pscale range this content is relevant for
-  pscale_floor: number;           // Minimum scale (detail level)
-  pscale_ceiling: number;         // Maximum scale (scope level)
-  
-  // Location in world
-  spatial_pscale: number;
-  temporal_pscale?: number;       // When this exists/happened
-}
-```
-
----
-
-## Part II: Proximity via Pscale Overlap
-
-### How Proximity Emerges
-
-Two characters are **narratively proximate** when their pscale coordinates overlap sufficiently:
-
-```
-Character A: spatial=0 (room), temporal=-2 (combat moment)
-Character B: spatial=0 (same room), temporal=-2 (same moment)
-→ CLOSE: coordinates match closely
-
-Character C: spatial=+1 (building), temporal=-1 (this scene)
-→ NEARBY: same building, slightly different focus
-
-Character D: spatial=+3 (city), temporal=0 (this hour)
-→ DISTANT: same city, different immediate context
-```
-
-### The Four Proximity States
-
-| State | Pscale Overlap | Effect |
-|-------|----------------|--------|
-| **Close** | Spatial ≤1 apart, temporal ≤1 apart | Actions affect each other directly |
-| **Nearby** | Spatial ≤2 apart, temporal ≤2 apart | Outcomes visible but not immediate |
-| **Distant** | Spatial ≤4 apart | Context only, events summarized |
-| **Far** | Spatial >4 apart | Only high-pscale events propagate |
-
-### Blob Formation
-
-Characters in mutual `close` relationship form a **blob**:
-- Their Medium-LLMs coordinate
-- They share the same solid narrative
-- Their actions resolve together
-
----
-
-## Part III: Hard-LLM to Hard-LLM Coordination
-
-### The Murmuration Model
-
-Hard-LLMs don't check against a central registry. They **find each other**:
-
-1. Each Hard-LLM publishes its character's pscale coordinates
-2. Each Hard-LLM queries for nearby coordinates
-3. Overlap determines proximity
-4. Proximity lists are mutually updated
-
-See [`frame-lamina-aperture.md`](frame-lamina-aperture.md) for the full murmuration explanation.
-
-```typescript
-// Hard-LLM A's perspective
-interface HardLLMState {
-  my_character_id: string;
-  my_coordinates: CharacterLamina;
-  
-  // Discovered through coordination
-  close: string[];      // Other character IDs
-  nearby: string[];
-  distant: string[];
-  
-  // Last coordination timestamp
-  coordinated_at: string;
-}
-```
-
-### Convergence & Divergence
-
-**Convergence**: Characters move from `nearby` → `close`
-- Hard-LLM detects coordinate overlap after narrative action
-- Updates its close list
-- Other character's Hard-LLM does the same
-
-**Divergence**: Characters move from `close` → `nearby`
-- Hard-LLM detects coordinate separation
-- Blob splits
-
-### Blob Representative Optimization
-
-When checking proximity, compare against **one representative per blob**:
-
-```
-Nearby: [A, B, C, D, E]
-A.close = [B, C]  → A is representative, B and C covered
-D.close = [E]     → D is representative, E covered
-
-Representatives: [A, D]  ← only 2 LLM comparisons, not 5
-```
-
----
-
-## Part IV: Aperture Filtering
-
-### The Core Problem
-
-Medium-LLM needs world context. But ALL context = grinding prose.
-
-### The Solution: Pscale Aperture
-
-Hard-LLM determines what content is **in scope** based on character's current pscale:
-
-```typescript
-interface ApertureConfig {
-  // Spatial filtering
-  spatial_floor: number;    // Don't include details smaller than this
-  spatial_ceiling: number;  // Don't include context larger than this
-  
-  // Temporal filtering
-  temporal_window: number;  // How far back to include events
-  
-  // Optional narrowing
-  focus_filter?: string;    // Character's current attention
-}
-```
-
-### Aperture Examples
-
-**Combat moment** (pscale -2):
-```typescript
-aperture = {
-  spatial_floor: -2,    // Include object-level details
-  spatial_ceiling: 0,   // Don't include city-level context
-  temporal_window: -3   // Only last few seconds relevant
-}
-```
-
-**Exploring a city** (pscale +2):
-```typescript
-aperture = {
-  spatial_floor: +1,    // Building-level minimum
-  spatial_ceiling: +4,  // Regional context
-  temporal_window: +1   // Recent events relevant
-}
-```
-
-### Content Selection
-
-```typescript
-function selectContent(
-  character: CharacterLamina,
-  aperture: ApertureConfig,
-  allContent: Content[]
-): Content[] {
-  return allContent.filter(content => {
-    // Spatial match
-    const spatialMatch = 
-      content.spatial_pscale >= aperture.spatial_floor &&
-      content.spatial_pscale <= aperture.spatial_ceiling;
-    
-    // Location relevance (same branch of world tree)
-    const locationRelevant = 
-      isInSameLocation(character.location_id, content.id, aperture.spatial_ceiling);
-    
-    return spatialMatch && locationRelevant;
-  });
-}
-```
-
----
-
-## Part V: Frame as Hard-LLM Output
-
-**Critical architectural point** (see [`frame-lamina-aperture.md`](frame-lamina-aperture.md)):
-
-The database `frames` table stores **configuration templates**:
-- cosmology_id, pscale floor/ceiling, XYZ config, package attachments
-
-But the **operational frame** is what Hard-LLM **produces**:
-- Proximity (who's close)
-- Content (filtered by aperture)
-- Skills (resolved package stack)
-- Context (what Medium-LLM needs)
-
-```
-Database "frame" = configuration template
-Hard-LLM output "frame" = live operational context
-```
-
-This distinction prevents the centralization trap. There's no central "frame state" — each user's Hard-LLM constructs their operational frame locally.
-
----
-
-## Part VI: Open Questions
-
-### How Do Database Frames Relate to Operational Frames?
-
-Possibilities being explored:
-
-1. **Database frame as boundary**: Hard-LLMs can only coordinate within same frame template
-2. **Database frame as defaults**: Provides initial aperture, proximity operates freely
-3. **Database frame as cosmology scope**: Characters must share cosmology to be proximate
-
-**Current assumption**: Database frame provides the **pool** of characters whose Hard-LLMs can coordinate. Operational frame is constructed **per-user** within that pool.
-
-### How Does Identity Pscale Work?
-
-Not fully specified. Intuition:
-- Identity pscale 0 = individual character
-- Identity pscale +2 = party/group acting together
-- Identity pscale +5 = faction/nation acting
-
-Higher identity pscale might mean character's actions are **on behalf of** the group, affecting content at that scale.
-
----
-
-## Part VII: Data Model
+## Data Model
 
 ### New Tables
 
 ```sql
--- Character pscale coordinates (updated by Hard-LLM)
-CREATE TABLE character_coordinates (
-  character_id UUID PRIMARY KEY REFERENCES characters(id),
-  frame_id UUID REFERENCES frames(id),
+-- ============================================================
+-- COSMOLOGIES: Fictional worlds with semantic tabulations
+-- ============================================================
+CREATE TABLE cosmologies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  physics_rules TEXT,  -- 'magical', 'realistic', 'sci-fi'
   
-  -- Pscale location
-  spatial_pscale INTEGER DEFAULT 0,
-  temporal_pscale INTEGER DEFAULT 0,
-  identity_pscale INTEGER DEFAULT 0,
+  -- Semantic mappings: digit → name at each pscale level
+  spatial_tabulation JSONB DEFAULT '{}',
+  temporal_tabulation JSONB DEFAULT '{}',
   
-  -- Content location reference
-  location_id UUID REFERENCES content(id),
-  
-  -- Attention
-  focus TEXT,
-  
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- CHARACTERS: Player vessels and NPCs
+-- ============================================================
+CREATE TABLE characters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cosmology_id UUID NOT NULL REFERENCES cosmologies(id),
+  created_by UUID REFERENCES users(id),
+  inhabited_by UUID REFERENCES users(id),  -- NULL = NPC/auto-PC
+  name TEXT NOT NULL,
+  description TEXT,
+  is_npc BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Character proximity (discovered by Hard-LLM coordination)
+-- ============================================================
+-- CHARACTER_COORDINATES: Current position (Hard-LLM updates)
+-- ============================================================
+CREATE TABLE character_coordinates (
+  character_id UUID PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+  frame_id UUID NOT NULL REFERENCES frames(id),
+  
+  -- Pscale coordinates (hierarchical strings, NOT integers)
+  spatial TEXT NOT NULL DEFAULT '0.',
+  temporal TEXT NOT NULL DEFAULT '0.',
+  
+  -- Current attention focus
+  focus TEXT,
+  
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  updated_by TEXT DEFAULT 'system'  -- 'hard-llm', 'player-action', 'system'
+);
+
+-- ============================================================
+-- CHARACTER_PROXIMITY: Discovered relationships
+-- ============================================================
 CREATE TABLE character_proximity (
-  character_id UUID PRIMARY KEY REFERENCES characters(id),
-  close UUID[] DEFAULT '{}',
-  nearby UUID[] DEFAULT '{}',
-  distant UUID[] DEFAULT '{}',
-  far UUID[] DEFAULT '{}',
+  character_id UUID PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+  close UUID[] DEFAULT '{}',    -- ≥2 digit prefix overlap
+  nearby UUID[] DEFAULT '{}',   -- 1 digit prefix overlap
+  distant UUID[] DEFAULT '{}',  -- 0 digits, same cosmology
   coordinated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Cached operational frame (compiled by Hard-LLM)
+-- ============================================================
+-- CHARACTER_CONTEXT: Hard-LLM output (operational frame cache)
+-- ============================================================
 CREATE TABLE character_context (
-  character_id UUID PRIMARY KEY REFERENCES characters(id),
-  frame_id UUID REFERENCES frames(id),
+  character_id UUID PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+  frame_id UUID NOT NULL REFERENCES frames(id),
   
-  -- The operational frame
-  context_content JSONB NOT NULL,
-  aperture_config JSONB,
+  -- Assembled operational context
+  context_content JSONB NOT NULL DEFAULT '{}',
+  
+  -- Aperture used for filtering
+  aperture_floor INTEGER,
+  aperture_ceiling INTEGER,
   
   compiled_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ  -- Context goes stale
+  expires_at TIMESTAMPTZ
 );
 
--- Enable realtime for coordination
+-- ============================================================
+-- Realtime subscriptions for Hard-LLM coordination
+-- ============================================================
 ALTER PUBLICATION supabase_realtime ADD TABLE character_coordinates;
 ALTER PUBLICATION supabase_realtime ADD TABLE character_proximity;
+
+-- ============================================================
+-- Indexes for proximity discovery
+-- ============================================================
+CREATE INDEX idx_coords_spatial 
+  ON character_coordinates(frame_id, spatial text_pattern_ops);
+CREATE INDEX idx_coords_temporal 
+  ON character_coordinates(frame_id, temporal text_pattern_ops);
+CREATE INDEX idx_proximity_close 
+  ON character_proximity USING GIN(close);
 ```
 
-### Indexes
+### Modified Tables
 
 ```sql
--- For Hard-LLM coordinate discovery
-CREATE INDEX character_coordinates_frame 
-  ON character_coordinates(frame_id, spatial_pscale);
+-- Add cosmology reference to frames
+ALTER TABLE frames 
+  ADD COLUMN IF NOT EXISTS cosmology_id UUID REFERENCES cosmologies(id);
 
--- For proximity lookups
-CREATE INDEX character_proximity_close 
-  ON character_proximity USING GIN(close);
+-- Clarify shelf column (rename for clarity)
+ALTER TABLE shelf 
+  RENAME COLUMN pscale_aperture TO action_pscale;
+
+COMMENT ON COLUMN shelf.action_pscale IS
+  'What pscale level is this action operating at? -1=furniture, 0=room, +2=neighborhood';
+
+-- Add proper coordinate structure to content
+ALTER TABLE content 
+  ADD COLUMN IF NOT EXISTS spatial TEXT,
+  ADD COLUMN IF NOT EXISTS temporal TEXT,
+  ADD COLUMN IF NOT EXISTS pscale_floor INTEGER,
+  ADD COLUMN IF NOT EXISTS pscale_ceiling INTEGER,
+  ADD COLUMN IF NOT EXISTS cosmology_id UUID REFERENCES cosmologies(id);
+
+-- Deprecate old column (keep for backwards compat, stop using)
+COMMENT ON COLUMN content.pscale_aperture IS
+  'DEPRECATED: Use pscale_floor and pscale_ceiling instead';
 ```
 
 ---
 
-## Part VIII: Hard-LLM Operations
+## Hard-LLM Operations
 
 ### Operation 1: Update Coordinates
 
-After synthesis, Hard-LLM analyzes narrative to update character's position:
+**Trigger**: After Medium-LLM synthesis  
+**Input**: Character's current coordinates, recent narrative, cosmology tabulation  
+**Output**: Updated coordinates (if movement detected)
+
+See `hard-llm-coordinate-extraction-skills.md` for detailed prompt templates.
 
 ```typescript
 interface CoordinateUpdateInput {
   character_id: string;
-  recent_narrative: string;     // What just happened
-  current_coordinates: CharacterLamina;
+  current_spatial: string;
+  current_temporal: string;
+  narrative: string;
+  cosmology: {
+    spatial_tabulation: SemanticTabulation;
+    temporal_tabulation: SemanticTabulation;
+  };
 }
 
 interface CoordinateUpdateOutput {
-  new_coordinates: CharacterLamina;
-  movement_detected: boolean;
+  spatial_changed: boolean;
+  temporal_changed: boolean;
+  new_spatial?: string;
+  new_temporal?: string;
   reasoning: string;
 }
 ```
 
 ### Operation 2: Discover Proximity
 
-Hard-LLM queries for other characters with overlapping coordinates:
+**Trigger**: After coordinates update  
+**Input**: Character's coordinates, frame_id  
+**Output**: Updated proximity lists
 
 ```typescript
-interface ProximityDiscoveryInput {
-  character_id: string;
-  my_coordinates: CharacterLamina;
-  frame_id: string;             // Scope of discovery
-}
-
-interface ProximityDiscoveryOutput {
-  close: string[];
-  nearby: string[];
-  distant: string[];
-  changed: boolean;
-}
-```
-
-### Operation 3: Compile Operational Frame
-
-Hard-LLM assembles everything Medium-LLM needs:
-
-```typescript
-interface FrameCompileInput {
-  character_id: string;
-  coordinates: CharacterLamina;
-  proximity: { close: string[], nearby: string[] };
-  frame_template_id: string;    // Database frame for config
-}
-
-interface FrameCompileOutput {
-  content: ContentEntry[];      // Filtered content
-  close_character_states: any[]; // What close characters are doing
-  skills: SkillSet;             // Resolved package stack
-  aperture_used: ApertureConfig;
-}
-```
-
----
-
-## Part IX: Integration with 0.7
-
-### What 0.7 Provides
-
-- Commit triggers synthesis
-- Single Medium-LLM per frame
-- Shared solid for all participants
-- Liquid table with committed entries
-
-### What 0.8 Adds
-
-- Multiple characters can be in same frame
-- Hard-LLM determines who's "close"
-- Close characters' actions coordinate in Medium-LLM
-- Hard-LLM filters content by pscale aperture
-- Medium-LLM receives curated operational frame
-
-### Modified Gather.ts
-
-```typescript
-// gather.ts with 0.8
-
-async function gatherContext(
+async function discoverProximity(
+  characterId: string,
   frameId: string,
-  committedLiquid: LiquidEntry[]
-): Promise<SynthesisContext> {
+  mySpatial: string
+): Promise<CharacterProximity> {
+  // Query other characters in same frame
+  const others = await supabase
+    .from('character_coordinates')
+    .select('character_id, spatial, temporal')
+    .eq('frame_id', frameId)
+    .neq('character_id', characterId);
   
-  // Get character IDs from committed entries
-  const characterIds = committedLiquid.map(l => l.character_id);
+  const close: string[] = [];
+  const nearby: string[] = [];
+  const distant: string[] = [];
   
-  // NEW: Check if characters are close
-  const proximityGroups = await getProximityGroups(characterIds);
-  
-  // Only synthesize together if in same blob
-  const closeGroup = proximityGroups.find(g => 
-    characterIds.every(id => g.includes(id))
-  );
-  
-  if (!closeGroup) {
-    // Characters not close - synthesize separately
-    // (or queue for later when they converge)
+  for (const other of others.data || []) {
+    const overlap = sharedPrefixLength(mySpatial, other.spatial);
+    
+    if (overlap >= 2) close.push(other.character_id);
+    else if (overlap >= 1) nearby.push(other.character_id);
+    else distant.push(other.character_id);
   }
   
-  // NEW: Get Hard-LLM compiled operational frame
-  const operationalFrame = await getCompiledContext(closeGroup[0]);
+  return { character_id: characterId, close, nearby, distant, coordinated_at: new Date().toISOString() };
+}
+```
+
+### Operation 3: Calculate Aperture
+
+**Trigger**: When compiling operational frame  
+**Input**: Recent action's pscale level  
+**Output**: Aperture range
+
+```typescript
+function calculateAperture(actionPscale: number): Aperture {
+  // Aperture centers on action level, extends 2 levels each direction
+  return {
+    floor: actionPscale - 2,
+    ceiling: actionPscale + 2
+  };
+}
+
+// Combat action (action_pscale = -1, furniture level)
+// → Aperture: { floor: -3, ceiling: +1 }
+// → Sees: cellular detail to building context
+
+// Journey action (action_pscale = +2, neighborhood level)  
+// → Aperture: { floor: 0, ceiling: +4 }
+// → Sees: room to regional context
+```
+
+### Operation 4: Filter Content
+
+**Trigger**: When compiling operational frame  
+**Input**: Character coordinates, aperture, all content in cosmology  
+**Output**: Relevant content entries
+
+```typescript
+function filterContent(
+  characterSpatial: string,
+  aperture: Aperture,
+  allContent: ContentEntry[]
+): ContentEntry[] {
+  return allContent.filter(content => {
+    // Spatial relevance: any prefix overlap
+    const spatialOverlap = sharedPrefixLength(characterSpatial, content.spatial || '') > 0;
+    
+    // Aperture relevance: content's pscale range overlaps aperture
+    const contentFloor = content.pscale_floor ?? -10;
+    const contentCeiling = content.pscale_ceiling ?? 10;
+    const apertureOverlap = 
+      contentFloor <= aperture.ceiling && 
+      contentCeiling >= aperture.floor;
+    
+    return spatialOverlap && apertureOverlap;
+  });
+}
+```
+
+### Operation 5: Compile Operational Frame
+
+**Trigger**: Before Medium-LLM synthesis  
+**Input**: Character ID, frame ID  
+**Output**: Complete operational context
+
+```typescript
+interface OperationalFrame {
+  character_id: string;
+  frame_id: string;
+  
+  // Current position
+  coordinates: {
+    spatial: string;
+    temporal: string;
+  };
+  
+  // Who's here
+  proximity: {
+    close: CharacterState[];   // Full state for close characters
+    nearby: string[];          // Just IDs for nearby
+  };
+  
+  // What's relevant
+  content: ContentEntry[];
+  
+  // Attention scope used
+  aperture: Aperture;
+  
+  compiled_at: string;
+}
+
+async function compileFrame(characterId: string): Promise<OperationalFrame> {
+  // 1. Get character's coordinates
+  const coords = await getCharacterCoordinates(characterId);
+  
+  // 2. Get proximity
+  const proximity = await getCharacterProximity(characterId);
+  
+  // 3. Get recent action pscale from latest shelf entry
+  const recentAction = await getRecentAction(characterId);
+  const aperture = calculateAperture(recentAction?.action_pscale ?? 0);
+  
+  // 4. Filter content
+  const allContent = await getCosmologyContent(coords.frame_id);
+  const relevantContent = filterContent(coords.spatial, aperture, allContent);
+  
+  // 5. Get close character states
+  const closeStates = await Promise.all(
+    proximity.close.map(id => getCharacterState(id))
+  );
   
   return {
-    liquid: committedLiquid,
-    worldContext: operationalFrame.content,
-    skills: operationalFrame.skills,
-    participants: closeGroup
+    character_id: characterId,
+    frame_id: coords.frame_id,
+    coordinates: {
+      spatial: coords.spatial,
+      temporal: coords.temporal
+    },
+    proximity: {
+      close: closeStates,
+      nearby: proximity.nearby
+    },
+    content: relevantContent,
+    aperture,
+    compiled_at: new Date().toISOString()
   };
 }
 ```
 
 ---
 
-## Part X: Implementation Order
+## Integration with 0.7
 
-### 0.8 Core (Proximity + Aperture + Frame Construction)
+### What 0.7 Provides
 
-1. **Database**: Create character_coordinates table
-2. **Database**: Create character_proximity table  
-3. **Database**: Create character_context table
-4. **Edge Function**: Create hard-llm-coordinate-update
-5. **Edge Function**: Create hard-llm-proximity-discover
-6. **Edge Function**: Create hard-llm-frame-compile
-7. **Integration**: Modify gather.ts to use proximity
-8. **Integration**: Modify gather.ts to use compiled operational frame
-9. **Trigger**: Call Hard-LLM after Medium-LLM synthesis
-10. **Frontend**: Debug view for coordinates/proximity
-11. **Test**: Two characters converge when entering same room
+- Commit triggers Medium-LLM synthesis
+- Single synthesis per frame (all committed liquid)
+- Shared solid for all participants
 
-### 0.8.5 (Procedural Content) - DEFERRED
+### What 0.8 Adds
 
-- Author-LLM generates missing content
-- Determinancy tracking
-- Content gap detection
+- Characters have coordinates (spatial, temporal)
+- Only `close` characters synthesize together
+- Medium-LLM receives filtered content (not everything)
+- Hard-LLM runs after synthesis to update coordinates
 
----
+### Modified Synthesis Flow
 
-## Part XI: Success Criteria
+```
+0.7 Flow (current):
+  Commit → Gather ALL liquid → Medium-LLM → Solid
 
-1. **Coordinates track**: Character movement updates pscale coordinates
-2. **Proximity emerges**: Characters with overlapping coordinates become close
-3. **Blobs form**: Close characters' actions coordinate in synthesis
-4. **Aperture filters**: Medium-LLM receives appropriate content, not everything
-5. **Frame constructs**: Hard-LLM produces operational frame per-user
-6. **No grinding prose**: Narrative stays focused due to filtered context
-7. **Performance**: Hard-LLM background doesn't block player experience
-
-### The Convergence Test
-
-1. Two players start in same frame, different rooms (nearby)
-2. Player A moves toward Player B's room
-3. Hard-LLM detects coordinate overlap
-4. Both become close
-5. Next commit from either triggers synthesis including both
-6. Both see shared solid narrative
+0.8 Flow (new):
+  Commit → 
+    For each committing character:
+      → Hard-LLM compiles operational frame
+      → Filter to close characters only
+    → Medium-LLM synthesizes per-blob
+    → Solid (per blob)
+    → Hard-LLM updates coordinates post-synthesis
+```
 
 ---
 
-## Part XII: Key Quotes
+## Test: The Convergence Test
 
-From onen_v4_synthesis:
-> "Hard-LLM operates in background. Maintains coherence across the entire system. Exchanges semantic coordinates with other Hard-LLMs."
+**Setup:**
+1. Frame `test-frame` with cosmology `test-world`
+2. Cosmology tabulation: `{"+1": {"1": "inn"}, "0": {"1": "common-room", "2": "kitchen"}}`
+3. Character A at spatial `"11."` (inn, common-room)
+4. Character B at spatial `"12."` (inn, kitchen)
 
-From soft_medium_coordination_architecture:
-> "Hard-LLM (proximity + world): Maintains semantic proximity networks (close/nearby/distant/far)"
+**Test sequence:**
+1. Initial state: A and B share prefix `"1"` → 1 digit → **NEARBY**
+2. Player A commits: "I walk into the kitchen looking for ale"
+3. Hard-LLM parses: movement detected, A's spatial → `"12."`
+4. Proximity recalculated: `"12."` vs `"12."` → 2 digits → **CLOSE**
+5. A.close = [B], B.close = [A]
+6. Player B commits: "I pour two mugs from the barrel"
+7. Both A and B are close → synthesize together
+8. Both see shared solid: "Marcus enters the kitchen as Elara pours ale..."
 
-From plex-1-specification:
-> "Hard-LLM: Independent per character, healthy redundancy/convergence"
+---
 
-From frame-lamina-aperture (companion doc):
-> "Frame isn't a static container that Hard-LLM operates within. Frame is what Hard-LLM produces — the assembled context that Soft and Medium need to do their work."
+## Implementation Order
+
+| Step | Component | Description |
+|------|-----------|-------------|
+| 1 | Migration | Create cosmologies, characters, character_* tables |
+| 2 | Migration | Modify frames, shelf, content |
+| 3 | Types | Add TypeScript types to `src/types/` |
+| 4 | Utils | Create `src/utils/pscale.ts` with coordinate functions |
+| 5 | Edge Function | `hard-llm-coordinate-update` |
+| 6 | Edge Function | `hard-llm-proximity-discover` |
+| 7 | Edge Function | `hard-llm-frame-compile` |
+| 8 | Integration | Modify synthesis flow to use proximity |
+| 9 | Frontend | Debug view for coordinates/proximity |
+| 10 | Test | Run Convergence Test |
+
+---
+
+## Success Criteria
+
+1. **Coordinates track**: Character movement updates spatial/temporal strings
+2. **Prefix overlap works**: `"13.4"` vs `"13.2"` correctly yields `close`
+3. **Proximity emerges**: Characters with overlapping coordinates become close
+4. **Aperture filters**: Medium-LLM receives appropriate content subset
+5. **Blobs form**: Only close characters synthesize together
+6. **No grinding prose**: Filtered context produces focused narrative
+7. **Convergence Test passes**: Two characters can find each other
+
+---
+
+## Related Documents
+
+- `pscale-coordinates-implementation.md` — Coordinate system specification
+- `hard-llm-coordinate-extraction-skills.md` — How Hard-LLM parses narrative
+- `pscale-spine.md` — Conceptual foundation
+- `frame-lamina-aperture.md` — Frame as Hard-LLM output
+- `plex-1-specification.md` — Kernel architecture
+- `phase-0.7-architecture.md` — What 0.8 builds on
