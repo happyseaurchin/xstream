@@ -1,14 +1,13 @@
 // ============================================================
 // PSCALE COORDINATE UTILITIES
-// Phase 0.8: Hard-LLM & Narrative Aperture
+// Pure string operations — no decision logic
+// Decision-making belongs in Hard-LLM skills
 // ============================================================
 
 import type {
   PscaleCoordinate,
   ProximityState,
-  SemanticTabulation,
-  Aperture,
-  ContentEntry
+  SemanticTabulation
 } from '../types/pscale';
 
 // ============================================================
@@ -27,7 +26,7 @@ const COORDINATE_PATTERN = /^[0-9]+\.?[0-9]*$/;
  */
 export function isValidCoordinate(coord: string): boolean {
   if (!coord || !COORDINATE_PATTERN.test(coord)) return false;
-  if (coord.startsWith('.')) return false;  // Must have integer part
+  if (coord.startsWith('.')) return false;
   return true;
 }
 
@@ -58,7 +57,6 @@ export function normalizeCoordinate(coord: string): string {
  *   sharedPrefixLength("13.42", "13.4") → 3 (digits "1", "3", "4" match)
  */
 export function sharedPrefixLength(coordA: string, coordB: string): number {
-  // Normalize: ensure decimal point present
   const a = normalizeCoordinate(coordA);
   const b = normalizeCoordinate(coordB);
   
@@ -67,7 +65,7 @@ export function sharedPrefixLength(coordA: string, coordB: string): number {
   
   for (let i = 0; i < minLen; i++) {
     if (a[i] !== b[i]) break;
-    if (a[i] !== '.') shared++;  // Don't count decimal
+    if (a[i] !== '.') shared++;
   }
   
   return shared;
@@ -85,30 +83,6 @@ export function spatialProximity(coordA: string, coordB: string): ProximityState
   if (shared >= 2) return 'close';
   if (shared >= 1) return 'nearby';
   return 'distant';
-}
-
-/**
- * Determine combined proximity from both spatial and temporal coordinates.
- * Returns the "worse" of the two (e.g., close spatially but distant temporally → distant).
- */
-export function combinedProximity(
-  a: { spatial: string; temporal: string },
-  b: { spatial: string; temporal: string }
-): ProximityState {
-  const spatialState = spatialProximity(a.spatial, b.spatial);
-  const temporalState = spatialProximity(a.temporal, b.temporal);
-  
-  // Return the worse of the two
-  const rank: Record<ProximityState, number> = { 
-    close: 0, 
-    nearby: 1, 
-    distant: 2, 
-    far: 3 
-  };
-  
-  const worst = Math.max(rank[spatialState], rank[temporalState]);
-  const states: ProximityState[] = ['close', 'nearby', 'distant', 'far'];
-  return states[worst];
 }
 
 // ============================================================
@@ -134,10 +108,9 @@ export function decodeCoordinate(
   // Positive pscale (left of decimal)
   // Rightmost digit is pscale 0, leftmost is highest
   for (let i = 0; i < intPart.length; i++) {
-    const pscale = intPart.length - 1 - i;  // Rightmost is pscale 0
+    const pscale = intPart.length - 1 - i;
     const digit = intPart[i];
     
-    // Try with + prefix first, then without
     const name = tabulation[`+${pscale}`]?.[digit] 
               || tabulation[`${pscale}`]?.[digit];
     if (name) result.push(name);
@@ -158,17 +131,10 @@ export function decodeCoordinate(
 
 /**
  * Format a tabulation for display in prompts.
- * 
- * Output format:
- *   Pscale +2: 1="kingdom"
- *   Pscale +1: 1="keep", 2="tower", 3="village"
- *   Pscale 0: 1="great-hall", 2="armory", 3="kitchen"
- *   Pscale -1: 1="throne", 2="fireplace", 3="table"
  */
 export function formatTabulation(tabulation: SemanticTabulation): string {
   const lines: string[] = [];
   
-  // Sort by pscale level descending (+2, +1, 0, -1, -2...)
   const levels = Object.keys(tabulation).sort((a, b) => {
     const numA = parseInt(a.replace('+', ''));
     const numB = parseInt(b.replace('+', ''));
@@ -187,129 +153,11 @@ export function formatTabulation(tabulation: SemanticTabulation): string {
 }
 
 // ============================================================
-// APERTURE OPERATIONS
-// ============================================================
-
-/**
- * Calculate aperture (attention scope) from an action's pscale level.
- * Aperture extends 2 levels in each direction from the action.
- * 
- * Example:
- *   calculateAperture(-1) → { floor: -3, ceiling: +1 }
- *   (action at furniture level sees from cellular to building)
- */
-export function calculateAperture(actionPscale: number): Aperture {
-  return {
-    floor: actionPscale - 2,
-    ceiling: actionPscale + 2
-  };
-}
-
-/**
- * Check if an aperture range overlaps with another range.
- */
-export function aperturesOverlap(a: Aperture, b: Aperture): boolean {
-  return a.floor <= b.ceiling && a.ceiling >= b.floor;
-}
-
-/**
- * Check if content is relevant given character position and aperture.
- * 
- * Content is relevant when:
- * 1. Character's spatial coordinate shares prefix with content's spatial
- * 2. Character's aperture overlaps with content's pscale range
- */
-export function isContentRelevant(
-  characterSpatial: string,
-  characterAperture: Aperture,
-  contentSpatial: string | undefined | null,
-  contentFloor: number | undefined | null,
-  contentCeiling: number | undefined | null
-): boolean {
-  // Spatial relevance: prefix overlap
-  const spatialMatch = contentSpatial 
-    ? sharedPrefixLength(characterSpatial, contentSpatial) > 0
-    : true;  // Content without spatial is always spatially relevant
-  
-  // Aperture relevance: ranges overlap
-  const cFloor = contentFloor ?? -10;   // Default: very detailed
-  const cCeiling = contentCeiling ?? 10; // Default: very broad
-  const apertureMatch = 
-    cFloor <= characterAperture.ceiling && 
-    cCeiling >= characterAperture.floor;
-  
-  return spatialMatch && apertureMatch;
-}
-
-/**
- * Filter content entries by relevance to character position and aperture.
- */
-export function filterRelevantContent(
-  characterSpatial: string,
-  aperture: Aperture,
-  content: ContentEntry[]
-): ContentEntry[] {
-  return content.filter(entry => 
-    isContentRelevant(
-      characterSpatial,
-      aperture,
-      entry.spatial,
-      entry.pscale_floor,
-      entry.pscale_ceiling
-    )
-  );
-}
-
-// ============================================================
-// PROXIMITY GROUPING
-// ============================================================
-
-/**
- * Group characters by proximity to a reference character.
- * Returns lists of character IDs in each proximity state.
- */
-export function groupByProximity(
-  referenceCharacterId: string,
-  referenceSpatial: string,
-  others: Array<{ character_id: string; spatial: string }>
-): { close: string[]; nearby: string[]; distant: string[] } {
-  const close: string[] = [];
-  const nearby: string[] = [];
-  const distant: string[] = [];
-  
-  for (const other of others) {
-    if (other.character_id === referenceCharacterId) continue;
-    
-    const proximity = spatialProximity(referenceSpatial, other.spatial);
-    
-    switch (proximity) {
-      case 'close':
-        close.push(other.character_id);
-        break;
-      case 'nearby':
-        nearby.push(other.character_id);
-        break;
-      case 'distant':
-        distant.push(other.character_id);
-        break;
-    }
-  }
-  
-  return { close, nearby, distant };
-}
-
-// ============================================================
 // COORDINATE MANIPULATION
 // ============================================================
 
 /**
  * Get the pscale level of a specific position in a coordinate.
- * 
- * In "13.4":
- *   - Position 0 (digit "1") is pscale +1
- *   - Position 1 (digit "3") is pscale 0
- *   - Position 2 (.) is the decimal
- *   - Position 3 (digit "4") is pscale -1
  */
 export function pscaleAtPosition(coord: string, position: number): number | null {
   const normalized = normalizeCoordinate(coord);
@@ -319,10 +167,8 @@ export function pscaleAtPosition(coord: string, position: number): number | null
   if (normalized[position] === '.') return null;
   
   if (position < decimalPos) {
-    // Before decimal: pscale is (decimalPos - 1 - position)
     return decimalPos - 1 - position;
   } else {
-    // After decimal: pscale is -(position - decimalPos)
     return -(position - decimalPos);
   }
 }
@@ -349,7 +195,6 @@ export function digitAtPscale(coord: string, pscale: number): string | null {
 
 /**
  * Set the digit at a specific pscale level, returning new coordinate.
- * Note: May need to pad with zeros for higher pscale levels.
  */
 export function setDigitAtPscale(
   coord: string, 
@@ -364,15 +209,12 @@ export function setDigitAtPscale(
   const [intPart, decPart = ''] = normalized.split('.');
   
   if (pscale >= 0) {
-    // Positive pscale: modify integer part
-    // May need to pad left with zeros
     const neededLength = pscale + 1;
     let paddedInt = intPart.padStart(neededLength, '0');
     const pos = paddedInt.length - 1 - pscale;
     paddedInt = paddedInt.slice(0, pos) + digit + paddedInt.slice(pos + 1);
     return paddedInt + '.' + decPart;
   } else {
-    // Negative pscale: modify decimal part
     const pos = (-pscale) - 1;
     const neededLength = pos + 1;
     let paddedDec = decPart.padEnd(neededLength, '0');
