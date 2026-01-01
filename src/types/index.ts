@@ -80,3 +80,6 @@ export interface ParsedArtifact {
 // Re-export hook types for convenience
 export type { LiquidEntry } from '../hooks/useLiquidSubscription'
 export type { SolidEntry } from '../hooks/useSolidSubscription'
+
+// Re-export pscale types (Phase 0.8)
+export * from './pscale'
