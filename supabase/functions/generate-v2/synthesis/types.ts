@@ -1,13 +1,16 @@
 /**
- * Phase 0.7 + 0.8: Synthesis Types
+ * Phase 0.7 + 0.8 + 0.9.2: Synthesis Types
  */
+
+// Face type includes both legacy 'player' and new 'character'
+export type Face = 'player' | 'character' | 'author' | 'designer';
 
 export interface LiquidEntry {
   id: string;
   frame_id: string;
   user_id: string;
   user_name: string;
-  face: 'player' | 'author' | 'designer';
+  face: Face;
   content: string;
   committed: boolean;
   processed: boolean;
@@ -28,10 +31,13 @@ export interface ContentEntry {
 export interface SolidEntry {
   id: string;
   frame_id: string;
-  face: 'player' | 'author' | 'designer';
+  face: Face;
+  content?: string;
+  solid_type?: string;
   narrative?: string;
   source_liquid_ids: string[];
   participant_user_ids: string[];
+  metadata?: Record<string, any>;
   created_at: string;
 }
 
@@ -95,7 +101,7 @@ export interface CompiledPrompt {
 
 export interface SynthesisResult {
   success: boolean;
-  face: 'player' | 'author' | 'designer';
+  face: Face;
   narrative?: string;
   contentData?: { type: string; name: string; description: string; data?: Record<string, any> };
   skillData?: { name: string; category: string; applies_to: string[]; content: string };
@@ -109,6 +115,6 @@ export interface SynthesisResult {
 export interface StoredSolid {
   id: string;
   frameId: string;
-  face: 'player' | 'author' | 'designer';
+  face: Face;
   createdAt: string;
 }
