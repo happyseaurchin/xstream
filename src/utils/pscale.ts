@@ -4,7 +4,6 @@
  */
 
 import type {
-  // PscaleCoordinate type imported for documentation but validation uses string
   SemanticTabulation,
   ProximityState,
 } from '../types/pscale'
@@ -90,23 +89,25 @@ export function combinedProximity(
 /**
  * Decode a coordinate to semantic names using tabulation
  * Returns array of decoded segments
+ * 
+ * SemanticTabulation format: { "pscaleLevel": { "digit": "label" } }
  */
 export function decodeCoordinate(
   coord: string,
-  tabulation: SemanticTabulation[]
+  tabulation: SemanticTabulation
 ): string[] {
   const parts = coord.split('.')
   const decoded: string[] = []
   
   for (let i = 0; i < parts.length; i++) {
-    const pscale = i // 0-indexed position corresponds to pscale level
-    const digitValue = parseInt(parts[i], 10)
+    const pscaleKey = String(i) // 0-indexed position corresponds to pscale level
+    const digitKey = parts[i]
     
-    const tab = tabulation.find(t => t.pscale === pscale && t.digit === digitValue)
-    if (tab) {
-      decoded.push(tab.label)
+    const pscaleTab = tabulation[pscaleKey]
+    if (pscaleTab && pscaleTab[digitKey]) {
+      decoded.push(pscaleTab[digitKey])
     } else {
-      decoded.push(`[${pscale}:${digitValue}]`) // Unknown mapping
+      decoded.push(`[${pscaleKey}:${digitKey}]`) // Unknown mapping
     }
   }
   
@@ -116,19 +117,13 @@ export function decodeCoordinate(
 /**
  * Format tabulation for display
  */
-export function formatTabulation(tabulation: SemanticTabulation[]): string {
-  const byPscale = tabulation.reduce((acc, tab) => {
-    if (!acc[tab.pscale]) acc[tab.pscale] = []
-    acc[tab.pscale].push(tab)
-    return acc
-  }, {} as Record<number, SemanticTabulation[]>)
-  
-  return Object.entries(byPscale)
+export function formatTabulation(tabulation: SemanticTabulation): string {
+  return Object.entries(tabulation)
     .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([pscale, tabs]) => {
-      const items = tabs
-        .sort((a, b) => a.digit - b.digit)
-        .map(t => `  ${t.digit}: ${t.label}`)
+    .map(([pscale, digits]) => {
+      const items = Object.entries(digits)
+        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .map(([digit, label]) => `  ${digit}: ${label}`)
         .join('\n')
       return `P${pscale}:\n${items}`
     })
