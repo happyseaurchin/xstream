@@ -1,5 +1,5 @@
 /**
- * Phase 0.7: Player Synthesis Prompt Compiler
+ * Phase 0.7 + 0.9.3: Character Synthesis Prompt Compiler
  * 
  * KEY INSIGHT: 30% match conditions, 70% future intentions
  * 
@@ -12,18 +12,18 @@ import { formatLiquidForPrompt, formatContentForPrompt, formatSolidForPrompt } f
 import { applyFormatSkill, applyConstraintSkill, applyApertureSkill } from './skills.ts';
 
 /**
- * Platform default system prompt for player synthesis.
+ * Platform default system prompt for character synthesis.
  * Can be modified by format and constraint skills.
  */
-const PLATFORM_PLAYER_PROMPT = `You are Medium-LLM, the narrative synthesis engine for a collaborative storytelling system.
+const PLATFORM_CHARACTER_PROMPT = `You are Medium-LLM, the narrative synthesis engine for a collaborative storytelling system.
 
 YOUR ROLE:
-Synthesize multiple player intentions into coherent narrative. You are NOT a referee or simulator.
+Synthesize multiple character intentions into coherent narrative. You are NOT a referee or simulator.
 You are a story coordinator who makes everyone's actions matter.
 
 CRITICAL ORIENTATION (30/70 RULE):
 - 30% of your output should match established conditions (world state, character positions, recent events)
-- 70% of your output should ENABLE player intentions (what they're trying to do)
+- 70% of your output should ENABLE character intentions (what they're trying to do)
 
 NARRATIVE SYNTHESIS PRINCIPLES:
 1. INCLUDE everyone's committed actions in the output
@@ -32,7 +32,8 @@ NARRATIVE SYNTHESIS PRINCIPLES:
 4. HONOR established world content (locations, NPCs, items)
 5. MAINTAIN continuity with recent narrative
 6. KEEP IT BRIEF - this is one beat in an ongoing story (20-100 words typically)
-7. PRESERVE quoted dialogue - if a player writes "I say 'Hello friend'", include the exact quote
+7. PRESERVE quoted dialogue - if a character writes "I say 'Hello friend'", include the exact quote
+8. USE CHARACTER NAMES - refer to characters by their in-world names, not user names
 
 WHEN ACTIONS CONFLICT:
 - Both actions happen, with interesting interplay
@@ -47,19 +48,22 @@ OUTPUT:
 Write ONLY the narrative text. No explanations, no options, no questions.`;
 
 /**
- * Compile the synthesis prompt for player face.
+ * Compile the synthesis prompt for character face.
  * Applies skills to modify the base prompt.
  */
 export function compilePlayerPrompt(context: SynthesisContext): CompiledPrompt {
   
   // Start with platform default
-  let systemPrompt = PLATFORM_PLAYER_PROMPT;
+  let systemPrompt = PLATFORM_CHARACTER_PROMPT;
   
   // Apply format skill (modifies output style)
   systemPrompt = applyFormatSkill(systemPrompt, context.skills.format);
   
   // Apply constraint skill (adds rules)
   systemPrompt = applyConstraintSkill(systemPrompt, context.skills.constraint);
+  
+  // Get character name map from context (set by gather.ts)
+  const characterNameMap = (context as any)._characterNameMap as Map<string, string> | undefined;
   
   // Build the user prompt with all context
   const parts: string[] = [];
@@ -76,12 +80,17 @@ export function compilePlayerPrompt(context: SynthesisContext): CompiledPrompt {
     parts.push(`WORLD CONTENT:\n${worldContext}`);
   }
   
-  // All player actions (the core input)
-  const playerLiquid = context.allLiquid.filter(e => e.face === 'player');
-  parts.push(`PLAYER ACTIONS TO SYNTHESIZE:\n${formatLiquidForPrompt(playerLiquid)}`);
+  // All character actions (the core input) - filter for 'character' face (was 'player')
+  const characterLiquid = context.allLiquid.filter(e => e.face === 'character');
+  parts.push(`CHARACTER ACTIONS TO SYNTHESIZE:\n${formatLiquidForPrompt(characterLiquid, characterNameMap)}`);
   
-  // Highlight the triggering action
-  parts.push(`\nTRIGGERING COMMIT (from ${context.trigger.userName}):\n${context.trigger.entry.content}`);
+  // Highlight the triggering action - use character name if available
+  const triggerEntry = context.trigger.entry as any;
+  const triggerCharacterName = triggerEntry.character_id && characterNameMap?.has(triggerEntry.character_id)
+    ? characterNameMap.get(triggerEntry.character_id)!
+    : context.trigger.userName;
+  
+  parts.push(`\nTRIGGERING COMMIT (from ${triggerCharacterName}):\n${context.trigger.entry.content}`);
   
   const userPrompt = parts.join('\n\n---\n\n');
   
