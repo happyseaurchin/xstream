@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from './hooks/useAuth'
+import { useCharacters } from './hooks/useCharacters'
 import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFrameChannel'
 import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import { useSolidSubscription } from './hooks/useSolidSubscription'
 import {
   AuthPage,
+  CharacterCreation,
   ConstructionButton,
   PresenceBar,
   VisibilityPanel,
@@ -83,6 +85,10 @@ function App() {
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
+  
+  // Character management (Phase 0.9.2)
+  const characters = useCharacters(userId || null)
+  const [showCharacterCreation, setShowCharacterCreation] = useState(false)
   
   // Zone proportions (Phase 0.9.0)
   const [zoneProportions, setZoneProportions] = useState<ZoneProportions>(loadZoneProportions)
@@ -572,12 +578,34 @@ function App() {
     return <AuthPage auth={auth} />
   }
 
+  // Show character creation if in character face with no character
+  if (face === 'character' && !characters.isLoading && !characters.myCharacter && !showCharacterCreation) {
+    // Prompt to create character
+    return (
+      <CharacterCreation 
+        characters={characters} 
+        onComplete={() => setShowCharacterCreation(false)}
+      />
+    )
+  }
+
+  // Show character creation modal if requested
+  if (showCharacterCreation) {
+    return (
+      <CharacterCreation 
+        characters={characters} 
+        onComplete={() => setShowCharacterCreation(false)}
+        onCancel={() => setShowCharacterCreation(false)}
+      />
+    )
+  }
+
   return (
     <div className="app">
       <header className="header">
         <div className="selectors">
           <select value={face} onChange={(e) => setFace(e.target.value as Face)} className="face-selector">
-            <option value="character">🎭 Character</option>
+            <option value="character">🎭 {characters.myCharacter?.name || 'Character'}</option>
             <option value="author">📖 Author</option>
             <option value="designer">⚙️ Designer</option>
           </select>
@@ -595,6 +623,15 @@ function App() {
             )}
           </div>
           <span className="xyz-badge">{currentFrame.xyz}</span>
+          {face === 'character' && (
+            <button 
+              className="new-character-btn" 
+              onClick={() => setShowCharacterCreation(true)} 
+              title="Create new character"
+            >
+              +🎭
+            </button>
+          )}
           <button className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`} onClick={() => setShowVisibilityPanel(!showVisibilityPanel)} title="Visibility settings">⚙</button>
           <button className="meta-toggle" onClick={() => setShowMeta(!showMeta)} title="Toggle skill metadata">{showMeta ? '◉' : '○'}</button>
           <button className="logout-btn" onClick={() => auth.signOut()} title={`Signed in as ${userName}`}>↪</button>
