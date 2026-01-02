@@ -32,12 +32,14 @@ export interface SolidEntry {
   id: string;
   frame_id: string;
   face: Face;
-  content?: string;
-  solid_type?: string;
   narrative?: string;
+  content_data?: Record<string, any>;
+  skill_data?: Record<string, any>;
   source_liquid_ids: string[];
+  triggering_user_id?: string;
   participant_user_ids: string[];
-  metadata?: Record<string, any>;
+  model_used?: string;
+  tokens_used?: { input: number; output: number };
   created_at: string;
 }
 
