@@ -6,7 +6,7 @@ interface AuthPageProps {
   auth: UseAuthReturn
 }
 
-type AuthMode = 'signin' | 'signup'
+type AuthMode = 'signin' | 'signup' | 'verify'
 
 export function AuthPage({ auth }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>('signin')
@@ -14,9 +14,11 @@ export function AuthPage({ auth }: AuthPageProps) {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [otpCode, setOtpCode] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [pendingEmail, setPendingEmail] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,10 +37,25 @@ export function AuthPage({ auth }: AuthPageProps) {
         setLocalError('Display name is required')
         return
       }
-      await auth.signUp(email, password, displayName.trim())
+      const success = await auth.signUp(email, password, displayName.trim())
+      if (success) {
+        setPendingEmail(email)
+        setMode('verify')
+      }
+    } else if (mode === 'verify') {
+      if (otpCode.length !== 6) {
+        setLocalError('Please enter the 6-digit code')
+        return
+      }
+      await auth.verifyOtp(pendingEmail, otpCode)
     } else {
       await auth.signIn(email, password)
     }
+  }
+
+  const handleResendCode = async () => {
+    setLocalError(null)
+    await auth.resendOtp(pendingEmail)
   }
 
   const switchMode = () => {
@@ -47,6 +64,72 @@ export function AuthPage({ auth }: AuthPageProps) {
   }
 
   const error = localError || auth.error
+
+  // Verification screen
+  if (mode === 'verify') {
+    return (
+      <div className="auth-page">
+        <div className="auth-container">
+          <div className="auth-header">
+            <h1 className="auth-title">xstream</h1>
+            <p className="auth-subtitle">Check your email</p>
+          </div>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <p className="verify-info">
+              We sent a 6-digit code to <strong>{pendingEmail}</strong>
+            </p>
+
+            <div className="auth-field">
+              <label htmlFor="otpCode">Verification Code</label>
+              <input
+                id="otpCode"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                disabled={auth.isLoading}
+                autoComplete="one-time-code"
+                className="otp-input"
+              />
+            </div>
+
+            {error && (
+              <div className="auth-error">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="auth-submit"
+              disabled={auth.isLoading || otpCode.length !== 6}
+            >
+              {auth.isLoading ? '...' : 'Verify'}
+            </button>
+
+            <button
+              type="button"
+              className="resend-btn"
+              onClick={handleResendCode}
+              disabled={auth.isLoading}
+            >
+              Resend code
+            </button>
+          </form>
+
+          <div className="auth-switch">
+            <button type="button" onClick={() => setMode('signup')} className="auth-switch-btn">
+              ← Back to signup
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="auth-page">
