@@ -1,6 +1,7 @@
 // Core types for xstream
 
-export type Face = 'player' | 'author' | 'designer'
+// Phase 0.9.0: Renamed 'player' to 'character'
+export type Face = 'character' | 'author' | 'designer'
 export type TextState = 'draft' | 'submitted' | 'committed'
 export type LLMMode = 'soft' | 'medium'
 export type SolidView = 'log' | 'dir'
@@ -73,8 +74,15 @@ export interface ParsedInput {
 // Parsed artifact from shelf entry
 export interface ParsedArtifact {
   name: string
-  type: string // category for skills, 'character' for players, element type for authors
+  type: string // category for skills, 'character' for characters, element type for authors
   level: 'user' // shelf entries are always user-level
+}
+
+// Zone proportions for UI (Phase 0.9.0)
+export interface ZoneProportions {
+  solid: number
+  liquid: number
+  vapour: number
 }
 
 // Re-export hook types for convenience

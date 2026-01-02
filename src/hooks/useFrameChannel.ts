@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Types for multi-user coordination
-export type Face = 'player' | 'author' | 'designer'
+// Phase 0.9.0: Renamed 'player' to 'character'
+export type Face = 'character' | 'author' | 'designer'
 
 export interface PresenceUser {
   id: string
@@ -110,7 +111,7 @@ export function useFrameChannel({
           users.push({
             id: presence.user_id,
             name: presence.user_name || `User-${presence.user_id.slice(0, 4)}`,
-            face: presence.face || 'player',
+            face: presence.face || 'character',
             isTyping: presence.is_typing || false,
             lastSeen: new Date().toISOString(),
           })

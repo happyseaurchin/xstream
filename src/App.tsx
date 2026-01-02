@@ -6,12 +6,12 @@ import {
   ConstructionButton,
   PresenceBar,
   VisibilityPanel,
-  InputArea,
   VaporPanel,
   LiquidPanel,
   SolidPanel,
+  DraggableSeparator,
 } from './components'
-import type { InputAreaHandle } from './components/InputArea'
+import type { VaporPanelHandle } from './components/VaporPanel'
 import type {
   Face,
   TextState,
@@ -23,6 +23,7 @@ import type {
   FrameSkill,
   ShelfEntry,
   SoftLLMResponse,
+  ZoneProportions,
 } from './types'
 import { getUserId, parseInputTypography, parseArtifactFromText } from './utils/parsing'
 import './App.css'
@@ -32,6 +33,36 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 const EDIT_DEBOUNCE_MS = 500
+
+// Zone proportion defaults and constraints
+const DEFAULT_PROPORTIONS: ZoneProportions = { solid: 40, liquid: 30, vapour: 30 }
+const MIN_ZONE_HEIGHT = 60 // pixels
+const ZONE_STORAGE_KEY = 'xstream-zone-proportions'
+
+// Load zone proportions from localStorage
+function loadZoneProportions(): ZoneProportions {
+  try {
+    const stored = localStorage.getItem(ZONE_STORAGE_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (parsed.solid && parsed.liquid && parsed.vapour) {
+        return parsed
+      }
+    }
+  } catch (e) {
+    console.warn('[Zones] Failed to load proportions:', e)
+  }
+  return DEFAULT_PROPORTIONS
+}
+
+// Save zone proportions to localStorage
+function saveZoneProportions(proportions: ZoneProportions): void {
+  try {
+    localStorage.setItem(ZONE_STORAGE_KEY, JSON.stringify(proportions))
+  } catch (e) {
+    console.warn('[Zones] Failed to save proportions:', e)
+  }
+}
 
 // Available frames
 const FRAMES: Frame[] = [
@@ -43,10 +74,14 @@ function App() {
   // Core state
   const [userId] = useState<string>(getUserId)
   const [userName, setUserName] = useState<string>(getDisplayName)
-  const [face, setFace] = useState<Face>('player')
+  const [face, setFace] = useState<Face>('character')
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
+  
+  // Zone proportions (Phase 0.9.0)
+  const [zoneProportions, setZoneProportions] = useState<ZoneProportions>(loadZoneProportions)
+  const mainRef = useRef<HTMLElement>(null)
   
   // Loading states
   const [isLoading, setIsLoading] = useState(false)
@@ -59,7 +94,6 @@ function App() {
   const [solidView, setSolidView] = useState<SolidView>('log')
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
-  const [vaporFocused, setVaporFocused] = useState(false)
   
   const [visibility, setVisibility] = useState<VisibilitySettings>({
     shareVapor: true,
@@ -70,7 +104,7 @@ function App() {
   })
 
   const debounceTimerRef = useRef<number | null>(null)
-  const inputAreaRef = useRef<InputAreaHandle>(null)
+  const vaporPanelRef = useRef<VaporPanelHandle>(null)
 
   // Hooks
   const { 
@@ -88,19 +122,19 @@ function App() {
     deleteLiquid,
   } = useLiquidSubscription({ frameId, userId })
 
-  // NEW: Solid entries from database
+  // Solid entries from database
   const { solidEntries: dbSolidEntries } = useSolidSubscription({ frameId })
 
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
-  // LIQUID: Show the most recent entry for this face (keeps prompt visible after commit)
+  // LIQUID: Show the most recent entry for this face
   const myLiquidEntry = entries
     .filter(e => e.face === face)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
   const liquidEntries = myLiquidEntry ? [myLiquidEntry] : []
   
-  // OTHERS' LIQUID: One entry per other user (deduplicated, most recent per user)
+  // OTHERS' LIQUID: One entry per other user
   const othersLiquidRaw = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
   const othersLiquid = Object.values(
     othersLiquidRaw.reduce((acc, entry) => {
@@ -118,11 +152,40 @@ function App() {
   })
   const hasVaporOrLiquid = !!(input.trim() || softResponse || liquidEntries.length > 0)
 
-  // Focus vapor input
-  const focusVaporInput = useCallback(() => {
-    console.log('[App] focusVaporInput called')
-    setVaporFocused(true)
-    inputAreaRef.current?.focus()
+  // Zone drag handlers
+  const handleTopSeparatorDrag = useCallback((delta: number) => {
+    if (!mainRef.current) return
+    const totalHeight = mainRef.current.clientHeight
+    const deltaPercent = (delta / totalHeight) * 100
+    
+    setZoneProportions(prev => {
+      const newSolid = Math.max(MIN_ZONE_HEIGHT / totalHeight * 100, 
+                                Math.min(prev.solid + deltaPercent, 100 - 2 * MIN_ZONE_HEIGHT / totalHeight * 100))
+      const newLiquid = Math.max(MIN_ZONE_HEIGHT / totalHeight * 100,
+                                 Math.min(prev.liquid - deltaPercent, 100 - newSolid - MIN_ZONE_HEIGHT / totalHeight * 100))
+      const newVapour = 100 - newSolid - newLiquid
+      
+      const result = { solid: newSolid, liquid: newLiquid, vapour: newVapour }
+      saveZoneProportions(result)
+      return result
+    })
+  }, [])
+
+  const handleBottomSeparatorDrag = useCallback((delta: number) => {
+    if (!mainRef.current) return
+    const totalHeight = mainRef.current.clientHeight
+    const deltaPercent = (delta / totalHeight) * 100
+    
+    setZoneProportions(prev => {
+      const newLiquid = Math.max(MIN_ZONE_HEIGHT / totalHeight * 100,
+                                 Math.min(prev.liquid + deltaPercent, 100 - prev.solid - MIN_ZONE_HEIGHT / totalHeight * 100))
+      const newVapour = Math.max(MIN_ZONE_HEIGHT / totalHeight * 100,
+                                 100 - prev.solid - newLiquid)
+      
+      const result = { solid: prev.solid, liquid: newLiquid, vapour: newVapour }
+      saveZoneProportions(result)
+      return result
+    })
   }, [])
 
   // Helper: Replace the current active entry for a face
@@ -161,17 +224,6 @@ function App() {
     if (solidView === 'dir' && face === 'designer') loadFrameSkills()
   }, [solidView, frameId, face])
 
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && vaporFocused) {
-        console.log('[App] Tab visible, refocusing vapor input')
-        setTimeout(() => inputAreaRef.current?.focus(), 100)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [vaporFocused])
-
   // API calls
   const loadFrameSkills = async () => {
     if (!GENERATE_URL || !SUPABASE_ANON_KEY) return
@@ -203,7 +255,6 @@ function App() {
 
       let createdSkill = null
 
-      // If we have a frame, use medium mode with liquid_id (Phase 0.7 synthesis)
       if (entry.frameId) {
         console.log('[App] Committing to liquid for medium mode synthesis')
         const liquidId = await commitLiquid({
@@ -224,8 +275,6 @@ function App() {
 
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
 
-        // Solid entry is now stored in DB and will appear via subscription
-        // Just update local entry to mark as processed
         setEntries(prev => prev.map(e => 
           e.id === entry.id ? { ...e, response: '[Stored in solid]' } : e
         ))
@@ -239,7 +288,6 @@ function App() {
         })
 
       } else {
-        // No frame selected - use legacy mode
         const res = await fetch(GENERATE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -297,9 +345,8 @@ function App() {
         artifactType: artifact?.type 
       }
       replaceActiveEntry(newEntry, currentFace)
-      setSoftResponse(null) // Artifact went to liquid, no vapor response needed
+      setSoftResponse(null)
     } else if (softType === 'action') {
-      // Player action - refined intention goes to liquid
       const newEntry: ShelfEntry = { 
         id: crypto.randomUUID(), 
         text: data.text, 
@@ -313,11 +360,9 @@ function App() {
       setSoftResponse(null)
       if (currentFrameId && visibility.shareLiquid) upsertLiquid({ userName, face: currentFace, content: data.text })
     } else if (softType === 'info') {
-      // Info request - response stays in vapor (dismissible)
       setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'info', face: currentFace, frameId: currentFrameId })
       setInput('')
     } else {
-      // clarify or refine - stays in vapor
       setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType, options: data.options, face: currentFace, frameId: currentFrameId })
     }
   }
@@ -351,7 +396,6 @@ function App() {
   }
 
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
-    setVaporFocused(false)
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, text: newText, isEditing: true } : e))
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = window.setTimeout(() => {
@@ -371,7 +415,7 @@ function App() {
     const currentFrameId = frameId
     
     setIsQuerying(true)
-    setTimeout(() => inputAreaRef.current?.focus(), 10)
+    setTimeout(() => vaporPanelRef.current?.focus(), 10)
     
     try {
       await executeQuery(textToSend, currentFace, currentFrameId)
@@ -386,7 +430,7 @@ function App() {
 
   const handleDismissSoftResponse = () => {
     setSoftResponse(null)
-    setTimeout(() => inputAreaRef.current?.focus(), 10)
+    setTimeout(() => vaporPanelRef.current?.focus(), 10)
   }
 
   const handleSubmitDirect = (text: string) => {
@@ -502,9 +546,9 @@ function App() {
       <header className="header">
         <div className="selectors">
           <select value={face} onChange={(e) => setFace(e.target.value as Face)} className="face-selector">
-            <option value="player">Player</option>
-            <option value="author">Author</option>
-            <option value="designer">Designer</option>
+            <option value="character">🎭 Character</option>
+            <option value="author">📖 Author</option>
+            <option value="designer">⚙️ Designer</option>
           </select>
           <select value={frameId || ''} onChange={(e) => setFrameId(e.target.value || null)} className="frame-selector">
             {FRAMES.map(f => <option key={f.id || 'none'} value={f.id || ''}>{f.name}</option>)}
@@ -520,8 +564,8 @@ function App() {
             )}
           </div>
           <span className="xyz-badge">{currentFrame.xyz}</span>
-          <button className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`} onClick={() => setShowVisibilityPanel(!showVisibilityPanel)} title="Visibility settings">*</button>
-          <button className="meta-toggle" onClick={() => setShowMeta(!showMeta)} title="Toggle skill metadata">{showMeta ? '#' : 'o'}</button>
+          <button className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`} onClick={() => setShowVisibilityPanel(!showVisibilityPanel)} title="Visibility settings">⚙</button>
+          <button className="meta-toggle" onClick={() => setShowMeta(!showMeta)} title="Toggle skill metadata">{showMeta ? '◉' : '○'}</button>
         </div>
       </header>
 
@@ -536,64 +580,71 @@ function App() {
 
       {frameId && <PresenceBar users={presentUsers} />}
 
-      <main className="main">
+      <main className="main" ref={mainRef}>
         {visibility.showSolid && (
-          <SolidPanel
-            solidView={solidView}
-            onViewChange={setSolidView}
-            solidEntries={dbSolidEntries}
-            frameSkills={frameSkills}
-            directoryEntries={directoryEntries}
-            face={face}
-            frameId={frameId}
-            isLoadingDirectory={isLoadingDirectory}
-            showMeta={showMeta}
-            onSkillClick={handleSkillClick}
-            onEntryClick={handleShelfEntryClick}
-          />
+          <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.solid}%` }}>
+            <SolidPanel
+              solidView={solidView}
+              onViewChange={setSolidView}
+              solidEntries={dbSolidEntries}
+              frameSkills={frameSkills}
+              directoryEntries={directoryEntries}
+              face={face}
+              frameId={frameId}
+              isLoadingDirectory={isLoadingDirectory}
+              showMeta={showMeta}
+              onSkillClick={handleSkillClick}
+              onEntryClick={handleShelfEntryClick}
+            />
+          </div>
+        )}
+
+        {visibility.showSolid && visibility.showLiquid && (
+          <DraggableSeparator position="top" onDrag={handleTopSeparatorDrag} />
         )}
 
         {visibility.showLiquid && (
-          <LiquidPanel
-            liquidEntries={liquidEntries}
-            othersLiquid={othersLiquid}
-            isLoading={isLoading}
-            onEdit={handleLiquidEdit}
-            onCommit={handleCommitEntry}
-            onDismiss={(id) => {
-              setEntries(prev => prev.filter(e => e.id !== id))
-            }}
-          />
+          <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.liquid}%` }}>
+            <LiquidPanel
+              liquidEntries={liquidEntries}
+              othersLiquid={othersLiquid}
+              isLoading={isLoading}
+              onEdit={handleLiquidEdit}
+              onCommit={handleCommitEntry}
+              onDismiss={(id) => {
+                setEntries(prev => prev.filter(e => e.id !== id))
+              }}
+            />
+          </div>
+        )}
+
+        {visibility.showLiquid && visibility.showVapor && (
+          <DraggableSeparator position="bottom" onDrag={handleBottomSeparatorDrag} />
         )}
 
         {visibility.showVapor && (
-          <VaporPanel
-            input={input}
-            userName={userName}
-            face={face}
-            isFocused={vaporFocused}
-            onFocus={focusVaporInput}
-            othersVapor={othersVapor}
-            softResponse={softResponse}
-            onDismissSoftResponse={handleDismissSoftResponse}
-            onSelectOption={handleSelectOption}
-          />
+          <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.vapour}%` }}>
+            <VaporPanel
+              ref={vaporPanelRef}
+              input={input}
+              onInputChange={setInput}
+              userName={userName}
+              face={face}
+              othersVapor={othersVapor}
+              softResponse={softResponse}
+              onDismissSoftResponse={handleDismissSoftResponse}
+              onSelectOption={handleSelectOption}
+              isLoading={isLoading}
+              isQuerying={isQuerying}
+              hasVaporOrLiquid={hasVaporOrLiquid}
+              onQuery={handleQuery}
+              onSubmit={handleSubmit}
+              onCommit={handleCommit}
+              onClear={handleClear}
+            />
+          </div>
         )}
       </main>
-
-      <InputArea
-        ref={inputAreaRef}
-        input={input}
-        onInputChange={setInput}
-        face={face}
-        isLoading={isLoading}
-        isQuerying={isQuerying}
-        hasVaporOrLiquid={hasVaporOrLiquid}
-        onQuery={handleQuery}
-        onSubmit={handleSubmit}
-        onCommit={handleCommit}
-        onClear={handleClear}
-      />
 
       <ConstructionButton />
     </div>

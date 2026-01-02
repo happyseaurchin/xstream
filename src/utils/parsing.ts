@@ -81,10 +81,11 @@ export function parseSkillFromText(text: string): ParsedArtifact | null {
 
 /**
  * Parse any artifact from text based on face
+ * Phase 0.9.0: Updated player → character
  */
 export function parseArtifactFromText(text: string, face: Face): ParsedArtifact | null {
   switch (face) {
-    case 'player':
+    case 'character':
       return parseCharacterFromText(text)
     case 'author':
       return parseWorldFromText(text)

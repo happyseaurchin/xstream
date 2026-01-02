@@ -1,3 +1,7 @@
+/* ================================================
+   Phase 0.9.0: UI Redesign - Zones, Separators, Demure Styling
+   ================================================ */
+
 .app {
   display: flex;
   flex-direction: column;
@@ -12,7 +16,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   background: var(--color-bg-secondary);
   border-radius: 8px 8px 0 0;
   border-bottom: 1px solid var(--color-border);
@@ -23,25 +27,29 @@
   gap: 0.5rem;
 }
 
+.face-selector,
 .frame-selector {
   background: var(--color-bg-tertiary);
   color: var(--color-text);
   border: 1px solid var(--color-border);
-  padding: 0.4rem 0.8rem;
+  padding: 0.3rem 0.6rem;
   border-radius: 4px;
-  font-size: 0.9rem;
-  max-width: 200px;
+  font-size: 0.85rem;
+}
+
+.frame-selector {
+  max-width: 180px;
 }
 
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .xyz-badge {
-  font-size: 0.8rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
   background: var(--color-bg-tertiary);
   border-radius: 3px;
   color: var(--color-text-secondary);
@@ -49,26 +57,23 @@
 }
 
 .visibility-toggle,
-.meta-toggle,
-.designer-panel-toggle {
+.meta-toggle {
   background: transparent;
   border: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.85rem;
   border-radius: 4px;
 }
 
 .visibility-toggle:hover,
-.meta-toggle:hover,
-.designer-panel-toggle:hover {
+.meta-toggle:hover {
   color: var(--color-accent);
   background: var(--color-bg-tertiary);
 }
 
-.visibility-toggle.active,
-.designer-panel-toggle.active {
+.visibility-toggle.active {
   color: var(--color-accent);
   background: var(--color-bg-tertiary);
 }
@@ -76,30 +81,30 @@
 /* Visibility Panel */
 .visibility-panel {
   display: flex;
-  gap: 1.5rem;
-  padding: 0.75rem 1rem;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
   background: var(--color-bg-tertiary);
   border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
+  font-size: 0.8rem;
 }
 
 .visibility-section {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .visibility-label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
-  min-width: 45px;
 }
 
 .visibility-btn {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -115,74 +120,126 @@
   color: var(--color-text-muted);
 }
 
-.visibility-btn:hover {
-  opacity: 0.85;
-}
+/* ================================================
+   Main Content & Zone Layout
+   ================================================ */
 
-/* Main content */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-secondary);
-  overflow-y: auto;
-  gap: 0;
+  overflow: hidden;
+  border-radius: 0 0 8px 8px;
 }
 
-/* Area common styles */
-.synthesis-area,
-.liquid-area,
-.vapor-area {
-  padding: 0.75rem 1rem;
+.zone-wrapper {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 60px;
+}
+
+/* ================================================
+   Draggable Separator
+   ================================================ */
+
+.draggable-separator {
+  flex: 0 0 auto;
+  height: 8px;
+  background: var(--color-bg-tertiary);
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
+  transition: background 0.15s ease;
 }
 
-.area-header {
+.draggable-separator:hover {
+  background: var(--color-bg);
+}
+
+.separator-grip {
+  width: 40px;
+  height: 3px;
+  background: var(--color-text-muted);
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
+.draggable-separator:hover .separator-grip {
+  opacity: 0.7;
+}
+
+/* ================================================
+   Zone Common Styles
+   ================================================ */
+
+.solid-zone,
+.liquid-zone,
+.vapor-zone {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.zone-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
-.area-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.area-hint {
+.zone-label {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .empty-state,
 .empty-hint {
   color: var(--color-text-muted);
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
+  font-size: 0.8rem;
+  padding: 1rem;
+  text-align: center;
   font-style: italic;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 1.5rem;
+/* ================================================
+   SOLID Zone
+   ================================================ */
+
+.solid-zone {
+  background: var(--color-bg);
 }
 
-/* Solid View Toggle */
+.solid-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+}
+
 .solid-view-toggle {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.2rem;
   background: var(--color-bg-tertiary);
-  padding: 0.2rem;
-  border-radius: 4px;
+  padding: 0.15rem;
+  border-radius: 3px;
 }
 
 .view-btn {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
   border: none;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
   background: transparent;
   color: var(--color-text-muted);
@@ -196,103 +253,76 @@
 .view-btn.active {
   background: var(--color-bg);
   color: var(--color-text);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-
-/* SOLID entries */
-.synthesis-area {
-  flex: 1;
-  overflow-y: auto;
-  background: var(--color-bg);
 }
 
 .solid-entry {
-  margin-bottom: 1rem;
-  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
   background: var(--color-bg-secondary);
-  border-radius: 6px;
-  border-left: 3px solid var(--color-solid, #4ade80);
-}
-
-.solid-entry.error {
-  border-left-color: var(--color-error, #f87171);
+  border-radius: 4px;
+  border-left: 2px solid var(--color-solid, #4ade80);
 }
 
 .entry-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.entry-input {
-  font-style: italic;
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
 }
 
 .entry-response {
+  font-size: 0.85rem;
+  line-height: 1.5;
   white-space: pre-wrap;
-  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.timestamp {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  margin-left: auto;
 }
 
 .skills-meta {
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.3rem;
   border-top: 1px dashed var(--color-border);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--color-text-muted);
-  font-family: monospace;
 }
 
-/* Directory View */
+/* Directory */
 .directory-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
-.directory-loading {
-  text-align: center;
-  padding: 1.5rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
+.directory-loading,
 .directory-empty {
   text-align: center;
-  padding: 1.5rem;
+  padding: 1rem;
   color: var(--color-text-muted);
   font-style: italic;
+  font-size: 0.8rem;
 }
 
 .directory-section-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   color: var(--color-text-muted);
-  padding: 0.25rem 0;
+  padding: 0.2rem 0;
   border-bottom: 1px solid var(--color-border);
-  margin-bottom: 0.25rem;
-}
-
-.directory-placeholder {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-  text-align: center;
-  padding: 0.75rem;
-  opacity: 0.7;
+  margin-bottom: 0.2rem;
 }
 
 .directory-item {
-  padding: 0.6rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   background: var(--color-bg-secondary);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
+  border-left: 2px solid transparent;
   transition: all 0.15s ease;
-  border-left: 3px solid transparent;
 }
 
 .directory-item:hover {
@@ -303,21 +333,10 @@
   border-left-color: var(--color-accent);
 }
 
-.directory-item.skill-item.platform {
-  border-left-color: var(--color-text-muted);
-  opacity: 0.8;
-}
-
-.directory-item.skill-item.frame {
-  border-left-color: var(--color-solid, #4ade80);
-}
-
-.directory-item.character-item,
-.directory-item.player-item {
+.directory-item.character-item {
   border-left-color: var(--color-liquid, #fbbf24);
 }
 
-.directory-item.world-item,
 .directory-item.author-item {
   border-left-color: var(--color-vapor, #a78bfa);
 }
@@ -326,129 +345,85 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
 }
 
 .dir-item-name {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
-  color: var(--color-text);
 }
 
 .dir-item-level {
-  font-size: 0.65rem;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
   text-transform: uppercase;
-  background: var(--color-badge-bg);
-  color: var(--color-text-secondary);
-}
-
-.dir-item-level.platform {
   background: var(--color-bg-tertiary);
-  color: var(--color-text-muted);
-}
-
-.dir-item-level.frame {
-  background: var(--color-solid, #4ade80);
-  color: #000;
-}
-
-.dir-item-level.user {
-  background: var(--color-liquid, #fbbf24);
-  color: #000;
+  color: var(--color-text-secondary);
 }
 
 .dir-item-meta {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.dir-item-category {
-  font-size: 0.75rem;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
   color: var(--color-text-muted);
 }
 
-.dir-item-faces {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  opacity: 0.7;
-}
+/* ================================================
+   LIQUID Zone
+   ================================================ */
 
-.dir-item-status,
-.dir-item-type,
-.dir-item-concept {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-/* Skill created badge */
-.skill-created-badge {
-  font-size: 0.65rem;
-  padding: 0.1rem 0.4rem;
-  background: var(--color-accent);
-  color: white;
-  border-radius: 3px;
-  text-transform: uppercase;
-}
-
-/* Artifact name badge */
-.artifact-badge {
-  font-size: 0.65rem;
-  padding: 0.1rem 0.4rem;
-  background: var(--color-liquid, #fbbf24);
-  color: #000;
-  border-radius: 3px;
-  font-weight: 500;
-}
-
-.created-skill-info {
-  margin-top: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-bg-tertiary);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-}
-
-.created-skill-info strong {
-  color: var(--color-accent);
-}
-
-/* LIQUID entries */
-.liquid-area {
+.liquid-zone {
   background: var(--color-bg-secondary);
 }
 
-.liquid-entry {
-  margin-bottom: 0.75rem;
-  padding: 0.75rem;
+.liquid-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+.liquid-anchored {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--color-border);
   background: var(--color-bg);
-  border-radius: 6px;
-  border-left: 3px solid var(--color-liquid, #fbbf24);
+}
+
+.liquid-entry {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border-radius: 4px;
+  border-left: 2px solid var(--color-liquid, #fbbf24);
+  margin-bottom: 0.5rem;
+}
+
+.liquid-entry.self {
+  background: var(--color-bg-tertiary);
+}
+
+.liquid-entry.other-liquid {
+  border-left-color: var(--color-text-muted);
+  opacity: 0.85;
+}
+
+.liquid-entry.committed {
+  border-left-color: var(--color-solid, #4ade80);
 }
 
 .liquid-entry.editing {
   border-left-color: var(--color-editing, #fb923c);
-  background: var(--color-bg-tertiary);
-}
-
-/* Committed liquid entries - stay visible but styled differently */
-.liquid-entry.committed {
-  border-left-color: var(--color-solid, #4ade80);
-  background: var(--color-bg-secondary);
 }
 
 .liquid-text {
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.4rem;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 3px;
   color: var(--color-text);
-  font-size: 0.9rem;
-  min-height: 50px;
+  font-size: 0.85rem;
+  min-height: 40px;
   resize: vertical;
   font-family: inherit;
 }
@@ -458,46 +433,32 @@
   border-color: var(--color-liquid, #fbbf24);
 }
 
-/* Committed liquid entries are read-only */
-.liquid-entry.committed .liquid-text {
-  background: var(--color-bg);
-  border-color: transparent;
+.liquid-text.readonly {
+  background: transparent;
+  border: none;
   resize: none;
   min-height: auto;
-  color: var(--color-text-secondary);
-  font-style: italic;
-}
-
-/* Response shown inline in committed liquid entries */
-.liquid-response {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: var(--color-bg);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  border-left: 2px solid var(--color-solid, #4ade80);
+  padding: 0.2rem 0;
 }
 
 .entry-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
 }
 
 .commit-entry-btn {
-  font-size: 0.8rem;
-  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
   background: var(--color-commit);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
 }
 
 .commit-entry-btn:hover:not(:disabled) {
-  background: var(--color-commit-hover);
+  opacity: 0.9;
 }
 
 .commit-entry-btn:disabled {
@@ -505,52 +466,46 @@
   cursor: not-allowed;
 }
 
-/* Dismiss button in liquid entry header */
 .dismiss-entry-btn {
   margin-left: auto;
   background: transparent;
   border: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 0.15rem 0.4rem;
+  padding: 0.1rem 0.3rem;
   font-size: 0.8rem;
-  border-radius: 3px;
 }
 
 .dismiss-entry-btn:hover {
   color: var(--color-error, #f87171);
+}
+
+/* ================================================
+   VAPOR Zone
+   ================================================ */
+
+.vapor-zone {
   background: var(--color-bg-tertiary);
 }
 
-/* VAPOR area */
-.vapor-area {
-  background: var(--color-bg-tertiary);
-  min-height: 80px;
-  cursor: text;
-  transition: box-shadow 0.15s ease;
+.vapor-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
 }
 
-.vapor-area.focused {
-  box-shadow: inset 0 0 0 2px var(--color-vapor, #a78bfa);
-}
-
-/* Vapor entries - both self and others */
 .vapor-entry {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  margin-bottom: 0.4rem;
-  border-radius: 4px;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  margin-bottom: 0.3rem;
+  border-radius: 3px;
   background: var(--color-bg-secondary);
   border-left: 2px solid var(--color-text-muted);
 }
 
-.vapor-entry.self {
-  background: var(--color-bg);
-}
-
-.vapor-entry.player {
+.vapor-entry.character {
   border-left-color: var(--color-liquid, #fbbf24);
 }
 
@@ -563,284 +518,275 @@
 }
 
 .vapor-user {
-  font-weight: 500;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
   white-space: nowrap;
-  font-size: 0.85rem;
 }
 
 .vapor-text {
-  font-family: inherit;
+  font-size: 0.85rem;
   color: var(--color-text);
-  font-size: 0.9rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.vapor-text .cursor {
-  color: var(--color-vapor, #a78bfa);
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
-/* Soft-LLM Response (in vapor) */
+/* Soft-LLM Response */
 .soft-response {
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   background: var(--color-bg);
-  border-radius: 6px;
-  border-left: 3px solid var(--color-vapor, #a78bfa);
-  margin-bottom: 0.5rem;
-  cursor: default;
+  border-radius: 4px;
+  border-left: 2px solid var(--color-vapor, #a78bfa);
+  margin-bottom: 0.4rem;
 }
 
-/* Artifact type */
 .soft-response.artifact {
   border-left-color: var(--color-liquid, #fbbf24);
-  opacity: 0.9;
-}
-
-/* Clarify type */
-.soft-response.clarify {
-  border-left-color: var(--color-vapor, #a78bfa);
-}
-
-/* Refine type */
-.soft-response.refine {
-  border-left-color: var(--color-vapor, #a78bfa);
 }
 
 .soft-response-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
 }
 
 .soft-label {
-  font-size: 0.7rem;
-  padding: 0.1rem 0.4rem;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.3rem;
   background: var(--color-vapor, #a78bfa);
   color: white;
-  border-radius: 3px;
+  border-radius: 2px;
   text-transform: uppercase;
 }
 
-/* Type-specific label colors */
 .soft-label.artifact {
   background: var(--color-liquid, #fbbf24);
   color: #000;
 }
 
-.soft-label.clarify {
-  background: var(--color-vapor, #a78bfa);
-}
-
-.soft-label.refine {
-  background: var(--color-text-muted);
-}
-
-.soft-actions {
-  display: flex;
-  gap: 0.25rem;
-  margin-left: auto;
-}
-
 .soft-response-text {
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--color-text);
+  font-size: 0.85rem;
+  line-height: 1.4;
   white-space: pre-wrap;
 }
 
 .soft-options {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
 }
 
 .soft-option-btn {
   text-align: left;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--color-text);
   transition: all 0.15s ease;
 }
 
 .soft-option-btn:hover {
-  background: var(--color-bg-tertiary);
   border-color: var(--color-vapor, #a78bfa);
 }
 
 .soft-action-btn {
-  font-size: 0.9rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.4rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
-  transition: all 0.15s ease;
-  background: var(--color-bg-secondary);
+  background: transparent;
   color: var(--color-text-muted);
+  margin-left: auto;
 }
 
 .soft-action-btn:hover {
-  background: var(--color-bg-tertiary);
-}
-
-.soft-action-btn.accept {
-  color: var(--color-solid, #4ade80);
-}
-
-.soft-action-btn.accept:hover {
-  color: #22c55e;
-}
-
-.soft-action-btn.dismiss {
-  color: var(--color-text-muted);
-}
-
-.soft-action-btn.dismiss:hover {
   color: var(--color-error, #f87171);
 }
 
-/* State badges */
-.state-badge {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.4rem;
-  border-radius: 3px;
-  text-transform: uppercase;
-  font-weight: 500;
+/* Vapor Input Area (anchored at bottom) */
+.vapor-input-area {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
-.state-badge.submitted {
+.vapor-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.vapor-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vapor-btn.query-btn {
+  background: var(--color-vapor, #a78bfa);
+  color: white;
+}
+
+.vapor-btn.query-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.vapor-btn.submit-btn {
   background: var(--color-liquid, #fbbf24);
   color: #000;
 }
 
-.state-badge.editing {
-  background: var(--color-editing, #fb923c);
-  color: #fff;
-}
-
-.state-badge.committed {
-  background: var(--color-solid, #4ade80);
-  color: #000;
-}
-
-/* Face badge */
-.face-badge {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.5rem;
-  background: var(--color-badge-bg);
-  border-radius: 3px;
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-/* Frame badge */
-.frame-badge {
-  font-size: 0.65rem;
-  padding: 0.1rem 0.4rem;
-  background: var(--color-accent);
-  color: white;
-  border-radius: 3px;
-  opacity: 0.8;
-}
-
-/* Input area - now just buttons, textarea hidden */
-.input-area {
-  display: flex;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: var(--color-bg-secondary);
-  border-radius: 0 0 8px 8px;
-  border-top: 1px solid var(--color-border);
-  justify-content: flex-end;
-}
-
-/* Hidden textarea - captures keystrokes but not visible */
-.input-area .hidden-input {
-  position: absolute;
-  left: -9999px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.buttons {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.buttons button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.buttons button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Query button */
-.buttons .query-btn {
-  background: var(--color-vapor, #a78bfa);
-  color: white;
-  font-weight: 600;
-  font-size: 1rem;
-  padding: 0.5rem 0.75rem;
-}
-
-.buttons .query-btn:hover:not(:disabled) {
+.vapor-btn.submit-btn:hover:not(:disabled) {
   opacity: 0.85;
 }
 
-.buttons .commit-btn {
-  background: var(--color-commit);
-  color: white;
+.vapor-textarea-wrapper {
+  flex: 1;
+  position: relative;
 }
 
-.buttons .commit-btn:hover:not(:disabled) {
-  background: var(--color-commit-hover);
-}
-
-/* Clear button */
-.buttons .clear-btn {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
+.vapor-textarea {
+  width: 100%;
+  min-height: 36px;
+  max-height: 120px;
+  padding: 0.5rem 2rem 0.5rem 0.5rem;
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.4;
 }
 
-.buttons .clear-btn:hover {
-  background: var(--color-bg);
-  color: var(--color-text);
+.vapor-textarea:focus {
+  outline: none;
+  border-color: var(--color-vapor, #a78bfa);
+}
+
+.vapor-textarea:disabled {
+  opacity: 0.6;
+}
+
+.vapor-clear-btn {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.vapor-clear-btn:hover {
+  opacity: 1;
+  color: var(--color-error, #f87171);
 }
 
 /* ================================================
-   Phase 0.6: Multi-User Presence Styles
+   State Indicators (Dots instead of badges)
    ================================================ */
 
-/* Presence indicator in header */
+.state-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.state-dot.submitted {
+  background: var(--color-liquid, #fbbf24);
+}
+
+.state-dot.editing {
+  background: var(--color-editing, #fb923c);
+}
+
+.state-dot.committed {
+  background: var(--color-solid, #4ade80);
+}
+
+/* ================================================
+   Face Icon
+   ================================================ */
+
+.face-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.face-icon-sm .face-icon-emoji {
+  font-size: 0.85rem;
+}
+
+.face-icon-md .face-icon-emoji {
+  font-size: 1rem;
+}
+
+.face-icon-lg .face-icon-emoji {
+  font-size: 1.2rem;
+}
+
+.face-icon-label {
+  font-size: 0.75rem;
+  color: var(--face-color);
+}
+
+/* ================================================
+   Badges (simplified)
+   ================================================ */
+
+.artifact-badge {
+  font-size: 0.6rem;
+  padding: 0.1rem 0.3rem;
+  background: var(--color-liquid, #fbbf24);
+  color: #000;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.user-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.3rem;
+  background: var(--color-bg-tertiary);
+  border-radius: 2px;
+  color: var(--color-text-muted);
+}
+
+/* ================================================
+   Presence
+   ================================================ */
+
 .presence-indicator {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-right: 0.5rem;
+  gap: 0.3rem;
 }
 
 .connection-status {
-  font-size: 0.6rem;
-  line-height: 1;
+  font-size: 0.5rem;
 }
 
 .connection-status.connected {
@@ -858,37 +804,34 @@
 }
 
 .presence-count {
-  font-size: 0.75rem;
-  padding: 0.1rem 0.35rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.25rem;
   background: var(--color-bg-tertiary);
-  border-radius: 3px;
+  border-radius: 2px;
   color: var(--color-text-secondary);
-  cursor: help;
 }
 
-/* Presence bar - shows other users in frame */
 .presence-bar {
   display: flex;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
-  align-items: center;
 }
 
 .presence-user {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.8rem;
-  padding: 0.2rem 0.5rem;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
   background: var(--color-bg-secondary);
-  border-radius: 4px;
+  border-radius: 3px;
   border-left: 2px solid var(--color-text-muted);
 }
 
-.presence-user.player {
+.presence-user.character {
   border-left-color: var(--color-liquid, #fbbf24);
 }
 
@@ -900,11 +843,6 @@
   border-left-color: var(--color-accent);
 }
 
-.presence-face {
-  color: var(--color-text-muted);
-  font-size: 0.7rem;
-}
-
 .presence-name {
   color: var(--color-text);
 }
@@ -912,10 +850,9 @@
 .presence-typing {
   color: var(--color-vapor, #a78bfa);
   animation: pulse 1s infinite;
-  margin-left: 0.1rem;
 }
 
-/* Name edit section in visibility panel */
+/* Name edit */
 .name-section {
   margin-left: auto;
 }
@@ -923,13 +860,11 @@
 .name-display {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--color-text);
-  min-width: 80px;
-  text-align: left;
 }
 
 .name-display:hover {
@@ -938,18 +873,18 @@
 
 .name-edit {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.2rem;
   align-items: center;
 }
 
 .name-edit input {
   background: var(--color-bg);
   border: 1px solid var(--color-accent);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
   color: var(--color-text);
-  width: 100px;
+  width: 80px;
 }
 
 .name-edit input:focus {
@@ -959,41 +894,8 @@
 .name-edit button {
   background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border);
-  padding: 0.2rem 0.4rem;
-  border-radius: 3px;
+  padding: 0.15rem 0.3rem;
+  border-radius: 2px;
   cursor: pointer;
-  font-size: 0.8rem;
-  color: var(--color-text);
-}
-
-.name-edit button:hover {
-  background: var(--color-bg);
-}
-
-/* Others' liquid entries */
-.liquid-entry.other-liquid {
-  background: rgba(100, 100, 100, 0.1);
-  border-left: 3px solid #888;
-  opacity: 0.9;
-}
-
-.liquid-entry.other-liquid .liquid-text {
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: none;
-  padding: 0.5rem;
-  min-height: auto;
-  resize: none;
-}
-
-.liquid-entry.other-liquid .liquid-text.readonly {
-  cursor: default;
-}
-
-.user-badge {
-  font-size: 0.7rem;
-  padding: 2px 6px;
-  background: rgba(100, 100, 100, 0.3);
-  border-radius: 3px;
-  color: var(--color-text-muted);
+  font-size: 0.75rem;
 }

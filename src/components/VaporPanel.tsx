@@ -1,4 +1,6 @@
+import { useRef, useImperativeHandle, forwardRef } from 'react'
 import type { Face, SoftLLMResponse } from '../types'
+import { FaceIcon } from './FaceIcon'
 
 export interface OtherVapor {
   userId: string
@@ -7,115 +9,188 @@ export interface OtherVapor {
   text: string
 }
 
+export interface VaporPanelHandle {
+  focus: () => void
+}
+
 interface VaporPanelProps {
-  // Self's vapor
+  // Self's input
   input: string
+  onInputChange: (value: string) => void
   userName: string
   face: Face
-  isFocused: boolean
-  onFocus: () => void
   // Others' vapor
   othersVapor: OtherVapor[]
   // Soft-LLM
   softResponse: SoftLLMResponse | null
   onDismissSoftResponse: () => void
   onSelectOption: (option: string) => void
+  // Input actions
+  isLoading: boolean
+  isQuerying: boolean
+  hasVaporOrLiquid: boolean
+  onQuery: () => void
+  onSubmit: () => void
+  onCommit: () => void
+  onClear: () => void
 }
 
-export function VaporPanel({
-  input,
-  userName,
-  face,
-  isFocused,
-  onFocus,
-  othersVapor,
-  softResponse,
-  onDismissSoftResponse,
-  onSelectOption,
-}: VaporPanelProps) {
-  // Others with actual text
-  const activeOthers = othersVapor.filter(v => v.text.length > 0)
-  
-  // Show self if has input OR is focused (so user knows where they're typing)
-  const showSelf = input.length > 0 || isFocused
+export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
+  function VaporPanel({
+    input,
+    onInputChange,
+    userName,
+    face,
+    othersVapor,
+    softResponse,
+    onDismissSoftResponse,
+    onSelectOption,
+    isLoading,
+    isQuerying,
+    hasVaporOrLiquid,
+    onQuery,
+    onSubmit,
+    onCommit,
+    onClear,
+  }, ref) {
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const isEmpty = !showSelf && activeOthers.length === 0 && !softResponse
+    // Expose focus method to parent
+    useImperativeHandle(ref, () => ({
+      focus: () => {
+        textareaRef.current?.focus()
+      }
+    }))
 
-  return (
-    <section 
-      className={`vapor-area ${isFocused ? 'focused' : ''}`}
-      onClick={onFocus}
-    >
-      <div className="area-header">
-        <span className="area-label">~ Vapor</span>
-        <span className="area-hint">Live + Soft-LLM</span>
-      </div>
-      
-      {/* Self's vapor - always first */}
-      {showSelf && (
-        <div className={`vapor-entry self ${face}`}>
-          <span className="vapor-user">I ({userName}):</span>
-          <span className="vapor-text">{input}<span className="cursor">{isFocused ? '|' : ''}</span></span>
+    // Others with actual text
+    const activeOthers = othersVapor.filter(v => v.text.length > 0)
+
+    const placeholder = face === 'designer' 
+      ? 'Create a skill...'
+      : face === 'character'
+      ? 'Describe a character or action...'
+      : 'Create world content...'
+
+    // Refocus after button click
+    const withRefocus = (fn: () => void) => {
+      return () => {
+        fn()
+        setTimeout(() => textareaRef.current?.focus(), 10)
+      }
+    }
+
+    return (
+      <section className="vapor-zone">
+        {/* Scrollable area: Others' vapor + Soft-LLM response */}
+        <div className="vapor-scroll-area">
+          {/* Others' vapor */}
+          {activeOthers.map(vapor => (
+            <div key={vapor.userId} className={`vapor-entry other ${vapor.face}`}>
+              <FaceIcon face={vapor.face as Face} size="sm" />
+              <span className="vapor-user">{vapor.userName}:</span>
+              <span className="vapor-text">{vapor.text}</span>
+            </div>
+          ))}
+          
+          {/* Soft-LLM response */}
+          {softResponse && (
+            <div className={`soft-response ${softResponse.softType}`}>
+              <div className="soft-response-header">
+                <FaceIcon face={softResponse.face} size="sm" />
+                <span className={`soft-label ${softResponse.softType}`}>
+                  {softResponse.softType === 'artifact' ? '→ liquid' : 
+                   softResponse.softType === 'clarify' ? 'options' : 
+                   softResponse.softType === 'info' ? 'info' : 'thinking'}
+                </span>
+                {(softResponse.softType === 'artifact' || softResponse.softType === 'info') && (
+                  <button 
+                    className="soft-action-btn dismiss" 
+                    onClick={onDismissSoftResponse}
+                    title="Dismiss"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <div className="soft-response-text">
+                {softResponse.text}
+              </div>
+              {/* Options for clarify type */}
+              {softResponse.softType === 'clarify' && softResponse.options && softResponse.options.length > 0 && (
+                <div className="soft-options">
+                  {softResponse.options.map((opt, i) => (
+                    <button 
+                      key={i} 
+                      className="soft-option-btn" 
+                      onClick={() => onSelectOption(opt)}
+                    >
+                      {String.fromCharCode(97 + i)}) {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
-      
-      {/* Others' vapor */}
-      {activeOthers.map(vapor => (
-        <div key={vapor.userId} className={`vapor-entry other ${vapor.face}`}>
-          <span className="vapor-user">{vapor.userName}:</span>
-          <span className="vapor-text">{vapor.text}</span>
-        </div>
-      ))}
-      
-      {/* Soft-LLM response */}
-      {softResponse && (
-        <div 
-          className={`soft-response ${softResponse.softType}`}
-          onClick={(e) => e.stopPropagation()} // Don't trigger vapor focus
-        >
-          <div className="soft-response-header">
-            <span className="face-badge">{softResponse.face}</span>
-            <span className={`soft-label ${softResponse.softType}`}>
-              {softResponse.softType === 'artifact' ? '→ liquid' : 
-               softResponse.softType === 'clarify' ? 'options' : 'thinking'}
-            </span>
-            {/* Only show dismiss for artifact (confirmation) */}
-            {softResponse.softType === 'artifact' && (
+
+        {/* Anchored: User's input area */}
+        <div className="vapor-input-area">
+          <button 
+            className="vapor-btn query-btn"
+            onClick={withRefocus(onQuery)}
+            disabled={isLoading || isQuerying || !input.trim()}
+            title="Query Soft-LLM (Enter)"
+          >
+            {isQuerying ? '...' : '⚡'}
+          </button>
+          
+          <div className="vapor-textarea-wrapper">
+            <textarea
+              ref={textareaRef}
+              className="vapor-textarea"
+              value={input}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder={placeholder}
+              disabled={isLoading || isQuerying}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.metaKey) {
+                  e.preventDefault()
+                  onCommit()
+                  setTimeout(() => textareaRef.current?.focus(), 10)
+                } else if (e.key === 'Enter' && e.shiftKey) {
+                  e.preventDefault()
+                  onSubmit()
+                  setTimeout(() => textareaRef.current?.focus(), 10)
+                } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
+                  if (input.trim()) {
+                    e.preventDefault()
+                    onQuery()
+                    setTimeout(() => textareaRef.current?.focus(), 10)
+                  }
+                }
+              }}
+            />
+            {input && (
               <button 
-                className="soft-action-btn dismiss" 
-                onClick={onDismissSoftResponse}
-                title="Dismiss"
+                className="vapor-clear-btn"
+                onClick={withRefocus(onClear)}
+                title="Clear"
               >
-                ×
+                ✕
               </button>
             )}
           </div>
-          <div className="soft-response-text">
-            {softResponse.text}
-          </div>
-          {/* Options for clarify type */}
-          {softResponse.softType === 'clarify' && softResponse.options && softResponse.options.length > 0 && (
-            <div className="soft-options">
-              {softResponse.options.map((opt, i) => (
-                <button 
-                  key={i} 
-                  className="soft-option-btn" 
-                  onClick={() => onSelectOption(opt)}
-                >
-                  {String.fromCharCode(97 + i)}) {opt}
-                </button>
-              ))}
-            </div>
-          )}
-          {/* Refine is conversational - just text, user keeps typing */}
+          
+          <button 
+            className="vapor-btn submit-btn"
+            onClick={withRefocus(onSubmit)} 
+            disabled={isLoading || isQuerying || !input.trim()}
+            title="Submit to Liquid (Shift+Enter)"
+          >
+            →
+          </button>
         </div>
-      )}
-      
-      {isEmpty && (
-        <div className="empty-hint">
-          Click here to type. Use [?] for Soft-LLM, {'{braces}'} for direct submit.
-        </div>
-      )}
-    </section>
-  )
-}
+      </section>
+    )
+  }
+)

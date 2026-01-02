@@ -2,6 +2,7 @@ import type { FrameSkill, Face, SolidView } from '../types'
 import type { SolidEntry } from '../hooks/useSolidSubscription'
 import type { ShelfEntry } from '../types'
 import { parseArtifactFromText } from '../utils/parsing'
+import { FaceIcon } from './FaceIcon'
 
 interface SolidPanelProps {
   solidView: SolidView
@@ -31,9 +32,9 @@ export function SolidPanel({
   onEntryClick,
 }: SolidPanelProps) {
   return (
-    <section className="synthesis-area">
-      <div className="area-header">
-        <span className="area-label"># Solid</span>
+    <section className="solid-zone">
+      <div className="zone-header">
+        <span className="zone-label"># Solid</span>
         <div className="solid-view-toggle">
           <button 
             className={`view-btn ${solidView === 'log' ? 'active' : ''}`}
@@ -50,19 +51,21 @@ export function SolidPanel({
         </div>
       </div>
       
-      {solidView === 'log' ? (
-        <LogView entries={solidEntries} face={face} showMeta={showMeta} />
-      ) : (
-        <DirectoryView
-          face={face}
-          frameId={frameId}
-          frameSkills={frameSkills}
-          directoryEntries={directoryEntries}
-          isLoading={isLoadingDirectory}
-          onSkillClick={onSkillClick}
-          onEntryClick={onEntryClick}
-        />
-      )}
+      <div className="solid-scroll-area">
+        {solidView === 'log' ? (
+          <LogView entries={solidEntries} face={face} showMeta={showMeta} />
+        ) : (
+          <DirectoryView
+            face={face}
+            frameId={frameId}
+            frameSkills={frameSkills}
+            directoryEntries={directoryEntries}
+            isLoading={isLoadingDirectory}
+            onSkillClick={onSkillClick}
+            onEntryClick={onEntryClick}
+          />
+        )}
+      </div>
     </section>
   )
 }
@@ -85,8 +88,8 @@ function LogView({ entries, face, showMeta }: { entries: SolidEntry[], face: Fac
       {faceEntries.map(entry => (
         <div key={entry.id} className="solid-entry">
           <div className="entry-header">
-            <span className="face-badge">{entry.face}</span>
-            <span className="state-badge committed">committed</span>
+            <FaceIcon face={entry.face as Face} size="sm" />
+            <span className="state-dot committed" title="Committed" />
             <span className="timestamp">{new Date(entry.createdAt).toLocaleTimeString()}</span>
           </div>
           <div className="entry-response">{entry.narrative || '[No narrative]'}</div>
@@ -157,8 +160,8 @@ function DirectoryView({
     )
   }
 
-  // Player/Author: use committed shelf entries
-  const label = face === 'player' ? 'Characters' : 'World Elements'
+  // Character/Author: use committed shelf entries
+  const label = face === 'character' ? 'Characters' : 'World Elements'
   
   return (
     <div className="directory-list">
@@ -188,7 +191,7 @@ function DirectoryView({
         <div className="directory-empty">
           No {label.toLowerCase()} created yet.
           <br />
-          Use [?] to create one, or type a {face === 'player' ? 'CHARACTER_CREATE' : 'WORLD_CREATE'} document.
+          Use [⚡] to create one, or type a {face === 'character' ? 'CHARACTER_CREATE' : 'WORLD_CREATE'} document.
         </div>
       )}
     </div>

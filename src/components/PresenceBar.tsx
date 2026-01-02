@@ -1,4 +1,5 @@
 import type { Face } from '../types'
+import { FaceIcon } from './FaceIcon'
 
 export interface PresentUser {
   id: string
@@ -18,7 +19,7 @@ export function PresenceBar({ users }: PresenceBarProps) {
     <div className="presence-bar">
       {users.map(user => (
         <span key={user.id} className={`presence-user ${user.face}`}>
-          <span className="presence-face">[{user.face.charAt(0).toUpperCase()}]</span>
+          <FaceIcon face={user.face} size="sm" />
           <span className="presence-name">{user.name}</span>
           {user.isTyping && <span className="presence-typing">...</span>}
         </span>
