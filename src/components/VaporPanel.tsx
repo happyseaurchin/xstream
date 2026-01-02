@@ -39,7 +39,7 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
   function VaporPanel({
     input,
     onInputChange,
-    userName,
+    userName: _userName, // prefixed with _ to indicate intentionally unused
     face,
     othersVapor,
     softResponse,
@@ -47,7 +47,7 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
     onSelectOption,
     isLoading,
     isQuerying,
-    hasVaporOrLiquid,
+    hasVaporOrLiquid: _hasVaporOrLiquid, // prefixed with _ to indicate intentionally unused
     onQuery,
     onSubmit,
     onCommit,

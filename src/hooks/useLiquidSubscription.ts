@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
-export type Face = 'player' | 'author' | 'designer'
+// Phase 0.9.0: Renamed 'player' to 'character'
+export type Face = 'character' | 'author' | 'designer'
 
 export interface LiquidEntry {
   id: string

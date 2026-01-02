@@ -1,3 +1,7 @@
+// Phase 0.9.0: This component is deprecated.
+// Input functionality is now embedded in VaporPanel.
+// Kept for reference but no longer exported or used.
+
 import { useRef, useImperativeHandle, forwardRef } from 'react'
 import type { Face } from '../types'
 
@@ -43,7 +47,7 @@ export const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(
 
     const placeholder = face === 'designer' 
       ? 'Create a skill...'
-      : face === 'player'
+      : face === 'character'
       ? 'Describe a character or action...'
       : 'Create world content...'
 
