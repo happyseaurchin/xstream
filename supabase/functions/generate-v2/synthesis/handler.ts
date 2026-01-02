@@ -60,7 +60,7 @@ async function handleCharacterCreate(
   
   console.log('[Medium-LLM] Created character:', characterId, parsed.name);
   
-  // Store confirmation in solid
+  // Store confirmation in solid (using existing columns: narrative, content_data, face)
   const solidId = crypto.randomUUID();
   const confirmationText = `**${parsed.name}** enters the world.\n\n${parsed.description}\n\n${parsed.appearance}`;
   
@@ -69,14 +69,18 @@ async function handleCharacterCreate(
     .insert({
       id: solidId,
       frame_id: context.frame.id,
-      content: confirmationText,
-      solid_type: 'character_created',
+      face: 'character',
+      narrative: confirmationText,
       source_liquid_ids: [context.trigger.entry.id],
+      triggering_user_id: context.trigger.userId,
       participant_user_ids: [context.trigger.userId],
-      metadata: {
+      content_data: {
+        type: 'character_created',
         character_id: characterId,
         character_name: parsed.name,
       },
+      model_used: 'none',
+      tokens_used: { input: 0, output: 0 },
     });
   
   if (solidError) {
@@ -179,7 +183,7 @@ export async function handleMediumMode(
           success: true,
           result: {
             success: true,
-            face: 'character' as const,
+            face: 'character',
             narrative: `${parsed.name} has been created.`,
             sourceLiquidIds: [context.trigger.entry.id],
             participantUserIds: [context.trigger.userId],
