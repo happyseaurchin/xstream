@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+
 export interface UserProfile {
   id: string
   displayName: string
@@ -15,11 +17,13 @@ export interface UseAuthReturn {
   session: Session | null
   isLoading: boolean
   error: string | null
-  signUp: (email: string, password: string, displayName: string) => Promise<boolean>
+  // 3-step registration
+  sendVerificationCode: (email: string, displayName: string) => Promise<boolean>
+  verifyCode: (email: string, code: string) => Promise<{ success: boolean; verificationId?: string; displayName?: string }>
+  createVerifiedAccount: (email: string, password: string, verificationId: string) => Promise<boolean>
+  // Standard auth
   signIn: (email: string, password: string) => Promise<boolean>
   signOut: () => Promise<void>
-  verifyOtp: (email: string, token: string) => Promise<boolean>
-  resendOtp: (email: string) => Promise<boolean>
   updateProfile: (updates: Partial<Pick<UserProfile, 'displayName' | 'defaultFace' | 'preferences'>>) => Promise<boolean>
 }
 
@@ -97,8 +101,9 @@ export function useAuth(): UseAuthReturn {
     return () => subscription.unsubscribe()
   }, [loadProfile])
 
-  const signUp = useCallback(async (email: string, password: string, displayName: string): Promise<boolean> => {
-    if (!supabase) {
+  // Step 1: Send verification code
+  const sendVerificationCode = useCallback(async (email: string, displayName: string): Promise<boolean> => {
+    if (!SUPABASE_URL) {
       setError('Supabase not configured')
       return false
     }
@@ -107,67 +112,68 @@ export function useAuth(): UseAuthReturn {
     setIsLoading(true)
 
     try {
-      const { data, error: err } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { display_name: displayName },
-          emailRedirectTo: undefined, // Disable magic link, use OTP
-        }
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-verification-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, display_name: displayName }),
       })
-
-      if (err) {
-        setError(err.message)
+      
+      const data = await res.json()
+      
+      if (!data.success) {
+        setError(data.error || 'Failed to send code')
         return false
       }
 
-      // User created, needs OTP verification
-      if (data.user && !data.session) {
-        return true // Success - show OTP screen
-      }
-
-      // Auto-confirmed (unlikely with OTP)
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign up failed')
+      setError(err instanceof Error ? err.message : 'Failed to send code')
       return false
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  const verifyOtp = useCallback(async (email: string, token: string): Promise<boolean> => {
-    if (!supabase) {
+  // Step 2: Verify code
+  const verifyCode = useCallback(async (email: string, code: string): Promise<{ success: boolean; verificationId?: string; displayName?: string }> => {
+    if (!SUPABASE_URL) {
       setError('Supabase not configured')
-      return false
+      return { success: false }
     }
 
     setError(null)
     setIsLoading(true)
 
     try {
-      const { error: err } = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: 'signup',
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
       })
-
-      if (err) {
-        setError(err.message)
-        return false
+      
+      const data = await res.json()
+      
+      if (!data.success) {
+        setError(data.error || 'Invalid code')
+        return { success: false }
       }
 
-      return true
+      return { 
+        success: true, 
+        verificationId: data.verification_id,
+        displayName: data.display_name 
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Verification failed')
-      return false
+      return { success: false }
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  const resendOtp = useCallback(async (email: string): Promise<boolean> => {
-    if (!supabase) {
+  // Step 3: Create account with verified email
+  const createVerifiedAccount = useCallback(async (email: string, password: string, verificationId: string): Promise<boolean> => {
+    if (!SUPABASE_URL || !supabase) {
       setError('Supabase not configured')
       return false
     }
@@ -176,20 +182,30 @@ export function useAuth(): UseAuthReturn {
     setIsLoading(true)
 
     try {
-      const { error: err } = await supabase.auth.resend({
-        type: 'signup',
-        email,
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-verified-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, verification_id: verificationId }),
       })
-
-      if (err) {
-        setError(err.message)
+      
+      const data = await res.json()
+      
+      if (!data.success) {
+        setError(data.error || 'Account creation failed')
         return false
       }
 
-      setError('Code resent! Check your email.')
+      // If we got a session back, set it
+      if (data.session) {
+        await supabase.auth.setSession(data.session)
+      } else {
+        // Auto-login didn't work, sign in manually
+        await supabase.auth.signInWithPassword({ email, password })
+      }
+
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Resend failed')
+      setError(err instanceof Error ? err.message : 'Account creation failed')
       return false
     } finally {
       setIsLoading(false)
@@ -275,11 +291,11 @@ export function useAuth(): UseAuthReturn {
     session,
     isLoading,
     error,
-    signUp,
+    sendVerificationCode,
+    verifyCode,
+    createVerifiedAccount,
     signIn,
     signOut,
-    verifyOtp,
-    resendOtp,
     updateProfile,
   }
 }
