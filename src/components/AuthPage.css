@@ -105,6 +105,44 @@
   opacity: 1;
 }
 
+/* OTP verification */
+.verify-info {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin: 0 0 1rem 0;
+}
+
+.verify-info strong {
+  color: var(--color-text);
+}
+
+.otp-input {
+  text-align: center;
+  font-size: 1.5rem;
+  letter-spacing: 0.5em;
+  font-family: monospace;
+}
+
+.resend-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  text-decoration: underline;
+}
+
+.resend-btn:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+
+.resend-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .auth-error {
   padding: 0.75rem;
   background: rgba(239, 68, 68, 0.1);
