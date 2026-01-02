@@ -14,6 +14,7 @@ export interface LiquidEntry {
   content: string
   softLlmResponse: string | null
   committed: boolean
+  characterId: string | null  // Phase 0.9.3: Track which character user is operating as
   createdAt: string
   updatedAt: string
 }
@@ -33,6 +34,7 @@ export interface UseLiquidSubscriptionReturn {
     face: Face
     content: string
     softLlmResponse?: string | null
+    characterId?: string | null
   }) => Promise<string | null>
   
   // Commit liquid and return ID for medium mode synthesis
@@ -40,6 +42,7 @@ export interface UseLiquidSubscriptionReturn {
     userName: string
     face: Face
     content: string
+    characterId?: string | null
   }) => Promise<string | null>
   
   markCommitted: (entryId: string) => Promise<void>
@@ -68,6 +71,7 @@ export function useLiquidSubscription({
     content: row.content,
     softLlmResponse: row.soft_llm_response,
     committed: row.committed,
+    characterId: row.character_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
@@ -157,6 +161,7 @@ export function useLiquidSubscription({
     face: Face
     content: string
     softLlmResponse?: string | null
+    characterId?: string | null
   }): Promise<string | null> => {
     if (!frameId || !supabase) return null
 
@@ -170,6 +175,7 @@ export function useLiquidSubscription({
           face: data.face,
           content: data.content,
           soft_llm_response: data.softLlmResponse || null,
+          character_id: data.characterId || null,
           committed: false,
         }, {
           onConflict: 'frame_id,user_id',
@@ -178,7 +184,7 @@ export function useLiquidSubscription({
         .single()
 
       if (err) throw err
-      console.log('[Liquid] Upserted successfully, id:', result?.id)
+      console.log('[Liquid] Upserted successfully, id:', result?.id, 'character:', data.characterId)
       return result?.id || null
     } catch (err) {
       console.error('[Liquid] Upsert error:', err)
@@ -193,6 +199,7 @@ export function useLiquidSubscription({
     userName: string
     face: Face
     content: string
+    characterId?: string | null
   }): Promise<string | null> => {
     if (!frameId || !supabase) return null
 
@@ -205,6 +212,7 @@ export function useLiquidSubscription({
           user_name: data.userName,
           face: data.face,
           content: data.content,
+          character_id: data.characterId || null,
           committed: true,
         }, {
           onConflict: 'frame_id,user_id',
@@ -213,7 +221,7 @@ export function useLiquidSubscription({
         .single()
 
       if (err) throw err
-      console.log('[Liquid] Committed successfully, id:', result?.id)
+      console.log('[Liquid] Committed successfully, id:', result?.id, 'character:', data.characterId)
       return result?.id || null
     } catch (err) {
       console.error('[Liquid] Commit error:', err)
