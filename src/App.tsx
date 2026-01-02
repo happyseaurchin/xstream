@@ -28,6 +28,7 @@ import type {
   ZoneProportions,
 } from './types'
 import { parseInputTypography, parseArtifactFromText } from './utils/parsing'
+import { createClient } from '@supabase/supabase-js'
 import './App.css'
 
 // Config
@@ -35,6 +36,19 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 const EDIT_DEBOUNCE_MS = 500
+
+// Supabase client for direct queries
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY 
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null
+
+// Character type for selector
+interface FrameCharacter {
+  id: string
+  name: string
+  is_npc: boolean
+  inhabited_by: string | null
+}
 
 // Zone proportion defaults and constraints
 const DEFAULT_PROPORTIONS: ZoneProportions = { solid: 40, liquid: 30, vapour: 30 }
@@ -84,6 +98,11 @@ function App() {
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
   
+  // Character selection state (Phase 0.9.3)
+  const [frameCharacters, setFrameCharacters] = useState<FrameCharacter[]>([])
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
+  const selectedCharacter = frameCharacters.find(c => c.id === selectedCharacterId)
+  
   // Zone proportions (Phase 0.9.0)
   const [zoneProportions, setZoneProportions] = useState<ZoneProportions>(loadZoneProportions)
   const mainRef = useRef<HTMLElement>(null)
@@ -118,6 +137,51 @@ function App() {
       setDisplayName(auth.profile.displayName)
     }
   }, [auth.profile?.displayName])
+
+  // Load characters when frame changes
+  useEffect(() => {
+    if (!frameId || !supabase) {
+      setFrameCharacters([])
+      setSelectedCharacterId(null)
+      return
+    }
+
+    const loadCharacters = async () => {
+      console.log('[App] Loading characters for frame:', frameId)
+      
+      // Get characters that have coordinates in this frame
+      const { data, error } = await supabase
+        .from('character_coordinates')
+        .select(`
+          character_id,
+          characters!inner(id, name, is_npc, inhabited_by)
+        `)
+        .eq('frame_id', frameId)
+
+      if (error) {
+        console.error('[App] Error loading characters:', error)
+        return
+      }
+
+      const characters: FrameCharacter[] = (data || []).map((row: any) => ({
+        id: row.characters.id,
+        name: row.characters.name,
+        is_npc: row.characters.is_npc,
+        inhabited_by: row.characters.inhabited_by,
+      }))
+
+      console.log('[App] Loaded characters:', characters.map(c => c.name))
+      setFrameCharacters(characters)
+      
+      // Auto-select if user already inhabits a character here
+      const inhabited = characters.find(c => c.inhabited_by === userId)
+      if (inhabited) {
+        setSelectedCharacterId(inhabited.id)
+      }
+    }
+
+    loadCharacters()
+  }, [frameId, userId])
 
   // Hooks - only active when authenticated
   const { 
@@ -271,9 +335,10 @@ function App() {
       if (entry.frameId) {
         console.log('[App] Committing to liquid for medium mode synthesis')
         const liquidId = await commitLiquid({
-          userName,
+          userName: selectedCharacter?.name || userName,
           face: entry.face,
           content: entry.text,
+          characterId: selectedCharacterId,
         })
 
         if (!liquidId) throw new Error('Failed to commit to liquid table')
@@ -338,7 +403,15 @@ function App() {
     const res = await fetch(GENERATE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ text: textToSend, face: currentFace, frame_id: currentFrameId, user_id: userId, user_name: userName, mode: 'soft' as LLMMode }),
+      body: JSON.stringify({ 
+        text: textToSend, 
+        face: currentFace, 
+        frame_id: currentFrameId, 
+        user_id: userId, 
+        user_name: selectedCharacter?.name || userName,
+        character_id: selectedCharacterId,
+        mode: 'soft' as LLMMode 
+      }),
     })
     const data = await res.json()
     if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
@@ -371,7 +444,12 @@ function App() {
       replaceActiveEntry(newEntry, currentFace)
       setInput('')
       setSoftResponse(null)
-      if (currentFrameId && visibility.shareLiquid) upsertLiquid({ userName, face: currentFace, content: data.text })
+      if (currentFrameId && visibility.shareLiquid) upsertLiquid({ 
+        userName: selectedCharacter?.name || userName, 
+        face: currentFace, 
+        content: data.text,
+        characterId: selectedCharacterId,
+      })
     } else if (softType === 'info') {
       setSoftResponse({ id: crypto.randomUUID(), originalInput: textToSend, text: data.text, softType: 'info', face: currentFace, frameId: currentFrameId })
       setInput('')
@@ -461,7 +539,12 @@ function App() {
     }
     replaceActiveEntry(newEntry, face)
     setInput('')
-    if (frameId && visibility.shareLiquid) upsertLiquid({ userName, face, content: text.trim() })
+    if (frameId && visibility.shareLiquid) upsertLiquid({ 
+      userName: selectedCharacter?.name || userName, 
+      face, 
+      content: text.trim(),
+      characterId: selectedCharacterId,
+    })
   }
 
   const handleSubmit = () => {
@@ -558,6 +641,14 @@ function App() {
     }
   }
 
+  const handleCharacterSelect = (characterId: string | null) => {
+    setSelectedCharacterId(characterId)
+    if (characterId) {
+      const char = frameCharacters.find(c => c.id === characterId)
+      console.log('[App] Selected character:', char?.name || 'none')
+    }
+  }
+
   // Show loading while checking auth
   if (auth.isLoading) {
     return (
@@ -589,6 +680,22 @@ function App() {
           </select>
         </div>
         <div className="header-controls">
+          {/* Character selector - only show when in character face and frame selected */}
+          {face === 'character' && frameId && frameCharacters.length > 0 && (
+            <select 
+              value={selectedCharacterId || ''} 
+              onChange={(e) => handleCharacterSelect(e.target.value || null)}
+              className="character-selector"
+              title="Select character to inhabit"
+            >
+              <option value="">-- Select Character --</option>
+              {frameCharacters.map(c => (
+                <option key={c.id} value={c.id} disabled={c.inhabited_by !== null && c.inhabited_by !== userId}>
+                  {c.name} {c.is_npc ? '(NPC)' : ''} {c.inhabited_by === userId ? '✓' : c.inhabited_by ? '⊘' : ''}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="presence-indicator">
             {frameId && (
               <>
@@ -663,7 +770,7 @@ function App() {
               ref={vaporPanelRef}
               input={input}
               onInputChange={setInput}
-              userName={userName}
+              userName={selectedCharacter?.name || userName}
               face={face}
               othersVapor={othersVapor}
               softResponse={softResponse}
