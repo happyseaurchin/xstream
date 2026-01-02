@@ -1,3 +1,4 @@
+export { AuthPage } from './AuthPage'
 export { ConstructionButton } from './ConstructionButton'
 export { PresenceBar } from './PresenceBar'
 export type { PresentUser } from './PresenceBar'
