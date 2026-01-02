@@ -105,6 +105,29 @@
   opacity: 1;
 }
 
+/* Password requirements */
+.password-requirements {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.password-requirements span {
+  padding: 0.15rem 0.4rem;
+  background: var(--color-bg);
+  border-radius: 3px;
+  border: 1px solid var(--color-border);
+  transition: all 0.2s;
+}
+
+.password-requirements span.met {
+  color: #4ade80;
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
 /* OTP verification */
 .verify-info {
   text-align: center;
