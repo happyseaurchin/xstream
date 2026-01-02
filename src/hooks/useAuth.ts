@@ -18,6 +18,8 @@ export interface UseAuthReturn {
   signUp: (email: string, password: string, displayName: string) => Promise<boolean>
   signIn: (email: string, password: string) => Promise<boolean>
   signOut: () => Promise<void>
+  verifyOtp: (email: string, token: string) => Promise<boolean>
+  resendOtp: (email: string) => Promise<boolean>
   updateProfile: (updates: Partial<Pick<UserProfile, 'displayName' | 'defaultFace' | 'preferences'>>) => Promise<boolean>
 }
 
@@ -109,7 +111,8 @@ export function useAuth(): UseAuthReturn {
         email,
         password,
         options: {
-          data: { display_name: displayName }
+          data: { display_name: displayName },
+          emailRedirectTo: undefined, // Disable magic link, use OTP
         }
       })
 
@@ -118,15 +121,75 @@ export function useAuth(): UseAuthReturn {
         return false
       }
 
+      // User created, needs OTP verification
       if (data.user && !data.session) {
-        // Email confirmation required
-        setError('Please check your email to confirm your account')
+        return true // Success - show OTP screen
+      }
+
+      // Auto-confirmed (unlikely with OTP)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign up failed')
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const verifyOtp = useCallback(async (email: string, token: string): Promise<boolean> => {
+    if (!supabase) {
+      setError('Supabase not configured')
+      return false
+    }
+
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      const { error: err } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'signup',
+      })
+
+      if (err) {
+        setError(err.message)
         return false
       }
 
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign up failed')
+      setError(err instanceof Error ? err.message : 'Verification failed')
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const resendOtp = useCallback(async (email: string): Promise<boolean> => {
+    if (!supabase) {
+      setError('Supabase not configured')
+      return false
+    }
+
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      const { error: err } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+
+      if (err) {
+        setError(err.message)
+        return false
+      }
+
+      setError('Code resent! Check your email.')
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Resend failed')
       return false
     } finally {
       setIsLoading(false)
@@ -215,6 +278,8 @@ export function useAuth(): UseAuthReturn {
     signUp,
     signIn,
     signOut,
+    verifyOtp,
+    resendOtp,
     updateProfile,
   }
 }
