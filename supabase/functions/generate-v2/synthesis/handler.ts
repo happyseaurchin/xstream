@@ -1,5 +1,6 @@
 /**
- * Phase 0.7: Medium-LLM Synthesis Handler
+ * Phase 0.7 + 0.8: Medium-LLM Synthesis Handler
+ * Now triggers Hard-LLM after player synthesis
  */
 
 import type { SynthesisContext, SynthesisResult } from './types.ts';
@@ -8,6 +9,69 @@ import { compilePlayerPrompt } from './compile-player.ts';
 import { compileAuthorPrompt, parseAuthorResponse } from './compile-author.ts';
 import { compileDesignerPrompt, parseDesignerResponse } from './compile-designer.ts';
 import { routePlayerResult, routeAuthorResult, routeDesignerResult, markLiquidProcessed } from './route.ts';
+
+/**
+ * Trigger Hard-LLM coordination after player synthesis.
+ * This updates coordinates, proximity, and operational frames.
+ */
+async function triggerHardLLM(
+  context: SynthesisContext,
+  narrative: string
+): Promise<void> {
+  // Only trigger if we have characters and a cosmology
+  if (context.characters.length === 0) {
+    console.log('[Medium-LLM] No characters found, skipping Hard-LLM');
+    return;
+  }
+  
+  if (!context.frame.cosmologyId) {
+    console.log('[Medium-LLM] No cosmology, skipping Hard-LLM');
+    return;
+  }
+  
+  const characterIds = context.characters.map(c => c.id);
+  
+  console.log('[Medium-LLM] Triggering Hard-LLM coordination for', characterIds.length, 'characters');
+  
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/hard-llm`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          trigger: 'synthesis-complete',
+          frame_id: context.frame.id,
+          character_ids: characterIds,
+          narrative: narrative,
+          action_pscale: 0,  // Default to pscale 0 for now
+        }),
+      }
+    );
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('[Medium-LLM] Hard-LLM coordination complete:', {
+        thinking: result.thinking_summary?.slice(0, 80) + '...',
+        coordinate_updates: result.coordinate_updates?.length || 0,
+        proximity_updates: result.proximity_updates?.length || 0,
+        operational_frames: result.operational_frames?.length || 0,
+      });
+    } else {
+      const errorText = await response.text();
+      console.warn('[Medium-LLM] Hard-LLM coordination failed:', response.status, errorText);
+    }
+  } catch (error) {
+    console.error('[Medium-LLM] Hard-LLM coordination error:', error);
+    // Don't fail synthesis if Hard-LLM fails
+  }
+}
 
 export async function handleMediumMode(
   supabase: any,
@@ -22,6 +86,7 @@ export async function handleMediumMode(
     const face = context.trigger.entry.face;
     console.log('[Medium-LLM] Face:', face, 'Frame:', context.frame.name);
     console.log('[Medium-LLM] Skills loaded:', Object.keys(context.skills).filter(k => context.skills[k as keyof typeof context.skills]).join(', ') || 'none');
+    console.log('[Medium-LLM] Characters:', context.characters.map(c => c.name).join(', ') || 'none');
     
     let compiled;
     switch (face) {
@@ -54,7 +119,10 @@ export async function handleMediumMode(
         if (!informational) {
           const solidResult = await routePlayerResult(supabase, context, result);
           stored = { solidId: solidResult.id };
-        } else { console.log('[Medium-LLM] Informational mode - skipping solid storage'); }
+          
+          // Phase 0.8: Trigger Hard-LLM after player synthesis
+          await triggerHardLLM(context, generatedText);
+        } else { console.log('[Medium-LLM] Informational mode - skipping solid storage and Hard-LLM'); }
         break;
       }
       case 'author': {

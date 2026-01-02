@@ -1,8 +1,8 @@
 /**
- * Phase 0.7: Context Gathering
+ * Phase 0.7 + 0.8: Context Gathering
  */
 
-import type { SynthesisContext, LiquidEntry, ContentEntry, SolidEntry, SkillSet } from './types.ts';
+import type { SynthesisContext, LiquidEntry, ContentEntry, SolidEntry, SkillSet, CharacterInfo } from './types.ts';
 import { loadSkillsForSynthesis } from './skills.ts';
 
 export async function gatherContext(supabase: any, triggeringLiquidId: string): Promise<SynthesisContext> {
@@ -12,7 +12,12 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   const frameId = trigger.frame_id;
   if (!frameId) throw new Error('Liquid entry has no frame_id');
   
-  const { data: frame, error: frameError } = await supabase.from('frames').select('id, name, pscale_floor, pscale_ceiling').eq('id', frameId).single();
+  // Phase 0.8: Include cosmology_id for Hard-LLM
+  const { data: frame, error: frameError } = await supabase
+    .from('frames')
+    .select('id, name, pscale_floor, pscale_ceiling, cosmology_id')
+    .eq('id', frameId)
+    .single();
   if (frameError || !frame) throw new Error(`Frame not found: ${frameId}`);
   
   const { data: allLiquid } = await supabase.from('liquid').select('*').eq('frame_id', frameId).order('created_at', { ascending: true });
@@ -26,14 +31,39 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   // Load skills for this face and frame
   const skills = await loadSkillsForSynthesis(supabase, trigger.face, frameId, trigger.user_id);
   
+  // Phase 0.8: Load characters for participating users
+  const participantUserIds = [...new Set((allLiquid || []).map((e: LiquidEntry) => e.user_id))];
+  let characters: CharacterInfo[] = [];
+  
+  if (participantUserIds.length > 0 && frame.cosmology_id) {
+    const { data: charData } = await supabase
+      .from('characters')
+      .select('id, name, inhabited_by, is_npc')
+      .in('inhabited_by', participantUserIds);
+    
+    characters = (charData || []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      user_id: c.inhabited_by,
+      is_npc: c.is_npc || false,
+    }));
+  }
+  
   return {
     trigger: { entry: trigger, userId: trigger.user_id, userName: trigger.user_name },
     allLiquid: allLiquid || [],
     otherLiquid,
     worldContent: worldContent || [],
     recentSolid: chronologicalSolid,
-    frame: { id: frame.id, name: frame.name, pscaleFloor: frame.pscale_floor, pscaleCeiling: frame.pscale_ceiling },
+    frame: {
+      id: frame.id,
+      name: frame.name,
+      pscaleFloor: frame.pscale_floor,
+      pscaleCeiling: frame.pscale_ceiling,
+      cosmologyId: frame.cosmology_id,
+    },
     skills,
+    characters,
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Phase 0.7: Synthesis Types
+ * Phase 0.7 + 0.8: Synthesis Types
  */
 
 export interface LiquidEntry {
@@ -57,6 +57,14 @@ export interface SkillSet {
   display?: Skill;
 }
 
+// Phase 0.8: Character info for Hard-LLM coordination
+export interface CharacterInfo {
+  id: string;
+  name: string;
+  user_id: string | null;  // inhabited_by
+  is_npc: boolean;
+}
+
 export interface SynthesisContext {
   trigger: {
     entry: LiquidEntry;
@@ -72,8 +80,11 @@ export interface SynthesisContext {
     name: string;
     pscaleFloor: number;
     pscaleCeiling: number;
+    cosmologyId?: string;  // Phase 0.8: for Hard-LLM
   };
-  skills: SkillSet;  // Loaded skills for the face
+  skills: SkillSet;
+  // Phase 0.8: Characters involved in this synthesis
+  characters: CharacterInfo[];
 }
 
 export interface CompiledPrompt {
