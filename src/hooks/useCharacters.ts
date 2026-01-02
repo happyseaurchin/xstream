@@ -1,3 +1,8 @@
+// @ts-nocheck
+// DEPRECATED: This hook was part of the form-based character creation approach.
+// Character selection is now done inline in App.tsx.
+// This file is kept for reference but not used.
+
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -101,7 +106,9 @@ export function useCharacters(userId: string | null): UseCharactersReturn {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      if (supabase) {
+        supabase.removeChannel(channel)
+      }
     }
   }, [userId, loadCharacters])
 
