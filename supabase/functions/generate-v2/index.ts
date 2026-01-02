@@ -49,17 +49,11 @@ interface SkillCreateRequest {
 
 // Soft-LLM response types
 interface SoftResponse {
-  type: 'artifact' | 'clarify' | 'action' | 'info' | 'character_created';
+  type: 'artifact' | 'clarify' | 'action' | 'info';
   text: string;
   document?: string;  // For artifact type - the full SKILL_CREATE or WORLD_CREATE document
   options?: string[]; // For clarify type
   liquid_id?: string; // For info type - the liquid entry created
-  character?: {       // For character_created type
-    id: string;
-    name: string;
-    description: string;
-    appearance: string;
-  };
 }
 
 /**
@@ -410,6 +404,51 @@ async function loadSkills(
 }
 
 /**
+ * Load a specific skill by name (for routing skills like character-generation)
+ */
+async function loadSkillByName(
+  supabase: any,
+  skillName: string,
+  face: string,
+  frameId: string | null
+): Promise<Skill | null> {
+  // Try frame-specific first, then platform
+  if (frameId) {
+    const { data: framePackages } = await supabase
+      .from('frame_packages')
+      .select('package_id')
+      .eq('frame_id', frameId);
+
+    if (framePackages?.length > 0) {
+      const packageIds = framePackages.map((fp: any) => fp.package_id);
+      const { data: skill } = await supabase
+        .from('skills')
+        .select('id, name, category, applies_to, content')
+        .eq('name', skillName)
+        .in('package_id', packageIds)
+        .contains('applies_to', [face])
+        .single();
+
+      if (skill) return skill;
+    }
+  }
+
+  // Fall back to platform
+  const { data: platformSkill } = await supabase
+    .from('skills')
+    .select(`
+      id, name, category, applies_to, content,
+      packages!inner(level)
+    `)
+    .eq('name', skillName)
+    .eq('packages.level', 'platform')
+    .contains('applies_to', [face])
+    .single();
+
+  return platformSkill || null;
+}
+
+/**
  * Get skills for frame directory view.
  * Returns all skills visible in this frame (platform + frame-specific).
  */
@@ -473,33 +512,6 @@ async function getFrameSkills(
   }
 
   return skills;
-}
-
-/**
- * Load frame content for context (locations, NPCs, etc.)
- */
-async function loadFrameContent(
-  supabase: any,
-  frameId: string
-): Promise<string> {
-  const { data: content } = await supabase
-    .from('content')
-    .select('name, content_type, data')
-    .eq('frame_id', frameId)
-    .eq('active', true)
-    .limit(5);
-
-  if (!content || content.length === 0) {
-    return 'No specific world content available.';
-  }
-
-  const contextParts: string[] = [];
-  for (const item of content) {
-    const desc = item.data?.description || item.data?.atmosphere || '';
-    contextParts.push(`[${item.content_type.toUpperCase()}] ${item.name}: ${desc.slice(0, 300)}...`);
-  }
-
-  return contextParts.join('\n\n');
 }
 
 /**
@@ -804,38 +816,10 @@ function parseWorldCreateFromResponse(response: string): { type: string; name: s
 }
 
 /**
- * Parse character creation from LLM response.
- * Looks for CHARACTER_CREATE block in response.
- */
-function parseCharacterCreateFromResponse(response: string): { name: string; description: string; appearance: string } | null {
-  const charMatch = response.match(/CHARACTER_CREATE\s*\n([\s\S]*?)(?:\n```|$)/);
-  if (!charMatch) return null;
-
-  const block = charMatch[1];
-  
-  const nameMatch = block.match(/name:\s*(.+)/);
-  const descMatch = block.match(/description:\s*\|?\s*\n([\s\S]*?)(?=\nappearance:|$)/);
-  const appearMatch = block.match(/appearance:\s*\|?\s*\n([\s\S]*)/);
-
-  if (!nameMatch) {
-    return null;
-  }
-
-  const name = nameMatch[1].trim();
-  const description = descMatch ? descMatch[1].trim() : '';
-  const appearance = appearMatch ? appearMatch[1].trim() : '';
-
-  return { name, description, appearance };
-}
-
-/**
  * Handle soft-mode for character face.
- * Classifies input as CHARACTER_CREATE, ACTION, INFO_REQUEST, or CLARIFY.
+ * Classifies input as ACTION, INFO_REQUEST, or triggers routing skills.
  * 
- * - CHARACTER_CREATE: Generates and stores a new character
- * - ACTION: Returns refined intention for liquid
- * - INFO_REQUEST: Creates liquid entry, calls medium-LLM, returns world info for vapor
- * - CLARIFY: Returns question for vapor
+ * Key principle: Intent detection is minimal. Actual generation uses skills from database.
  */
 async function handleCharacterSoftMode(
   supabase: any,
@@ -846,45 +830,90 @@ async function handleCharacterSoftMode(
   userName: string
 ): Promise<SoftResponse> {
   
-  // Load frame context for character creation
-  let worldContext = 'A generic fantasy world.';
-  if (frameId) {
-    worldContext = await loadFrameContent(supabase, frameId);
+  // Check if this looks like a character creation request
+  // This is the ONLY hard-coded intent detection - everything else comes from skills
+  const characterCreationPattern = /\b(create|make|new|play as|be a|become)\b.*\b(character|persona|role)\b/i;
+  const isCharacterCreation = characterCreationPattern.test(userInput) || 
+    userInput.toLowerCase().includes('i want to play') ||
+    userInput.toLowerCase().includes('i want to be');
+
+  if (isCharacterCreation) {
+    // Load the character-generation skill from database
+    const characterSkill = await loadSkillByName(supabase, 'character-generation', 'character', frameId);
+    
+    if (characterSkill) {
+      console.log('[Soft-LLM Character] Found character-generation skill, delegating...');
+      
+      // Use the skill content as the system prompt
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          thinking: {
+            type: 'enabled',
+            budget_tokens: 4000,
+          },
+          system: characterSkill.content,
+          messages: [{ role: 'user', content: userInput }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+      }
+
+      const claudeResponse = await response.json();
+      let generatedText = '';
+      for (const block of claudeResponse.content || []) {
+        if (block.type === 'text') {
+          generatedText = block.text;
+          break;
+        }
+      }
+
+      console.log('[Soft-LLM Character] Skill generated:', generatedText.slice(0, 200) + '...');
+
+      // The skill should output a CHARACTER_CREATE document that goes to liquid
+      // User can review and commit, which triggers medium-LLM to store it
+      return {
+        type: 'artifact',
+        text: '',
+        document: generatedText,
+      };
+    } else {
+      console.log('[Soft-LLM Character] No character-generation skill found, providing guidance');
+      return {
+        type: 'clarify',
+        text: 'Character creation is not yet configured for this frame. A designer needs to add the character-generation skill.',
+      };
+    }
   }
-  
+
+  // Standard character face handling (ACTION, INFO_REQUEST, CLARIFY)
   const systemPrompt = `You are Soft-LLM facilitating a player's relationship with their character in a narrative world.
 
 YOUR ROLE:
-Classify the player's input and respond appropriately. You facilitate action and creation, you don't explain.
-
-WORLD CONTEXT:
-${worldContext}
+Classify the player's input and respond appropriately. You facilitate action, you don't explain.
 
 CLASSIFICATION:
-1. CHARACTER_CREATE - Player wants to CREATE a new character to play
-   Triggers: "create a character", "make a character", "I want to play as...", "new character named..."
-   
-2. ACTION - Player wants their character to DO something that affects the world
+1. ACTION - Player wants their character to DO something that affects the world
    Examples: "I grab the sword", "I talk to the bartender", "I sneak past", "I order a drink"
    
-3. INFO_REQUEST - Player wants to PERCEIVE/OBSERVE/REMEMBER something
+2. INFO_REQUEST - Player wants to PERCEIVE/OBSERVE/REMEMBER something
    Examples: "Where am I?", "What do I see?", "Do I recognize this person?", "What's around me?"
    
-4. CLARIFY - Input is unclear, incomplete, or you need more information
+3. CLARIFY - Input is unclear, incomplete, or you need more information
    Examples: Ambiguous pronouns, unclear intentions, contradictory requests
 
 OUTPUT FORMAT:
 Respond with ONLY a classification block:
-
-For CHARACTER_CREATE:
-CHARACTER_CREATE
-name: [character name - use what they provided or generate one fitting the world]
-description: |
-  [2-3 sentences about who this character is - personality, background, motivations.
-   Make it fit the world context. Be evocative but concise.]
-appearance: |
-  [2-3 sentences describing physical appearance - what others would notice.
-   Include distinctive features, clothing style, general impression.]
 
 For ACTION:
 ACTION
@@ -901,8 +930,7 @@ question: [your clarifying question to the player]
 IMPORTANT:
 - No explanations, no summaries, no meta-commentary
 - Keep intentions brief and character-voiced
-- For CHARACTER_CREATE, generate a character that fits the world context
-- For INFO_REQUEST, the intention should be observable by others`;
+- For INFO_REQUEST, the intention should be observable by others (e.g., "looking around")`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -913,10 +941,10 @@ IMPORTANT:
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
+      max_tokens: 1024,
       thinking: {
         type: 'enabled',
-        budget_tokens: 4000,
+        budget_tokens: 3000,
       },
       system: systemPrompt,
       messages: [{ role: 'user', content: userInput }],
@@ -941,53 +969,6 @@ IMPORTANT:
   console.log('[Soft-LLM Character] Classification:', generatedText);
 
   // Parse the classification
-  if (generatedText.includes('CHARACTER_CREATE')) {
-    const parsed = parseCharacterCreateFromResponse(generatedText);
-    if (parsed) {
-      // Store character in database
-      const characterId = crypto.randomUUID();
-      const { data: character, error: charError } = await supabase
-        .from('characters')
-        .insert({
-          id: characterId,
-          name: parsed.name,
-          description: parsed.description,
-          appearance: parsed.appearance,
-          created_by: userId,
-          inhabited_by: userId, // Auto-inhabit on creation
-          is_npc: false,
-          cosmology_id: null, // TODO: Get from frame
-        })
-        .select()
-        .single();
-
-      if (charError) {
-        console.error('Error creating character:', charError);
-        throw new Error('Failed to create character');
-      }
-
-      console.log('[Soft-LLM Character] Created character:', character.id, character.name);
-
-      // Generate evocative confirmation
-      const confirmationText = `**${parsed.name}** takes form in your imagination.
-
-${parsed.description}
-
-${parsed.appearance}`;
-
-      return {
-        type: 'character_created',
-        text: confirmationText,
-        character: {
-          id: character.id,
-          name: character.name,
-          description: parsed.description,
-          appearance: parsed.appearance,
-        },
-      };
-    }
-  }
-  
   if (generatedText.includes('ACTION')) {
     const intentionMatch = generatedText.match(/intention:\s*(.+)/s);
     let intention = intentionMatch ? intentionMatch[1].trim() : userInput;
@@ -1194,7 +1175,7 @@ Deno.serve(async (req: Request) => {
           entry.frame_id
         );
       } else {
-        // Character face (or legacy 'player') - handles character creation, actions, info
+        // Character face (or legacy 'player') - uses skills for special intents
         softResponse = await handleCharacterSoftMode(
           supabase,
           anthropicKey,
@@ -1213,7 +1194,6 @@ Deno.serve(async (req: Request) => {
           document: softResponse.document,
           options: softResponse.options,
           liquid_id: softResponse.liquid_id,
-          character: softResponse.character,
           metadata: {
             face: entry.face,
             frame_id: entry.frame_id,
