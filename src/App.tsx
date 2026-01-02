@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useAuth } from './hooks/useAuth'
 import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFrameChannel'
 import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import { useSolidSubscription } from './hooks/useSolidSubscription'
 import {
+  AuthPage,
   ConstructionButton,
   PresenceBar,
   VisibilityPanel,
@@ -25,7 +27,7 @@ import type {
   SoftLLMResponse,
   ZoneProportions,
 } from './types'
-import { getUserId, parseInputTypography, parseArtifactFromText } from './utils/parsing'
+import { parseInputTypography, parseArtifactFromText } from './utils/parsing'
 import './App.css'
 
 // Config
@@ -71,10 +73,13 @@ const FRAMES: Frame[] = [
 ]
 
 function App() {
-  // Core state
-  const [userId] = useState<string>(getUserId)
-  const [userName, setUserName] = useState<string>(getDisplayName)
-  const [face, setFace] = useState<Face>('character')
+  // Auth hook - must be first
+  const auth = useAuth()
+  
+  // Core state - use auth user when available
+  const userId = auth.user?.id ?? ''
+  const [userName, setUserName] = useState<string>(() => auth.profile?.displayName ?? getDisplayName())
+  const [face, setFace] = useState<Face>(() => (auth.profile?.defaultFace as Face) ?? 'character')
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
@@ -106,7 +111,15 @@ function App() {
   const debounceTimerRef = useRef<number | null>(null)
   const vaporPanelRef = useRef<VaporPanelHandle>(null)
 
-  // Hooks
+  // Sync userName with profile
+  useEffect(() => {
+    if (auth.profile?.displayName) {
+      setUserName(auth.profile.displayName)
+      setDisplayName(auth.profile.displayName)
+    }
+  }, [auth.profile?.displayName])
+
+  // Hooks - only active when authenticated
   const { 
     presentUsers, 
     isConnected, 
@@ -524,6 +537,10 @@ function App() {
   const handleNameChange = (name: string) => {
     setDisplayName(name)
     setUserName(name)
+    // Also update profile if authenticated
+    if (auth.user) {
+      auth.updateProfile({ displayName: name })
+    }
   }
 
   const handleSelectOption = async (opt: string) => {
@@ -539,6 +556,20 @@ function App() {
     } finally {
       setIsQuerying(false)
     }
+  }
+
+  // Show loading while checking auth
+  if (auth.isLoading) {
+    return (
+      <div className="app loading-screen">
+        <div className="loading-text">Loading...</div>
+      </div>
+    )
+  }
+
+  // Show auth page if not logged in
+  if (!auth.user) {
+    return <AuthPage auth={auth} />
   }
 
   return (
@@ -566,6 +597,7 @@ function App() {
           <span className="xyz-badge">{currentFrame.xyz}</span>
           <button className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`} onClick={() => setShowVisibilityPanel(!showVisibilityPanel)} title="Visibility settings">⚙</button>
           <button className="meta-toggle" onClick={() => setShowMeta(!showMeta)} title="Toggle skill metadata">{showMeta ? '◉' : '○'}</button>
+          <button className="logout-btn" onClick={() => auth.signOut()} title={`Signed in as ${userName}`}>↪</button>
         </div>
       </header>
 
