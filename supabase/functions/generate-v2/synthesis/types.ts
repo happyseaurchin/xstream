@@ -97,10 +97,18 @@ export interface SynthesisResult {
   success: boolean;
   face: 'player' | 'author' | 'designer';
   narrative?: string;
-  contentData?: { type: string; name: string; description: string };
+  contentData?: { type: string; name: string; description: string; data?: Record<string, any> };
   skillData?: { name: string; category: string; applies_to: string[]; content: string };
   sourceLiquidIds: string[];
   participantUserIds: string[];
   model: string;
   tokens: { input: number; output: number };
+}
+
+// Used by route.ts for storing synthesis results
+export interface StoredSolid {
+  id: string;
+  frameId: string;
+  face: 'player' | 'author' | 'designer';
+  createdAt: string;
 }
