@@ -11,6 +11,17 @@
   padding: 1rem;
 }
 
+/* Loading Screen */
+.app.loading-screen {
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-text {
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+}
+
 /* Header */
 .header {
   display: flex;
@@ -57,7 +68,8 @@
 }
 
 .visibility-toggle,
-.meta-toggle {
+.meta-toggle,
+.logout-btn {
   background: transparent;
   border: none;
   color: var(--color-text-muted);
@@ -68,7 +80,8 @@
 }
 
 .visibility-toggle:hover,
-.meta-toggle:hover {
+.meta-toggle:hover,
+.logout-btn:hover {
   color: var(--color-accent);
   background: var(--color-bg-tertiary);
 }
@@ -76,6 +89,10 @@
 .visibility-toggle.active {
   color: var(--color-accent);
   background: var(--color-bg-tertiary);
+}
+
+.logout-btn {
+  font-size: 1rem;
 }
 
 /* Visibility Panel */
