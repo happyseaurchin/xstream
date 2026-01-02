@@ -1,5 +1,5 @@
 /**
- * Phase 0.7 + 0.8 + 0.9.2: Synthesis Types
+ * Phase 0.7 + 0.8 + 0.9.3: Synthesis Types
  */
 
 // Face type includes both legacy 'player' and new 'character'
@@ -13,7 +13,7 @@ export interface LiquidEntry {
   face: Face;
   content: string;
   committed: boolean;
-  processed: boolean;
+  character_id?: string;  // Phase 0.9.3: Which character user is operating as
   created_at: string;
 }
 
