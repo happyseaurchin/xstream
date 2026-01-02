@@ -1,5 +1,4 @@
 export { AuthPage } from './AuthPage'
-export { CharacterCreation } from './CharacterCreation'
 export { ConstructionButton } from './ConstructionButton'
 export { PresenceBar } from './PresenceBar'
 export type { PresentUser } from './PresenceBar'
