@@ -1,5 +1,6 @@
 /**
- * Phase 0.7 + 0.8: Context Gathering
+ * Phase 0.7 + 0.8 + 0.9.3: Context Gathering
+ * Now looks up character names from liquid.character_id
  */
 
 import type { SynthesisContext, LiquidEntry, ContentEntry, SolidEntry, SkillSet, CharacterInfo } from './types.ts';
@@ -31,25 +32,56 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   // Load skills for this face and frame
   const skills = await loadSkillsForSynthesis(supabase, trigger.face, frameId, trigger.user_id);
   
-  // Phase 0.8: Load characters for participating users
-  const participantUserIds = [...new Set((allLiquid || []).map((e: LiquidEntry) => e.user_id))];
-  let characters: CharacterInfo[] = [];
+  // Phase 0.9.3: Collect character_ids from liquid entries and look up names
+  const characterIds = [...new Set((allLiquid || [])
+    .filter((e: any) => e.character_id)
+    .map((e: any) => e.character_id))];
   
-  if (participantUserIds.length > 0 && frame.cosmology_id) {
+  let characters: CharacterInfo[] = [];
+  const characterNameMap = new Map<string, string>(); // character_id -> name
+  
+  if (characterIds.length > 0) {
     const { data: charData } = await supabase
+      .from('characters')
+      .select('id, name, inhabited_by, is_npc')
+      .in('id', characterIds);
+    
+    for (const c of charData || []) {
+      characterNameMap.set(c.id, c.name);
+      characters.push({
+        id: c.id,
+        name: c.name,
+        user_id: c.inhabited_by,
+        is_npc: c.is_npc || false,
+      });
+    }
+    
+    console.log('[Gather] Character map:', Object.fromEntries(characterNameMap));
+  }
+  
+  // Also check for characters via inhabited_by (fallback)
+  const participantUserIds = [...new Set((allLiquid || []).map((e: LiquidEntry) => e.user_id))];
+  if (participantUserIds.length > 0 && frame.cosmology_id) {
+    const { data: inhabitedChars } = await supabase
       .from('characters')
       .select('id, name, inhabited_by, is_npc')
       .in('inhabited_by', participantUserIds);
     
-    characters = (charData || []).map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      user_id: c.inhabited_by,
-      is_npc: c.is_npc || false,
-    }));
+    for (const c of inhabitedChars || []) {
+      if (!characterNameMap.has(c.id)) {
+        characterNameMap.set(c.id, c.name);
+        characters.push({
+          id: c.id,
+          name: c.name,
+          user_id: c.inhabited_by,
+          is_npc: c.is_npc || false,
+        });
+      }
+    }
   }
   
-  return {
+  // Attach character name lookup to context for use in formatting
+  const contextWithLookup: SynthesisContext & { characterNameMap?: Map<string, string> } = {
     trigger: { entry: trigger, userId: trigger.user_id, userName: trigger.user_name },
     allLiquid: allLiquid || [],
     otherLiquid,
@@ -65,23 +97,46 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
     skills,
     characters,
   };
+  
+  // Store characterNameMap on context for formatLiquidForPrompt
+  (contextWithLookup as any)._characterNameMap = characterNameMap;
+  
+  return contextWithLookup;
 }
 
-export function formatLiquidForPrompt(entries: LiquidEntry[]): string {
+/**
+ * Format liquid entries for prompt, using character names when available
+ */
+export function formatLiquidForPrompt(entries: LiquidEntry[], characterNameMap?: Map<string, string>): string {
   if (entries.length === 0) return 'No submitted actions.';
-  const byUser = new Map<string, LiquidEntry[]>();
+  
+  // Group by character/user
+  const byActor = new Map<string, { entries: LiquidEntry[], committed: boolean }[]>();
+  
   for (const entry of entries) {
-    const existing = byUser.get(entry.user_name) || [];
-    existing.push(entry);
-    byUser.set(entry.user_name, existing);
+    // Use character name if available, otherwise user_name
+    const actorName = (entry as any).character_id && characterNameMap?.has((entry as any).character_id)
+      ? characterNameMap.get((entry as any).character_id)!
+      : entry.user_name;
+    
+    const existing = byActor.get(actorName) || [];
+    existing.push({ entries: [entry], committed: entry.committed });
+    byActor.set(actorName, existing);
   }
+  
   const lines: string[] = [];
-  for (const [userName, userEntries] of byUser) {
-    const committed = userEntries.filter(e => e.committed);
-    const submitted = userEntries.filter(e => !e.committed);
-    if (committed.length > 0) lines.push(`${userName} (committed): ${committed.map(e => e.content).join('; ')}`);
-    if (submitted.length > 0) lines.push(`${userName} (submitted): ${submitted.map(e => e.content).join('; ')}`);
+  for (const [actorName, actorEntries] of byActor) {
+    const committed = actorEntries.filter(e => e.committed).flatMap(e => e.entries);
+    const submitted = actorEntries.filter(e => !e.committed).flatMap(e => e.entries);
+    
+    if (committed.length > 0) {
+      lines.push(`${actorName} (committed): ${committed.map(e => e.content).join('; ')}`);
+    }
+    if (submitted.length > 0) {
+      lines.push(`${actorName} (submitted): ${submitted.map(e => e.content).join('; ')}`);
+    }
   }
+  
   return lines.join('\n');
 }
 
