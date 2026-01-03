@@ -136,6 +136,8 @@ function App() {
   }, [auth.profile?.displayName])
 
   // Load characters when frame changes
+  // Phase 0.10.3: Query by cosmology (frame is container)
+  // TODO Plex 2: Replace with pscale-based filtering via Hard-LLM coordinate proximity
   useEffect(() => {
     if (!frameId || !supabase) {
       setFrameCharacters([])
@@ -144,19 +146,29 @@ function App() {
     }
 
     const loadCharacters = async () => {
-      // TypeScript needs explicit check even though we checked above
       if (!supabase) return
       
       console.log('[App] Loading characters for frame:', frameId)
       
-      // Get characters that have coordinates in this frame
+      // First get frame's cosmology
+      const { data: frameData, error: frameError } = await supabase
+        .from('frames')
+        .select('cosmology_id')
+        .eq('id', frameId)
+        .single()
+      
+      if (frameError || !frameData?.cosmology_id) {
+        console.error('[App] Error loading frame cosmology:', frameError)
+        return
+      }
+      
+      // Get all characters in this cosmology
+      // Plex 1: All characters in cosmology appear in dropdown
+      // Plex 2: Hard-LLM will filter by pscale proximity
       const { data, error } = await supabase
-        .from('character_coordinates')
-        .select(`
-          character_id,
-          characters!inner(id, name, is_npc, inhabited_by)
-        `)
-        .eq('frame_id', frameId)
+        .from('characters')
+        .select('id, name, is_npc, inhabited_by')
+        .eq('cosmology_id', frameData.cosmology_id)
 
       if (error) {
         console.error('[App] Error loading characters:', error)
@@ -164,10 +176,10 @@ function App() {
       }
 
       const characters: FrameCharacter[] = (data || []).map((row: any) => ({
-        id: row.characters.id,
-        name: row.characters.name,
-        is_npc: row.characters.is_npc,
-        inhabited_by: row.characters.inhabited_by,
+        id: row.id,
+        name: row.name,
+        is_npc: row.is_npc,
+        inhabited_by: row.inhabited_by,
       }))
 
       console.log('[App] Loaded characters:', characters.map(c => c.name))
