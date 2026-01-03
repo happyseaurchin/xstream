@@ -240,7 +240,7 @@ function App() {
     if (e.state !== 'committed' || e.face !== face || face === 'designer') return false
     return parseArtifactFromText(e.text, face) !== null
   })
-  const hasVaporOrLiquid = !!(input.trim() || softResponse || myLiquidEntries.length > 0)
+  const hasLiquidToClear = myLiquidEntries.length > 0
 
   // Zone drag handlers
   const handleTopSeparatorDrag = useCallback((delta: number) => {
@@ -546,6 +546,12 @@ function App() {
     })
   }, [myLiquidEntries.length])
 
+  // Copy liquid text to vapor for editing
+  const handleCopyToVapor = useCallback((text: string) => {
+    setInput(text)
+    setTimeout(() => vaporPanelRef.current?.focus(), 10)
+  }, [])
+
   const handleQuery = async () => {
     if (!input.trim()) return
     const parsed = parseInputTypography(input)
@@ -600,10 +606,24 @@ function App() {
   }
 
   const handleSubmit = () => {
-    if (!input.trim()) return
-    const parsed = parseInputTypography(input)
-    if (parsed.route === 'solid') { handleCommitDirect(parsed.text); return }
-    handleSubmitDirect(parsed.text)
+    // If vapor has content, submit it to liquid
+    if (input.trim()) {
+      const parsed = parseInputTypography(input)
+      if (parsed.route === 'solid') { handleCommitDirect(parsed.text); return }
+      handleSubmitDirect(parsed.text)
+      return
+    }
+    
+    // If vapor is empty but liquid exists, clear the liquid
+    if (hasLiquidToClear) {
+      const currentLiquid = myLiquidEntries[liquidHistoryIndex]
+      if (currentLiquid) {
+        setEntries(prev => prev.filter(e => e.id !== currentLiquid.id))
+        if (frameId) {
+          deleteLiquid()
+        }
+      }
+    }
   }
 
   const handleCommitDirect = async (text: string) => {
@@ -815,6 +835,7 @@ function App() {
                 setEntries(prev => prev.filter(e => e.id !== id))
               }}
               onNavigate={handleLiquidNavigate}
+              onCopyToVapor={handleCopyToVapor}
             />
           </div>
         )}
@@ -837,7 +858,7 @@ function App() {
               onSelectOption={handleSelectOption}
               isLoading={isLoading}
               isQuerying={isQuerying}
-              hasVaporOrLiquid={hasVaporOrLiquid}
+              hasLiquidToClear={hasLiquidToClear}
               onQuery={handleQuery}
               onSubmit={handleSubmit}
               onCommit={handleCommit}
