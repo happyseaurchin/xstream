@@ -156,6 +156,8 @@ export function useLiquidSubscription({
   }, [frameId])
 
   // Upsert liquid entry (one per user per frame) - returns ID
+  // Phase 0.9.3: First delete existing entry, then insert new one
+  // This avoids issues with upsert conflict resolution
   const upsertLiquid = useCallback(async (data: {
     userName: string
     face: Face
@@ -166,9 +168,17 @@ export function useLiquidSubscription({
     if (!frameId || !supabase) return null
 
     try {
+      // Delete any existing entry for this user in this frame
+      await supabase
+        .from('liquid')
+        .delete()
+        .eq('frame_id', frameId)
+        .eq('user_id', userId)
+
+      // Insert new entry
       const { data: result, error: err } = await supabase
         .from('liquid')
-        .upsert({
+        .insert({
           frame_id: frameId,
           user_id: userId,
           user_name: data.userName,
@@ -177,8 +187,6 @@ export function useLiquidSubscription({
           soft_llm_response: data.softLlmResponse || null,
           character_id: data.characterId || null,
           committed: false,
-        }, {
-          onConflict: 'frame_id,user_id',
         })
         .select('id')
         .single()
@@ -194,7 +202,7 @@ export function useLiquidSubscription({
   }, [frameId, userId])
 
   // Commit liquid entry and return ID for medium mode synthesis
-  // This upserts with committed=true and returns the ID
+  // Phase 0.9.3: First delete existing entry, then insert committed one
   const commitLiquid = useCallback(async (data: {
     userName: string
     face: Face
@@ -204,9 +212,17 @@ export function useLiquidSubscription({
     if (!frameId || !supabase) return null
 
     try {
+      // Delete any existing entry for this user in this frame
+      await supabase
+        .from('liquid')
+        .delete()
+        .eq('frame_id', frameId)
+        .eq('user_id', userId)
+
+      // Insert new committed entry
       const { data: result, error: err } = await supabase
         .from('liquid')
-        .upsert({
+        .insert({
           frame_id: frameId,
           user_id: userId,
           user_name: data.userName,
@@ -214,8 +230,6 @@ export function useLiquidSubscription({
           content: data.content,
           character_id: data.characterId || null,
           committed: true,
-        }, {
-          onConflict: 'frame_id,user_id',
         })
         .select('id')
         .single()
