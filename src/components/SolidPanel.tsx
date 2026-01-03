@@ -13,6 +13,7 @@ interface SolidPanelProps {
   face: Face
   frameId: string | null
   isLoadingDirectory: boolean
+  isSynthesizing: boolean  // NEW: shows spinner during Medium-LLM processing
   showMeta: boolean
   onSkillClick: (skill: FrameSkill) => void
   onEntryClick: (entry: ShelfEntry) => void
@@ -27,6 +28,7 @@ export function SolidPanel({
   face,
   frameId,
   isLoadingDirectory,
+  isSynthesizing,
   showMeta,
   onSkillClick,
   onEntryClick,
@@ -34,7 +36,10 @@ export function SolidPanel({
   return (
     <section className="solid-zone">
       <div className="zone-header">
-        <span className="zone-label"># Solid</span>
+        <span className="zone-label">
+          # Solid
+          {isSynthesizing && <span className="synthesizing-spinner" title="Synthesizing..."> ◌</span>}
+        </span>
         <div className="solid-view-toggle">
           <button 
             className={`view-btn ${solidView === 'log' ? 'active' : ''}`}
