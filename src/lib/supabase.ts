@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -7,9 +7,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase environment variables not set. Running in offline mode.')
 }
 
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null
+// Singleton pattern to prevent multiple GoTrueClient instances
+// This can happen with React Strict Mode or Vite HMR
+let supabaseInstance: SupabaseClient | null = null
+
+function getSupabaseClient(): SupabaseClient | null {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null
+  }
+  
+  if (!supabaseInstance) {
+    console.log('[Supabase] Creating client instance')
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
+  }
+  
+  return supabaseInstance
+}
+
+export const supabase = getSupabaseClient()
 
 // Types matching Supabase schema
 export interface User {
