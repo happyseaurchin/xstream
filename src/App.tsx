@@ -16,7 +16,6 @@ import {
 import type { VaporPanelHandle } from './components/VaporPanel'
 import type {
   Face,
-  TextState,
   LLMMode,
   SolidView,
   SoftType,
@@ -206,10 +205,10 @@ function App() {
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
-  // LIQUID: All submitted OR committed entries for this face, sorted newest first
-  // Committed entries stay visible (green) until dismissed or replaced
+  // LIQUID: Only submitted entries for this face - staging area only
+  // Committed entries are removed immediately, result appears in solid
   const myLiquidEntries = entries
-    .filter(e => e.face === face && (e.state === 'submitted' || e.state === 'committed'))
+    .filter(e => e.face === face && e.state === 'submitted')
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
   
   // Clamp index to valid range when entries change
@@ -281,18 +280,8 @@ function App() {
   // Helper: Replace the current active entry for a face
   const replaceActiveEntry = useCallback((newEntry: ShelfEntry, targetFace: Face) => {
     setEntries(prev => {
-      const sorted = [...prev]
-        .filter(e => e.face === targetFace)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      const activeEntry = sorted[0]
-      
-      const filtered = prev.filter(e => {
-        if (e.face !== targetFace) return true
-        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true
-        if (e.id === activeEntry?.id && e.state === 'committed' && e.response) return true
-        if (e.id === activeEntry?.id) return false
-        return true
-      })
+      // Remove any existing submitted entry for this face
+      const filtered = prev.filter(e => !(e.face === targetFace && e.state === 'submitted'))
       return [...filtered, newEntry]
     })
     // Reset to newest entry after adding
@@ -350,8 +339,6 @@ function App() {
     try {
       if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
         console.warn('[App] Supabase not configured')
-        const response = `[Supabase not configured]\n\nYour input (${entry.face}): ${entry.text}`
-        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, response } : e))
         return
       }
 
@@ -391,10 +378,6 @@ function App() {
 
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
 
-        setEntries(prev => prev.map(e => 
-          e.id === entry.id ? { ...e, response: '[Stored in solid]' } : e
-        ))
-
         if (data.result?.skillData) createdSkill = data.result.skillData
 
         console.log('[App] Step 6: Medium mode synthesis complete:', {
@@ -413,10 +396,6 @@ function App() {
         const data = await res.json()
 
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
-
-        setEntries(prev => prev.map(e => 
-          e.id === entry.id ? { ...e, response: data.text, createdSkill: data.created_skill } : e
-        ))
       }
 
       if (createdSkill && solidView === 'dir') loadFrameSkills()
@@ -424,10 +403,6 @@ function App() {
 
     } catch (error) {
       console.error('[App] generateResponse ERROR:', error)
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      setEntries(prev => prev.map(e => 
-        e.id === entry.id ? { ...e, error: errorMsg, response: `[Error: ${errorMsg}]` } : e
-      ))
     } finally {
       clearTimeout(timeoutId)
       console.log('[App] generateResponse FINALLY - setting isLoading=false')
@@ -634,13 +609,13 @@ function App() {
       text: text.trim(), 
       face, 
       frameId, 
-      state: 'committed', 
+      state: 'submitted', 
       timestamp: new Date().toISOString(), 
       artifactName: artifact?.name, 
       artifactType: artifact?.type 
     }
     setInput('')
-    replaceActiveEntry(entry, face)
+    // Don't add to entries - just send directly for processing
     await generateResponse(entry)
   }
 
@@ -653,10 +628,11 @@ function App() {
     }
     
     console.log('[App] Found entry:', { id: entry.id, text: entry.text.slice(0, 50), frameId: entry.frameId })
-    const artifact = parseArtifactFromText(entry.text, entry.face)
-    setEntries(prev => prev.map(e => 
-      e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false, artifactName: artifact?.name, artifactType: artifact?.type } : e
-    ))
+    
+    // Remove entry from local state immediately - liquid is staging only
+    setEntries(prev => prev.filter(e => e.id !== entryId))
+    
+    // Process the entry
     await generateResponse(entry)
   }
 
@@ -675,19 +651,8 @@ function App() {
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
-    setEntries(prev => {
-      const sorted = [...prev]
-        .filter(e => e.face === face)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      const activeEntry = sorted[0]
-      
-      return prev.filter(e => {
-        if (e.face !== face) return true
-        if (e.state === 'committed' && e.response && e.id !== activeEntry?.id) return true
-        if (e.id === activeEntry?.id) return false
-        return true
-      })
-    })
+    // Clear all submitted entries for current face
+    setEntries(prev => prev.filter(e => !(e.face === face && e.state === 'submitted')))
     if (frameId) {
       deleteLiquid()
       broadcastVapor('')
