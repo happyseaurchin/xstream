@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '../lib/supabase'
 import './ConstructionButton.css'
-
-// Supabase client for dev operations
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-const supabase = SUPABASE_URL && SUPABASE_ANON_KEY 
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null
 
 // Test frame ID - hardcoded for now
 const TEST_FRAME_ID = 'bbbbbbbb-0000-0000-0000-000000000001'
