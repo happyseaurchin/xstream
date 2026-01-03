@@ -151,18 +151,23 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
               placeholder={placeholder}
-              disabled={isLoading || isQuerying}
+              disabled={isQuerying}
               onKeyDown={(e) => {
+                // During isLoading (Medium-LLM), allow typing but block commit shortcuts
                 if (e.key === 'Enter' && e.metaKey) {
                   e.preventDefault()
-                  onCommit()
-                  setTimeout(() => textareaRef.current?.focus(), 10)
+                  if (!isLoading) {
+                    onCommit()
+                    setTimeout(() => textareaRef.current?.focus(), 10)
+                  }
                 } else if (e.key === 'Enter' && e.shiftKey) {
                   e.preventDefault()
-                  onSubmit()
-                  setTimeout(() => textareaRef.current?.focus(), 10)
+                  if (!isLoading) {
+                    onSubmit()
+                    setTimeout(() => textareaRef.current?.focus(), 10)
+                  }
                 } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
-                  if (input.trim()) {
+                  if (input.trim() && !isLoading) {
                     e.preventDefault()
                     onQuery()
                     setTimeout(() => textareaRef.current?.focus(), 10)
