@@ -321,10 +321,20 @@ function App() {
   }
 
   // Phase 0.7: Generate response using Medium-LLM synthesis
+  // Phase 0.9.3: Added detailed logging and timeout safety
   const generateResponse = async (entry: ShelfEntry) => {
+    console.log('[App] generateResponse START', { entryId: entry.id, frameId: entry.frameId, face: entry.face })
     setIsLoading(true)
+    
+    // Timeout safety - reset isLoading after 60 seconds no matter what
+    const timeoutId = setTimeout(() => {
+      console.error('[App] generateResponse TIMEOUT - resetting isLoading after 60s')
+      setIsLoading(false)
+    }, 60000)
+    
     try {
       if (!GENERATE_URL || !SUPABASE_ANON_KEY) {
+        console.warn('[App] Supabase not configured')
         const response = `[Supabase not configured]\n\nYour input (${entry.face}): ${entry.text}`
         setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, response } : e))
         return
@@ -333,7 +343,13 @@ function App() {
       let createdSkill = null
 
       if (entry.frameId) {
-        console.log('[App] Committing to liquid for medium mode synthesis')
+        console.log('[App] Step 1: Calling commitLiquid...', { 
+          userName: selectedCharacter?.name || userName,
+          characterId: selectedCharacterId,
+          currentFrameId: frameId,
+          entryFrameId: entry.frameId
+        })
+        
         const liquidId = await commitLiquid({
           userName: selectedCharacter?.name || userName,
           face: entry.face,
@@ -341,15 +357,22 @@ function App() {
           characterId: selectedCharacterId,
         })
 
-        if (!liquidId) throw new Error('Failed to commit to liquid table')
-        console.log('[App] Got liquid_id:', liquidId)
+        console.log('[App] Step 2: commitLiquid returned:', liquidId)
+        
+        if (!liquidId) {
+          throw new Error('Failed to commit to liquid table - commitLiquid returned null (frameId or supabase may be null)')
+        }
 
+        console.log('[App] Step 3: Calling generate-v2 edge function...')
         const res = await fetch(GENERATE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
           body: JSON.stringify({ mode: 'medium' as LLMMode, liquid_id: liquidId }),
         })
+        
+        console.log('[App] Step 4: Edge function responded:', res.status)
         const data = await res.json()
+        console.log('[App] Step 5: Parsed response:', { success: data.success, error: data.error })
 
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
 
@@ -359,13 +382,14 @@ function App() {
 
         if (data.result?.skillData) createdSkill = data.result.skillData
 
-        console.log('[App] Medium mode synthesis complete:', {
+        console.log('[App] Step 6: Medium mode synthesis complete:', {
           solidId: data.stored?.solidId,
           contentId: data.stored?.contentId,
           skillId: data.stored?.skillId,
         })
 
       } else {
+        console.log('[App] No frameId on entry - using non-frame path')
         const res = await fetch(GENERATE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -381,14 +405,17 @@ function App() {
       }
 
       if (createdSkill && solidView === 'dir') loadFrameSkills()
+      console.log('[App] generateResponse SUCCESS')
 
     } catch (error) {
-      console.error('Generation error:', error)
+      console.error('[App] generateResponse ERROR:', error)
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
       setEntries(prev => prev.map(e => 
         e.id === entry.id ? { ...e, error: errorMsg, response: `[Error: ${errorMsg}]` } : e
       ))
     } finally {
+      clearTimeout(timeoutId)
+      console.log('[App] generateResponse FINALLY - setting isLoading=false')
       setIsLoading(false)
     }
   }
@@ -573,9 +600,14 @@ function App() {
   }
 
   const handleCommitEntry = async (entryId: string) => {
+    console.log('[App] handleCommitEntry called with:', entryId)
     const entry = entries.find(e => e.id === entryId)
-    if (!entry) return
+    if (!entry) {
+      console.warn('[App] handleCommitEntry: entry not found in state')
+      return
+    }
     
+    console.log('[App] Found entry:', { id: entry.id, text: entry.text.slice(0, 50), frameId: entry.frameId })
     const artifact = parseArtifactFromText(entry.text, entry.face)
     setEntries(prev => prev.map(e => 
       e.id === entryId ? { ...e, state: 'committed' as TextState, isEditing: false, artifactName: artifact?.name, artifactType: artifact?.type } : e
