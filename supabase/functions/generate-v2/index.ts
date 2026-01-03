@@ -1,3 +1,12 @@
+/**
+ * Phase 0.10.3: Edge Function Entry Point
+ * 
+ * Handles soft mode (vapor→liquid) and medium mode (liquid→solid) for all faces.
+ * Author face: Natural prose synthesis, Hard-LLM handles classification
+ * Character face: ACTION/INFO_REQUEST/CLARIFY classification
+ * Designer face: SKILL_CREATE structured format
+ */
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleMediumMode } from "./synthesis/handler.ts";
