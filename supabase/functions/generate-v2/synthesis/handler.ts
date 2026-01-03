@@ -1,129 +1,58 @@
 /**
- * Phase 0.7 + 0.8 + 0.9.2 + 0.10.3: Medium-LLM Synthesis Handler
- * Now handles CHARACTER_CREATE documents
+ * Phase 0.10.3: Medium-LLM Synthesis Handler
  * 
- * Phase 0.10.3: Creates placeholder solid FIRST (narrative: null),
- * then updates with actual narrative. All players see spinner via subscription.
+ * Unified synthesis for all faces:
+ * - Player/Character: Synthesize actions → narrative
+ * - Author: Synthesize content → world description
+ * - Designer: Synthesize skill requests → skill document
+ * 
+ * Hard-LLM handles classification and entity filing for all faces.
  */
 
 import type { SynthesisContext, SynthesisResult } from './types.ts';
 import { gatherContext } from './gather.ts';
 import { compilePlayerPrompt } from './compile-player.ts';
-import { compileAuthorPrompt, parseAuthorResponse } from './compile-author.ts';
+import { compileAuthorPrompt } from './compile-author.ts';
 import { compileDesignerPrompt, parseDesignerResponse } from './compile-designer.ts';
 import { 
   createPlaceholderSolid, 
   updateSolidNarrative, 
-  updateSolidContentData,
   updateSolidSkillData,
-  routeAuthorResult, 
-  routeDesignerResult, 
   markLiquidProcessed 
 } from './route.ts';
 
 /**
- * Parse CHARACTER_CREATE document from liquid content.
- */
-function parseCharacterCreate(content: string): { name: string; description: string; appearance: string } | null {
-  if (!content.includes('CHARACTER_CREATE')) return null;
-  
-  const nameMatch = content.match(/name:\s*(.+)/);
-  const descMatch = content.match(/description:\s*\|?\s*\n([\s\S]*?)(?=\nappearance:|$)/);
-  const appearMatch = content.match(/appearance:\s*\|?\s*\n([\s\S]*?)$/);
-  
-  if (!nameMatch) return null;
-  
-  return {
-    name: nameMatch[1].trim(),
-    description: descMatch ? descMatch[1].trim() : '',
-    appearance: appearMatch ? appearMatch[1].trim() : '',
-  };
-}
-
-/**
- * Handle CHARACTER_CREATE document - insert into characters table.
- */
-async function handleCharacterCreate(
-  supabase: any,
-  context: SynthesisContext,
-  parsed: { name: string; description: string; appearance: string }
-): Promise<{ success: boolean; characterId: string; solidId: string }> {
-  const characterId = crypto.randomUUID();
-  
-  // Insert character
-  const { error: charError } = await supabase
-    .from('characters')
-    .insert({
-      id: characterId,
-      name: parsed.name,
-      description: parsed.description,
-      appearance: parsed.appearance,
-      created_by: context.trigger.userId,
-      inhabited_by: context.trigger.userId, // Auto-inhabit on creation
-      is_npc: false,
-      cosmology_id: context.frame.cosmologyId || null,
-    });
-  
-  if (charError) {
-    console.error('[Medium-LLM] Character insert error:', charError);
-    throw new Error('Failed to create character: ' + charError.message);
-  }
-  
-  console.log('[Medium-LLM] Created character:', characterId, parsed.name);
-  
-  // Store confirmation in solid (using existing columns: narrative, content_data, face)
-  const solidId = crypto.randomUUID();
-  const confirmationText = `**${parsed.name}** enters the world.\n\n${parsed.description}\n\n${parsed.appearance}`;
-  
-  const { error: solidError } = await supabase
-    .from('solid')
-    .insert({
-      id: solidId,
-      frame_id: context.frame.id,
-      face: 'character',
-      narrative: confirmationText,
-      source_liquid_ids: [context.trigger.entry.id],
-      triggering_user_id: context.trigger.userId,
-      participant_user_ids: [context.trigger.userId],
-      content_data: {
-        type: 'character_created',
-        character_id: characterId,
-        character_name: parsed.name,
-      },
-      model_used: 'none',
-      tokens_used: { input: 0, output: 0 },
-    });
-  
-  if (solidError) {
-    console.error('[Medium-LLM] Solid insert error:', solidError);
-    // Character created, solid failed - non-fatal
-  }
-  
-  return { success: true, characterId, solidId };
-}
-
-/**
- * Trigger Hard-LLM coordination after player synthesis.
- * This updates coordinates, proximity, and operational frames.
+ * Trigger Hard-LLM coordination after synthesis.
+ * For player: Updates coordinates, proximity, operational frames
+ * For author: Classifies content, files entities to characters/content tables
  */
 async function triggerHardLLM(
   context: SynthesisContext,
-  narrative: string
+  narrative: string,
+  face: string
 ): Promise<void> {
-  // Only trigger if we have characters and a cosmology
-  if (context.characters.length === 0) {
-    console.log('[Medium-LLM] No characters found, skipping Hard-LLM');
-    return;
-  }
-  
+  // Skip if no cosmology (Hard-LLM needs cosmology context)
   if (!context.frame.cosmologyId) {
     console.log('[Medium-LLM] No cosmology, skipping Hard-LLM');
     return;
   }
   
+  // For player face: need characters
+  // For author face: always trigger for content classification
+  if (face === 'player' || face === 'character') {
+    if (context.characters.length === 0) {
+      console.log('[Medium-LLM] No characters found, skipping Hard-LLM');
+      return;
+    }
+  }
+  
   const characterIds = context.characters.map(c => c.id);
   
-  console.log('[Medium-LLM] Triggering Hard-LLM coordination for', characterIds.length, 'characters');
+  console.log('[Medium-LLM] Triggering Hard-LLM:', {
+    face,
+    characterCount: characterIds.length,
+    hasNarrative: !!narrative,
+  });
   
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -138,11 +67,20 @@ async function triggerHardLLM(
           'Authorization': `Bearer ${supabaseKey}`,
         },
         body: JSON.stringify({
-          trigger: 'synthesis-complete',
+          trigger: face === 'author' ? 'author-synthesis' : 'synthesis-complete',
           frame_id: context.frame.id,
           character_ids: characterIds,
           narrative: narrative,
-          action_pscale: 0,  // Default to pscale 0 for now
+          face: face,
+          action_pscale: 0,  // Default to pscale 0
+          // Include liquid content for author classification
+          liquid_content: face === 'author' 
+            ? context.allLiquid.filter(e => e.face === 'author').map(e => ({
+                user_id: e.user_id,
+                user_name: e.user_name,
+                content: e.content,
+              }))
+            : undefined,
         }),
       }
     );
@@ -154,6 +92,7 @@ async function triggerHardLLM(
         coordinate_updates: result.coordinate_updates?.length || 0,
         proximity_updates: result.proximity_updates?.length || 0,
         operational_frames: result.operational_frames?.length || 0,
+        entities_filed: result.entities_filed?.length || 0,
       });
     } else {
       const errorText = await response.text();
@@ -178,51 +117,22 @@ export async function handleMediumMode(
     console.log('[Medium-LLM] Gathering context for liquid:', liquidId, informational ? '(informational)' : '');
     const context = await gatherContext(supabase, liquidId);
     const face = context.trigger.entry.face;
-    const content = context.trigger.entry.content;
     
     console.log('[Medium-LLM] Face:', face, 'Frame:', context.frame.name);
     console.log('[Medium-LLM] Skills loaded:', Object.keys(context.skills).filter(k => context.skills[k as keyof typeof context.skills]).join(', ') || 'none');
     console.log('[Medium-LLM] Characters:', context.characters.map(c => c.name).join(', ') || 'none');
     
-    // Check for CHARACTER_CREATE document (character face)
-    if ((face === 'character' || face === 'player') && content.includes('CHARACTER_CREATE')) {
-      const parsed = parseCharacterCreate(content);
-      if (parsed) {
-        console.log('[Medium-LLM] Detected CHARACTER_CREATE document for:', parsed.name);
-        const charResult = await handleCharacterCreate(supabase, context, parsed);
-        await markLiquidProcessed(supabase, [context.trigger.entry.id]);
-        
-        return {
-          success: true,
-          result: {
-            success: true,
-            face: 'character',
-            narrative: `${parsed.name} has been created.`,
-            sourceLiquidIds: [context.trigger.entry.id],
-            participantUserIds: [context.trigger.userId],
-            model: 'none',
-            tokens: { input: 0, output: 0 },
-          },
-          stored: {
-            solidId: charResult.solidId,
-            characterId: charResult.characterId,
-          },
-        };
-      }
-    }
-    
-    // Phase 0.10.3: Create placeholder solid FIRST (shows spinner for all players)
-    // Only for non-informational requests that will write to solid
-    const compileFace = face === 'character' ? 'player' : face;
+    // Create placeholder solid FIRST (shows spinner for all users)
+    // Only for non-informational requests
+    const solidFace = face === 'player' ? 'character' : face as 'character' | 'author' | 'designer';
     if (!informational) {
-      placeholderSolidId = await createPlaceholderSolid(
-        supabase, 
-        context, 
-        face === 'player' ? 'character' : face as 'character' | 'author' | 'designer'
-      );
+      placeholderSolidId = await createPlaceholderSolid(supabase, context, solidFace);
       console.log('[Medium-LLM] Created placeholder solid:', placeholderSolidId);
     }
     
+    // Compile prompt based on face
+    // Note: 'character' and 'player' both use player prompt
+    const compileFace = (face === 'character' || face === 'player') ? 'player' : face;
     let compiled;
     switch (compileFace) {
       case 'player': compiled = compilePlayerPrompt(context); break;
@@ -233,89 +143,109 @@ export async function handleMediumMode(
     
     console.log('[Medium-LLM] Compiled prompt, maxTokens:', compiled.maxTokens);
     
+    // Call Claude with extended thinking
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: compiled.maxTokens + 8000, thinking: { type: 'enabled', budget_tokens: 8000 }, system: compiled.systemPrompt, messages: [{ role: 'user', content: compiled.userPrompt }] }),
+      headers: { 
+        'Content-Type': 'application/json', 
+        'x-api-key': anthropicKey, 
+        'anthropic-version': '2023-06-01' 
+      },
+      body: JSON.stringify({ 
+        model: 'claude-sonnet-4-20250514', 
+        max_tokens: compiled.maxTokens + 8000, 
+        thinking: { type: 'enabled', budget_tokens: 8000 }, 
+        system: compiled.systemPrompt, 
+        messages: [{ role: 'user', content: compiled.userPrompt }] 
+      }),
     });
+    
     if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
     const claudeResponse = await response.json();
+    
+    // Extract text response (skip thinking blocks)
     let generatedText = '';
-    for (const block of claudeResponse.content || []) { if (block.type === 'text') { generatedText = block.text; break; } }
+    for (const block of claudeResponse.content || []) { 
+      if (block.type === 'text') { 
+        generatedText = block.text; 
+        break; 
+      } 
+    }
     console.log('[Medium-LLM] Generated text length:', generatedText.length);
     
-    const tokens = { input: claudeResponse.usage?.input_tokens || 0, output: claudeResponse.usage?.output_tokens || 0 };
+    const tokens = { 
+      input: claudeResponse.usage?.input_tokens || 0, 
+      output: claudeResponse.usage?.output_tokens || 0 
+    };
+    
     let result: SynthesisResult;
     let stored: { solidId: string; contentId?: string; skillId?: string } | undefined;
     
     switch (compileFace) {
       case 'player': {
+        // Player/Character face: narrative synthesis
         result = { 
           success: true, 
           face: 'player', 
           narrative: generatedText, 
-          sourceLiquidIds: context.allLiquid.filter(e => e.committed && (e.face === 'player' || e.face === 'character')).map(e => e.id), 
-          participantUserIds: [...new Set(context.allLiquid.filter(e => e.face === 'player' || e.face === 'character').map(e => e.user_id))], 
+          sourceLiquidIds: context.allLiquid
+            .filter(e => e.committed && (e.face === 'player' || e.face === 'character'))
+            .map(e => e.id), 
+          participantUserIds: [...new Set(
+            context.allLiquid
+              .filter(e => e.face === 'player' || e.face === 'character')
+              .map(e => e.user_id)
+          )], 
           model: 'claude-sonnet-4-20250514', 
           tokens 
         };
         
         if (!informational && placeholderSolidId) {
-          // Phase 0.10.3: Update the placeholder with actual narrative
           await updateSolidNarrative(supabase, placeholderSolidId, generatedText, result.model, tokens);
           stored = { solidId: placeholderSolidId };
           
-          // Phase 0.8: Trigger Hard-LLM after player synthesis
-          await triggerHardLLM(context, generatedText);
+          // Trigger Hard-LLM for coordinate updates
+          await triggerHardLLM(context, generatedText, face);
         } else { 
           console.log('[Medium-LLM] Informational mode - skipping solid storage and Hard-LLM'); 
         }
         break;
       }
+      
       case 'author': {
-        const parsed = parseAuthorResponse(generatedText);
-        if (!parsed) throw new Error('Failed to parse author response');
+        // Author face: content synthesis (like player - just synthesize)
         result = { 
           success: true, 
           face: 'author', 
-          contentData: parsed, 
-          sourceLiquidIds: [context.trigger.entry.id], 
-          participantUserIds: [context.trigger.userId], 
+          narrative: generatedText,  // Store as narrative, not contentData
+          sourceLiquidIds: context.allLiquid
+            .filter(e => e.face === 'author')
+            .map(e => e.id), 
+          participantUserIds: [...new Set(
+            context.allLiquid
+              .filter(e => e.face === 'author')
+              .map(e => e.user_id)
+          )], 
           model: 'claude-sonnet-4-20250514', 
           tokens 
         };
         
-        if (placeholderSolidId) {
-          // Update placeholder with content_data
-          await updateSolidContentData(supabase, placeholderSolidId, {
-            ...parsed,
-          }, result.model, tokens);
+        if (!informational && placeholderSolidId) {
+          // Store synthesis as narrative (like player face)
+          await updateSolidNarrative(supabase, placeholderSolidId, generatedText, result.model, tokens);
+          stored = { solidId: placeholderSolidId };
           
-          // Also create in content table
-          const { data: contentData } = await supabase
-            .from('content')
-            .insert({
-              frame_id: context.frame.id,
-              author_id: context.trigger.userId,
-              content_type: parsed.type,
-              name: parsed.name,
-              data: parsed.data,
-              active: true,
-            })
-            .select('id')
-            .single();
-          
-          stored = { solidId: placeholderSolidId, contentId: contentData?.id };
-        } else {
-          // Fallback to old method
-          const authorResult = await routeAuthorResult(supabase, context, result);
-          stored = { solidId: authorResult.solid.id, contentId: authorResult.contentId };
+          // Trigger Hard-LLM for content classification and entity filing
+          await triggerHardLLM(context, generatedText, 'author');
         }
         break;
       }
+      
       case 'designer': {
+        // Designer face: skill document (special case - needs parsing for skill creation)
         const parsed = parseDesignerResponse(generatedText);
         if (!parsed) throw new Error('Failed to parse designer response');
+        
         result = { 
           success: true, 
           face: 'designer', 
@@ -329,7 +259,7 @@ export async function handleMediumMode(
         if (!getOrCreateFramePackage) throw new Error('Designer mode requires getOrCreateFramePackage');
         
         if (placeholderSolidId) {
-          // Create skill first
+          // Create skill
           const packageId = await getOrCreateFramePackage(supabase, context.frame.id, context.trigger.userId);
           const skillId = crypto.randomUUID();
           await supabase.from('skills').insert({
@@ -348,21 +278,21 @@ export async function handleMediumMode(
           }, result.model, tokens);
           
           stored = { solidId: placeholderSolidId, skillId };
-        } else {
-          // Fallback to old method
-          const designerResult = await routeDesignerResult(supabase, context, result, getOrCreateFramePackage);
-          stored = { solidId: designerResult.solid.id, skillId: designerResult.skillId };
         }
         break;
       }
     }
     
-    if (!informational) await markLiquidProcessed(supabase, result.sourceLiquidIds);
+    if (!informational) {
+      await markLiquidProcessed(supabase, result.sourceLiquidIds);
+    }
+    
     return { success: true, result, stored };
+    
   } catch (error) {
     console.error('[Medium-LLM] Error:', error);
     
-    // If we created a placeholder but synthesis failed, delete it
+    // Clean up failed placeholder
     if (placeholderSolidId) {
       console.log('[Medium-LLM] Cleaning up failed placeholder:', placeholderSolidId);
       await supabase.from('solid').delete().eq('id', placeholderSolidId);
