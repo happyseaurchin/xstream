@@ -153,7 +153,7 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
               onChange={(e) => onInputChange(e.target.value)}
               placeholder={placeholder}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.metaCmd) {
+                if (e.key === 'Enter' && e.metaKey) {
                   e.preventDefault()
                   if (!isLoading && input.trim()) {
                     onCommit()
