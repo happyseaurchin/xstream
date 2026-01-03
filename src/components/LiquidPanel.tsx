@@ -11,6 +11,7 @@ interface LiquidPanelProps {
   onCommit: (entryId: string) => void
   onDismiss: (entryId: string) => void
   onNavigate: (direction: 'prev' | 'next') => void
+  onCopyToVapor: (text: string) => void
 }
 
 export function LiquidPanel({
@@ -18,10 +19,11 @@ export function LiquidPanel({
   currentIndex,
   othersLiquid,
   isLoading,
-  onEdit,
+  onEdit: _onEdit,  // keeping for potential future use
   onCommit,
   onDismiss,
   onNavigate,
+  onCopyToVapor,
 }: LiquidPanelProps) {
   const isEmpty = liquidEntries.length === 0 && othersLiquid.length === 0
   const currentEntry = liquidEntries[currentIndex]
@@ -31,40 +33,19 @@ export function LiquidPanel({
 
   return (
     <section className="liquid-zone">
-      {/* Scrollable area: Others' liquid */}
-      <div className="liquid-scroll-area">
-        {othersLiquid.map(entry => (
-          <div key={entry.id} className="liquid-entry other-liquid">
-            <div className="entry-header">
-              <FaceIcon face={entry.face as Face} size="sm" />
-              <span className="user-badge">{entry.userName}</span>
-              <span className={`state-dot ${entry.committed ? 'committed' : 'submitted'}`} 
-                    title={entry.committed ? 'Committed' : 'Submitted'} />
-            </div>
-            <div className="liquid-text readonly">{entry.content}</div>
-          </div>
-        ))}
-        
-        {isEmpty && (
-          <div className="empty-hint">
-            Type below and submit to create an entry
-          </div>
-        )}
-      </div>
-
-      {/* Anchored: User's liquid entry with navigation */}
+      {/* User's liquid entry - anchored at TOP */}
       {currentEntry && (
-        <div className="liquid-anchored">
+        <div className="liquid-anchored liquid-anchored-top">
           <div 
-            className={`liquid-entry self ${currentEntry.isEditing ? 'editing' : ''} ${currentEntry.state === 'committed' ? 'committed' : ''} ${isLoading ? 'synthesizing' : ''}`}
+            className={`liquid-entry self ${currentEntry.state === 'committed' ? 'committed' : ''} ${isLoading ? 'synthesizing' : ''}`}
           >
             <div className="entry-header">
               <FaceIcon face={currentEntry.face} size="sm" />
               {currentEntry.artifactName && (
                 <span className="artifact-badge">{currentEntry.artifactName}</span>
               )}
-              <span className={`state-dot ${currentEntry.isEditing ? 'editing' : isLoading ? 'synthesizing' : currentEntry.state}`}
-                    title={currentEntry.isEditing ? 'Editing' : isLoading ? 'Synthesizing...' : currentEntry.state} />
+              <span className={`state-dot ${isLoading ? 'synthesizing' : currentEntry.state}`}
+                    title={isLoading ? 'Synthesizing...' : currentEntry.state} />
               
               {/* Navigation controls */}
               {totalEntries > 1 && (
@@ -98,34 +79,60 @@ export function LiquidPanel({
                 ×
               </button>
             </div>
-            {/* Textarea: editable when submitted, readonly when committed or loading */}
-            <textarea
-              className="liquid-text"
-              value={currentEntry.text}
-              onChange={(e) => onEdit(currentEntry.id, e.target.value)}
-              disabled={currentEntry.state === 'committed' || isLoading}
-              readOnly={currentEntry.state === 'committed' || isLoading}
-            />
-            {/* Action area: commit button OR synthesizing indicator */}
-            <div className="entry-actions">
+            
+            {/* Content row: textarea + commit button */}
+            <div className="liquid-content-row">
+              <textarea
+                className="liquid-text"
+                value={currentEntry.text}
+                readOnly
+                onClick={() => onCopyToVapor(currentEntry.text)}
+                title="Click to copy to vapor for editing"
+              />
+              
+              {/* Commit button - inline on the right */}
               {isLoading ? (
-                <div className="synthesizing-indicator">
+                <div className="liquid-action-inline synthesizing-indicator">
                   <span className="synthesizing-spinner">◌</span>
-                  <span className="synthesizing-text">Synthesizing...</span>
                 </div>
               ) : currentEntry.state === 'submitted' ? (
                 <button
-                  className="commit-entry-btn"
+                  className="liquid-action-inline commit-btn-inline"
                   onClick={() => onCommit(currentEntry.id)}
                   title="Commit to Solid (Cmd+Enter)"
                 >
-                  ⏺ Commit
+                  ⏺
                 </button>
-              ) : null}
+              ) : (
+                <div className="liquid-action-inline committed-indicator" title="Committed">
+                  ✓
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Others' liquid - scrollable area below */}
+      <div className="liquid-scroll-area">
+        {othersLiquid.map(entry => (
+          <div key={entry.id} className="liquid-entry other-liquid">
+            <div className="entry-header">
+              <FaceIcon face={entry.face as Face} size="sm" />
+              <span className="user-badge">{entry.userName}</span>
+              <span className={`state-dot ${entry.committed ? 'committed' : 'submitted'}`} 
+                    title={entry.committed ? 'Committed' : 'Submitted'} />
+            </div>
+            <div className="liquid-text readonly">{entry.content}</div>
+          </div>
+        ))}
+        
+        {isEmpty && (
+          <div className="empty-hint">
+            Type below and submit to create an entry
+          </div>
+        )}
+      </div>
     </section>
   )
 }
