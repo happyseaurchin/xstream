@@ -1,5 +1,5 @@
 /**
- * Phase 0.7 + 0.9.0: Output Router
+ * Phase 0.7 + 0.9.0 + 0.10.3: Output Router
  * 
  * Routes synthesis results to the appropriate storage:
  * - Character (was Player) → solid table (narrative)
@@ -7,6 +7,10 @@
  * - Designer → skills table (skill doc)
  * 
  * Also broadcasts to Realtime for live updates.
+ * 
+ * Phase 0.10.3: Added placeholder solid creation for shared spinner.
+ * All players see the solid appear immediately (with null narrative = spinner),
+ * then see the narrative appear when synthesis completes.
  */
 
 import type { SynthesisContext, SynthesisResult, StoredSolid } from './types.ts';
@@ -39,7 +43,143 @@ function isCharacterFace(face: string): boolean {
 }
 
 /**
+ * Create a placeholder solid entry with null narrative.
+ * This appears immediately for all players (showing spinner).
+ * Returns the solid ID for later update.
+ */
+export async function createPlaceholderSolid(
+  supabase: any,
+  context: SynthesisContext,
+  face: 'character' | 'author' | 'designer'
+): Promise<string> {
+  const solidId = crypto.randomUUID();
+  
+  // Get participant IDs for character face
+  let participantIds: string[];
+  let sourceLiquidIds: string[];
+  
+  if (isCharacterFace(face)) {
+    participantIds = [...new Set(
+      context.allLiquid
+        .filter(e => isCharacterFace(e.face))
+        .map(e => e.user_id)
+    )];
+    sourceLiquidIds = context.allLiquid
+      .filter(e => isCharacterFace(e.face) && e.committed)
+      .map(e => e.id);
+  } else {
+    participantIds = [context.trigger.userId];
+    sourceLiquidIds = [context.trigger.entry.id];
+  }
+  
+  const { error } = await supabase
+    .from('solid')
+    .insert({
+      id: solidId,
+      frame_id: context.frame.id,
+      face: face === 'player' ? 'character' : face,
+      narrative: null,  // NULL = spinner shows for all players
+      source_liquid_ids: sourceLiquidIds,
+      triggering_user_id: context.trigger.userId,
+      participant_user_ids: participantIds,
+      model_used: null,
+      tokens_used: null,
+    });
+  
+  if (error) {
+    console.error('Error creating placeholder solid:', error);
+    throw new Error(`Failed to create placeholder solid: ${error.message}`);
+  }
+  
+  console.log('[Router] Created placeholder solid:', solidId);
+  return solidId;
+}
+
+/**
+ * Update an existing solid entry with the synthesis result.
+ * This triggers the realtime subscription for all players.
+ */
+export async function updateSolidNarrative(
+  supabase: any,
+  solidId: string,
+  narrative: string,
+  model: string,
+  tokens: { input: number; output: number }
+): Promise<void> {
+  const { error } = await supabase
+    .from('solid')
+    .update({
+      narrative,
+      model_used: model,
+      tokens_used: tokens,
+    })
+    .eq('id', solidId);
+  
+  if (error) {
+    console.error('Error updating solid narrative:', error);
+    throw new Error(`Failed to update solid: ${error.message}`);
+  }
+  
+  console.log('[Router] Updated solid with narrative:', solidId);
+}
+
+/**
+ * Update solid with content_data (for author face).
+ */
+export async function updateSolidContentData(
+  supabase: any,
+  solidId: string,
+  contentData: any,
+  model: string,
+  tokens: { input: number; output: number }
+): Promise<void> {
+  const { error } = await supabase
+    .from('solid')
+    .update({
+      content_data: contentData,
+      model_used: model,
+      tokens_used: tokens,
+    })
+    .eq('id', solidId);
+  
+  if (error) {
+    console.error('Error updating solid content_data:', error);
+    throw new Error(`Failed to update solid: ${error.message}`);
+  }
+  
+  console.log('[Router] Updated solid with content_data:', solidId);
+}
+
+/**
+ * Update solid with skill_data (for designer face).
+ */
+export async function updateSolidSkillData(
+  supabase: any,
+  solidId: string,
+  skillData: any,
+  model: string,
+  tokens: { input: number; output: number }
+): Promise<void> {
+  const { error } = await supabase
+    .from('solid')
+    .update({
+      skill_data: skillData,
+      model_used: model,
+      tokens_used: tokens,
+    })
+    .eq('id', solidId);
+  
+  if (error) {
+    console.error('Error updating solid skill_data:', error);
+    throw new Error(`Failed to update solid: ${error.message}`);
+  }
+  
+  console.log('[Router] Updated solid with skill_data:', solidId);
+}
+
+/**
  * Route character (player) synthesis result to solid table.
+ * LEGACY: Use createPlaceholderSolid + updateSolidNarrative instead.
  */
 export async function routePlayerResult(
   supabase: any,
