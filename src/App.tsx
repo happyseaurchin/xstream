@@ -114,6 +114,9 @@ function App() {
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   
+  // Liquid history navigation (Phase 0.9.3)
+  const [liquidHistoryIndex, setLiquidHistoryIndex] = useState(0)
+  
   const [visibility, setVisibility] = useState<VisibilitySettings>({
     shareVapor: true,
     shareLiquid: true,
@@ -200,11 +203,22 @@ function App() {
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
-  // LIQUID: Show the most recent entry for this face
-  const myLiquidEntry = entries
-    .filter(e => e.face === face)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
-  const liquidEntries = myLiquidEntry ? [myLiquidEntry] : []
+  // LIQUID: All submitted entries for this face, sorted newest first
+  const myLiquidEntries = entries
+    .filter(e => e.face === face && e.state === 'submitted')
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  
+  // Clamp index to valid range when entries change
+  useEffect(() => {
+    if (liquidHistoryIndex >= myLiquidEntries.length) {
+      setLiquidHistoryIndex(Math.max(0, myLiquidEntries.length - 1))
+    }
+  }, [myLiquidEntries.length, liquidHistoryIndex])
+  
+  // Reset to newest when face changes
+  useEffect(() => {
+    setLiquidHistoryIndex(0)
+  }, [face])
   
   // OTHERS' LIQUID: One entry per other user
   const othersLiquidRaw = dbLiquidEntries.filter(e => e.userId !== userId && e.face === face)
@@ -222,7 +236,7 @@ function App() {
     if (e.state !== 'committed' || e.face !== face || face === 'designer') return false
     return parseArtifactFromText(e.text, face) !== null
   })
-  const hasVaporOrLiquid = !!(input.trim() || softResponse || liquidEntries.length > 0)
+  const hasVaporOrLiquid = !!(input.trim() || softResponse || myLiquidEntries.length > 0)
 
   // Zone drag handlers
   const handleTopSeparatorDrag = useCallback((delta: number) => {
@@ -277,6 +291,8 @@ function App() {
       })
       return [...filtered, newEntry]
     })
+    // Reset to newest entry after adding
+    setLiquidHistoryIndex(0)
   }, [])
 
   // Effects
@@ -516,6 +532,16 @@ function App() {
     }, EDIT_DEBOUNCE_MS)
   }, [])
 
+  const handleLiquidNavigate = useCallback((direction: 'prev' | 'next') => {
+    setLiquidHistoryIndex(prev => {
+      if (direction === 'prev') {
+        return Math.min(prev + 1, myLiquidEntries.length - 1)
+      } else {
+        return Math.max(prev - 1, 0)
+      }
+    })
+  }, [myLiquidEntries.length])
+
   const handleQuery = async () => {
     if (!input.trim()) return
     const parsed = parseInputTypography(input)
@@ -616,7 +642,7 @@ function App() {
       await handleCommitDirect(parsed.text)
       return
     }
-    const currentLiquid = liquidEntries[0]
+    const currentLiquid = myLiquidEntries[liquidHistoryIndex]
     if (currentLiquid && currentLiquid.state === 'submitted') {
       await handleCommitEntry(currentLiquid.id)
     }
@@ -775,7 +801,8 @@ function App() {
         {visibility.showLiquid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.liquid}%` }}>
             <LiquidPanel
-              liquidEntries={liquidEntries}
+              liquidEntries={myLiquidEntries}
+              currentIndex={liquidHistoryIndex}
               othersLiquid={othersLiquid}
               isLoading={isLoading}
               onEdit={handleLiquidEdit}
@@ -783,6 +810,7 @@ function App() {
               onDismiss={(id) => {
                 setEntries(prev => prev.filter(e => e.id !== id))
               }}
+              onNavigate={handleLiquidNavigate}
             />
           </div>
         )}
