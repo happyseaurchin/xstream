@@ -56,15 +56,15 @@ export function LiquidPanel({
       {currentEntry && (
         <div className="liquid-anchored">
           <div 
-            className={`liquid-entry self ${currentEntry.isEditing ? 'editing' : ''} ${currentEntry.state === 'committed' ? 'committed' : ''}`}
+            className={`liquid-entry self ${currentEntry.isEditing ? 'editing' : ''} ${currentEntry.state === 'committed' ? 'committed' : ''} ${isLoading ? 'synthesizing' : ''}`}
           >
             <div className="entry-header">
               <FaceIcon face={currentEntry.face} size="sm" />
               {currentEntry.artifactName && (
                 <span className="artifact-badge">{currentEntry.artifactName}</span>
               )}
-              <span className={`state-dot ${currentEntry.isEditing ? 'editing' : currentEntry.state}`}
-                    title={currentEntry.isEditing ? 'Editing' : currentEntry.state} />
+              <span className={`state-dot ${currentEntry.isEditing ? 'editing' : isLoading ? 'synthesizing' : currentEntry.state}`}
+                    title={currentEntry.isEditing ? 'Editing' : isLoading ? 'Synthesizing...' : currentEntry.state} />
               
               {/* Navigation controls */}
               {totalEntries > 1 && (
@@ -93,31 +93,36 @@ export function LiquidPanel({
                 className="dismiss-entry-btn"
                 onClick={() => onDismiss(currentEntry.id)}
                 title="Dismiss this entry"
+                disabled={isLoading}
               >
                 ×
               </button>
             </div>
-            {/* Textarea: editable when submitted */}
+            {/* Textarea: editable when submitted, readonly when committed or loading */}
             <textarea
               className="liquid-text"
               value={currentEntry.text}
               onChange={(e) => onEdit(currentEntry.id, e.target.value)}
-              disabled={currentEntry.state === 'committed'}
-              readOnly={currentEntry.state === 'committed'}
+              disabled={currentEntry.state === 'committed' || isLoading}
+              readOnly={currentEntry.state === 'committed' || isLoading}
             />
-            {/* Commit button: always visible when submitted */}
-            {currentEntry.state === 'submitted' && (
-              <div className="entry-actions">
+            {/* Action area: commit button OR synthesizing indicator */}
+            <div className="entry-actions">
+              {isLoading ? (
+                <div className="synthesizing-indicator">
+                  <span className="synthesizing-spinner">◌</span>
+                  <span className="synthesizing-text">Synthesizing...</span>
+                </div>
+              ) : currentEntry.state === 'submitted' ? (
                 <button
-                  className={`commit-entry-btn ${isLoading ? 'processing' : ''}`}
+                  className="commit-entry-btn"
                   onClick={() => onCommit(currentEntry.id)}
-                  disabled={isLoading}
-                  title={isLoading ? 'Processing...' : 'Commit to Solid (Cmd+Enter)'}
+                  title="Commit to Solid (Cmd+Enter)"
                 >
-                  {isLoading ? '◌ Synthesizing...' : '⏺ Commit'}
+                  ⏺ Commit
                 </button>
-              </div>
-            )}
+              ) : null}
+            </div>
           </div>
         </div>
       )}
