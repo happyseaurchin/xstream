@@ -1,17 +1,17 @@
 .construction-container {
   position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
+  bottom: 5rem;  /* Moved up from 1.5rem to clear vapour zone buttons */
+  right: 1rem;
   z-index: 1000;
 }
 
 .construction-button {
-  width: 48px;
-  height: 48px;
+  width: 40px;  /* Slightly smaller for mobile */
+  height: 40px;
   border-radius: 50%;
   background: var(--color-accent);
   color: white;
-  font-size: 1.25rem;
+  font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,20 +19,23 @@
   transition: transform 0.2s, box-shadow 0.2s;
   border: none;
   cursor: pointer;
+  opacity: 0.7;  /* Less prominent when not in use */
 }
 
 .construction-button:hover {
   transform: scale(1.05);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  opacity: 1;
 }
 
 .construction-button.open {
   transform: rotate(90deg);
+  opacity: 1;
 }
 
 .construction-menu {
   position: absolute;
-  bottom: 60px;
+  bottom: 50px;
   right: 0;
   min-width: 220px;
   background: var(--color-bg-secondary);
@@ -70,10 +73,20 @@
   background: var(--color-bg-tertiary);
 }
 
+.construction-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .menu-icon {
   font-size: 1rem;
   width: 1.25rem;
   text-align: center;
+}
+
+.clear-status {
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
 }
 
 .construction-menu-footer {
@@ -86,4 +99,23 @@
 
 .version {
   font-family: monospace;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .construction-container {
+    bottom: 6rem;  /* Even higher on mobile */
+    right: 0.75rem;
+  }
+  
+  .construction-button {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+  
+  .construction-menu {
+    min-width: 200px;
+    right: 0;
+  }
 }
