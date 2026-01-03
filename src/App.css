@@ -296,6 +296,31 @@
   border-left: 2px solid var(--color-solid, #4ade80);
 }
 
+/* Synthesizing state - waiting for LLM response (Phase 0.10.3) */
+.solid-entry.synthesizing {
+  border-left-color: var(--color-liquid, #fbbf24);
+  opacity: 0.85;
+}
+
+.synthesizing-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.synthesizing-spinner {
+  display: inline-block;
+  font-size: 1rem;
+  animation: spin 1s linear infinite;
+  color: var(--color-solid, #4ade80);
+}
+
+.synthesizing-text {
+  font-size: 0.85rem;
+}
+
 .entry-header {
   display: flex;
   align-items: center;
