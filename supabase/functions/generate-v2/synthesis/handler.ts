@@ -1,6 +1,9 @@
 /**
- * Phase 0.7 + 0.8 + 0.9.2: Medium-LLM Synthesis Handler
+ * Phase 0.7 + 0.8 + 0.9.2 + 0.10.3: Medium-LLM Synthesis Handler
  * Now handles CHARACTER_CREATE documents
+ * 
+ * Phase 0.10.3: Creates placeholder solid FIRST (narrative: null),
+ * then updates with actual narrative. All players see spinner via subscription.
  */
 
 import type { SynthesisContext, SynthesisResult } from './types.ts';
@@ -8,7 +11,15 @@ import { gatherContext } from './gather.ts';
 import { compilePlayerPrompt } from './compile-player.ts';
 import { compileAuthorPrompt, parseAuthorResponse } from './compile-author.ts';
 import { compileDesignerPrompt, parseDesignerResponse } from './compile-designer.ts';
-import { routePlayerResult, routeAuthorResult, routeDesignerResult, markLiquidProcessed } from './route.ts';
+import { 
+  createPlaceholderSolid, 
+  updateSolidNarrative, 
+  updateSolidContentData,
+  updateSolidSkillData,
+  routeAuthorResult, 
+  routeDesignerResult, 
+  markLiquidProcessed 
+} from './route.ts';
 
 /**
  * Parse CHARACTER_CREATE document from liquid content.
@@ -161,6 +172,8 @@ export async function handleMediumMode(
   getOrCreateFramePackage: ((supabase: any, frameId: string, userId: string) => Promise<string>) | null,
   informational: boolean = false
 ): Promise<{ success: boolean; result?: SynthesisResult; stored?: { solidId: string; contentId?: string; skillId?: string; characterId?: string }; error?: string }> {
+  let placeholderSolidId: string | null = null;
+  
   try {
     console.log('[Medium-LLM] Gathering context for liquid:', liquidId, informational ? '(informational)' : '');
     const context = await gatherContext(supabase, liquidId);
@@ -198,9 +211,19 @@ export async function handleMediumMode(
       }
     }
     
-    let compiled;
-    // Treat 'character' face same as 'player' for compilation
+    // Phase 0.10.3: Create placeholder solid FIRST (shows spinner for all players)
+    // Only for non-informational requests that will write to solid
     const compileFace = face === 'character' ? 'player' : face;
+    if (!informational) {
+      placeholderSolidId = await createPlaceholderSolid(
+        supabase, 
+        context, 
+        face === 'player' ? 'character' : face as 'character' | 'author' | 'designer'
+      );
+      console.log('[Medium-LLM] Created placeholder solid:', placeholderSolidId);
+    }
+    
+    let compiled;
     switch (compileFace) {
       case 'player': compiled = compilePlayerPrompt(context); break;
       case 'author': compiled = compileAuthorPrompt(context); break;
@@ -227,31 +250,109 @@ export async function handleMediumMode(
     
     switch (compileFace) {
       case 'player': {
-        result = { success: true, face: 'player', narrative: generatedText, sourceLiquidIds: context.allLiquid.filter(e => e.committed && (e.face === 'player' || e.face === 'character')).map(e => e.id), participantUserIds: [...new Set(context.allLiquid.filter(e => e.face === 'player' || e.face === 'character').map(e => e.user_id))], model: 'claude-sonnet-4-20250514', tokens };
-        if (!informational) {
-          const solidResult = await routePlayerResult(supabase, context, result);
-          stored = { solidId: solidResult.id };
+        result = { 
+          success: true, 
+          face: 'player', 
+          narrative: generatedText, 
+          sourceLiquidIds: context.allLiquid.filter(e => e.committed && (e.face === 'player' || e.face === 'character')).map(e => e.id), 
+          participantUserIds: [...new Set(context.allLiquid.filter(e => e.face === 'player' || e.face === 'character').map(e => e.user_id))], 
+          model: 'claude-sonnet-4-20250514', 
+          tokens 
+        };
+        
+        if (!informational && placeholderSolidId) {
+          // Phase 0.10.3: Update the placeholder with actual narrative
+          await updateSolidNarrative(supabase, placeholderSolidId, generatedText, result.model, tokens);
+          stored = { solidId: placeholderSolidId };
           
           // Phase 0.8: Trigger Hard-LLM after player synthesis
           await triggerHardLLM(context, generatedText);
-        } else { console.log('[Medium-LLM] Informational mode - skipping solid storage and Hard-LLM'); }
+        } else { 
+          console.log('[Medium-LLM] Informational mode - skipping solid storage and Hard-LLM'); 
+        }
         break;
       }
       case 'author': {
         const parsed = parseAuthorResponse(generatedText);
         if (!parsed) throw new Error('Failed to parse author response');
-        result = { success: true, face: 'author', contentData: parsed, sourceLiquidIds: [context.trigger.entry.id], participantUserIds: [context.trigger.userId], model: 'claude-sonnet-4-20250514', tokens };
-        const authorResult = await routeAuthorResult(supabase, context, result);
-        stored = { solidId: authorResult.solid.id, contentId: authorResult.contentId };
+        result = { 
+          success: true, 
+          face: 'author', 
+          contentData: parsed, 
+          sourceLiquidIds: [context.trigger.entry.id], 
+          participantUserIds: [context.trigger.userId], 
+          model: 'claude-sonnet-4-20250514', 
+          tokens 
+        };
+        
+        if (placeholderSolidId) {
+          // Update placeholder with content_data
+          await updateSolidContentData(supabase, placeholderSolidId, {
+            ...parsed,
+          }, result.model, tokens);
+          
+          // Also create in content table
+          const { data: contentData } = await supabase
+            .from('content')
+            .insert({
+              frame_id: context.frame.id,
+              author_id: context.trigger.userId,
+              content_type: parsed.type,
+              name: parsed.name,
+              data: parsed.data,
+              active: true,
+            })
+            .select('id')
+            .single();
+          
+          stored = { solidId: placeholderSolidId, contentId: contentData?.id };
+        } else {
+          // Fallback to old method
+          const authorResult = await routeAuthorResult(supabase, context, result);
+          stored = { solidId: authorResult.solid.id, contentId: authorResult.contentId };
+        }
         break;
       }
       case 'designer': {
         const parsed = parseDesignerResponse(generatedText);
         if (!parsed) throw new Error('Failed to parse designer response');
-        result = { success: true, face: 'designer', skillData: parsed, sourceLiquidIds: [context.trigger.entry.id], participantUserIds: [context.trigger.userId], model: 'claude-sonnet-4-20250514', tokens };
+        result = { 
+          success: true, 
+          face: 'designer', 
+          skillData: parsed, 
+          sourceLiquidIds: [context.trigger.entry.id], 
+          participantUserIds: [context.trigger.userId], 
+          model: 'claude-sonnet-4-20250514', 
+          tokens 
+        };
+        
         if (!getOrCreateFramePackage) throw new Error('Designer mode requires getOrCreateFramePackage');
-        const designerResult = await routeDesignerResult(supabase, context, result, getOrCreateFramePackage);
-        stored = { solidId: designerResult.solid.id, skillId: designerResult.skillId };
+        
+        if (placeholderSolidId) {
+          // Create skill first
+          const packageId = await getOrCreateFramePackage(supabase, context.frame.id, context.trigger.userId);
+          const skillId = crypto.randomUUID();
+          await supabase.from('skills').insert({
+            id: skillId,
+            name: parsed.name,
+            package_id: packageId,
+            category: parsed.category,
+            applies_to: parsed.applies_to,
+            content: parsed.content,
+          });
+          
+          // Update placeholder with skill_data
+          await updateSolidSkillData(supabase, placeholderSolidId, {
+            skill_id: skillId,
+            ...parsed,
+          }, result.model, tokens);
+          
+          stored = { solidId: placeholderSolidId, skillId };
+        } else {
+          // Fallback to old method
+          const designerResult = await routeDesignerResult(supabase, context, result, getOrCreateFramePackage);
+          stored = { solidId: designerResult.solid.id, skillId: designerResult.skillId };
+        }
         break;
       }
     }
@@ -260,6 +361,13 @@ export async function handleMediumMode(
     return { success: true, result, stored };
   } catch (error) {
     console.error('[Medium-LLM] Error:', error);
+    
+    // If we created a placeholder but synthesis failed, delete it
+    if (placeholderSolidId) {
+      console.log('[Medium-LLM] Cleaning up failed placeholder:', placeholderSolidId);
+      await supabase.from('solid').delete().eq('id', placeholderSolidId);
+    }
+    
     return { success: false, error: error.message };
   }
 }
