@@ -776,7 +776,6 @@ function App() {
               face={face}
               frameId={frameId}
               isLoadingDirectory={isLoadingDirectory}
-              isSynthesizing={isLoading}
               showMeta={showMeta}
               onSkillClick={handleSkillClick}
               onEntryClick={handleShelfEntryClick}
