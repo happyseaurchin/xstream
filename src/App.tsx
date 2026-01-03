@@ -145,6 +145,9 @@ function App() {
     }
 
     const loadCharacters = async () => {
+      // TypeScript needs explicit check even though we checked above
+      if (!supabase) return
+      
       console.log('[App] Loading characters for frame:', frameId)
       
       // Get characters that have coordinates in this frame
