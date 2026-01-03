@@ -1,8 +1,8 @@
 /**
- * Phase 0.7: Output Router
+ * Phase 0.7 + 0.9.0: Output Router
  * 
  * Routes synthesis results to the appropriate storage:
- * - Player → solid table (narrative)
+ * - Character (was Player) → solid table (narrative)
  * - Author → content table (structured)
  * - Designer → skills table (skill doc)
  * 
@@ -32,7 +32,14 @@ async function ensureUserExists(
 }
 
 /**
- * Route player synthesis result to solid table.
+ * Helper: Check if face is character-type (includes legacy 'player')
+ */
+function isCharacterFace(face: string): boolean {
+  return face === 'character' || face === 'player';
+}
+
+/**
+ * Route character (player) synthesis result to solid table.
  */
 export async function routePlayerResult(
   supabase: any,
@@ -40,23 +47,24 @@ export async function routePlayerResult(
   result: SynthesisResult
 ): Promise<StoredSolid> {
   
-  // Get all participant user IDs
+  // Get all participant user IDs (handle both 'player' and 'character' for backward compat)
   const participantIds = [...new Set(
     context.allLiquid
-      .filter(e => e.face === 'player')
+      .filter(e => isCharacterFace(e.face))
       .map(e => e.user_id)
   )];
   
   // Get source liquid IDs (committed entries that contributed)
   const sourceLiquidIds = context.allLiquid
-    .filter(e => e.face === 'player' && e.committed)
+    .filter(e => isCharacterFace(e.face) && e.committed)
     .map(e => e.id);
   
+  // Phase 0.9.0: Use 'character' not 'player' for solid.face
   const { data, error } = await supabase
     .from('solid')
     .insert({
       frame_id: context.frame.id,
-      face: 'player',
+      face: 'character',  // Changed from 'player' to match CHECK constraint
       narrative: result.narrative,
       source_liquid_ids: sourceLiquidIds,
       triggering_user_id: context.trigger.userId,
