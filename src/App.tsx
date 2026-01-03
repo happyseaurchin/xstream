@@ -206,9 +206,10 @@ function App() {
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
-  // LIQUID: All submitted entries for this face, sorted newest first
+  // LIQUID: All submitted OR committed entries for this face, sorted newest first
+  // Committed entries stay visible (green) until dismissed or replaced
   const myLiquidEntries = entries
-    .filter(e => e.face === face && e.state === 'submitted')
+    .filter(e => e.face === face && (e.state === 'submitted' || e.state === 'committed'))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
   
   // Clamp index to valid range when entries change
