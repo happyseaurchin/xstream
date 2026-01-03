@@ -24,7 +24,39 @@ Each phase must be **complete and testable** before proceeding.
 | 0.9.1 | ✅ COMPLETE | User Registration |
 | 0.9.2 | ✅ COMPLETE | LLM-Mediated Character Creation |
 | 0.9.3 | ✅ COMPLETE | Character Selection & Two-Player Test |
-| 1.0 | 🔄 IN PROGRESS | Kernel Complete |
+| **0.10** | 🔄 IN PROGRESS | **Consolidation** |
+| 1.0 | ⏳ PENDING | Kernel Complete |
+
+---
+
+## Phase 0.10: Consolidation 🔄
+
+**Specification:** `docs/phase-0.10-specification.md`
+
+Consolidating functions needed for three-player test.
+
+| Sub-phase | Status | Description |
+|-----------|--------|-------------|
+| 0.10.1 | ✅ COMPLETE | Stale liquid detection (LLM-based) |
+| 0.10.2 | ❌ TODO | Concurrent commit coordination |
+| 0.10.3 | ⚠️ VERIFY | Author creates NPCs (feature exists, verify wiring) |
+| 0.10.4 | ⚠️ VERIFY | Author creates locations (feature exists, verify wiring) |
+| 0.10.5 | ❌ TODO | Designer edits skills |
+| 0.10.6 | ❌ TODO | Three-player test |
+
+### 0.10.1: Stale Liquid Detection ✅
+
+**Problem:** When user A commits, their liquid is synthesized. If they don't change it and user B commits, Medium-LLM sees user A's old liquid and re-narrates it.
+
+**Solution (LLM-based, no schema change):**
+- Added "HANDLING REPETITION" section to Medium-LLM system prompt
+- Distinguishes standing intentions, discrete actions, continuous actions
+- Renamed "RECENT NARRATIVE" to "ALREADY NARRATED (don't repeat)"
+- LLM understands context and avoids repetition naturally
+
+**Commit:** `32ebe6a` - 0.10.1: Add stale liquid detection via LLM guidance
+
+**Requires deployment:** `generate-v2` edge function
 
 ---
 
@@ -116,22 +148,25 @@ Full architecture in `docs/phase-0.8-architecture.md` and `docs/hard-llm-coordin
 
 ## Remaining for Plex 1.0
 
-### Must Have (Blocking)
-1. **Stale liquid detection** — Mark liquid as consumed when synthesized, prevent re-narration
-2. **Concurrent commit coordination** — Handle simultaneous commits gracefully
+### Must Have (Phase 0.10)
+1. ✅ **Stale liquid detection** — LLM-based guidance prevents re-narration
+2. ❌ **Concurrent commit coordination** — Handle simultaneous commits gracefully
+3. ⚠️ **Verify NPC/location creation** — Features exist, ensure proper wiring
+4. ❌ **Designer edits skills** — Load/modify/save existing skills
+5. ❌ **Three-player test** — Full Mos Eisley Test
 
-### Nice to Have (Non-blocking)
-3. **Cosmology creation UI** — Currently hard-coded
-4. **Frame creation UI** — Currently hard-coded  
-5. **XYZ configuration UI** — Only X1Y1Z0 tested
-6. **Hard-LLM coordinate extraction** — Designed, defer to 1.1
+### Deferred to Plex 1.1+
+- Cosmology creation UI
+- Frame creation UI  
+- XYZ configuration UI
+- Hard-LLM coordinate extraction
 
 ### Rationale
-The Mos Eisley Test asks: "Can 3 players spend 30 minutes in synchronized imagination?" We've proven 2 players can coordinate narrative. The remaining items are polish and automation, not fundamental capability.
+The Mos Eisley Test asks: "Can 3 players spend 30 minutes in synchronized imagination?" We've proven 2 players can coordinate narrative. Phase 0.10 consolidates for 3-player test.
 
 ---
 
-## Plex 1.0: Kernel Complete 🔄
+## Plex 1.0: Kernel Complete ⏳
 
 **Target:** All Plex 1 success criteria pass.
 
@@ -142,7 +177,7 @@ The Mos Eisley Test asks: "Can 3 players spend 30 minutes in synchronized imagin
 4. All feel synchronized imagination
 5. All want to play again
 
-**Status:** 80% complete. Core loop works. Polish items remain.
+**Status:** ~85% complete. Core loop works. Consolidation (0.10) in progress.
 
 ---
 
@@ -214,4 +249,4 @@ All of these emerge from skills and packages. Plex 1 is the substrate.
 ---
 
 *Last updated: 2026-01-03*
-*Two-player coordination tested successfully*
+*Phase 0.10.1 complete - stale liquid detection via LLM guidance*
