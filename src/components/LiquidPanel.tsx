@@ -67,21 +67,24 @@ export function LiquidPanel({
                   ×
                 </button>
               </div>
+              {/* Textarea: editable when submitted, readonly when committed or loading */}
               <textarea
                 className="liquid-text"
                 value={entry.text}
                 onChange={(e) => onEdit(entry.id, e.target.value)}
-                disabled={isLoading || entry.state === 'committed'}
+                disabled={entry.state === 'committed'}
                 readOnly={entry.state === 'committed'}
               />
+              {/* Commit button: always visible when submitted, shows processing state */}
               {entry.state === 'submitted' && (
                 <div className="entry-actions">
                   <button
-                    className="commit-entry-btn"
+                    className={`commit-entry-btn ${isLoading ? 'processing' : ''}`}
                     onClick={() => onCommit(entry.id)}
                     disabled={isLoading}
+                    title={isLoading ? 'Processing...' : 'Commit to Solid (Cmd+Enter)'}
                   >
-                    {isLoading ? '...' : 'Commit'}
+                    {isLoading ? '◌ Synthesizing...' : '⏺ Commit'}
                   </button>
                 </div>
               )}
