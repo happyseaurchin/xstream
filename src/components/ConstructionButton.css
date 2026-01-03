@@ -1,17 +1,17 @@
 .construction-container {
   position: fixed;
-  bottom: 5rem;  /* Moved up from 1.5rem to clear vapour zone buttons */
+  bottom: 10rem;  /* High enough to clear the entire vapor zone */
   right: 1rem;
   z-index: 1000;
 }
 
 .construction-button {
-  width: 40px;  /* Slightly smaller for mobile */
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--color-accent);
   color: white;
-  font-size: 1rem;
+  font-size: 0.9rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,7 +19,7 @@
   transition: transform 0.2s, box-shadow 0.2s;
   border: none;
   cursor: pointer;
-  opacity: 0.7;  /* Less prominent when not in use */
+  opacity: 0.6;
 }
 
 .construction-button:hover {
@@ -35,7 +35,7 @@
 
 .construction-menu {
   position: absolute;
-  bottom: 50px;
+  bottom: 46px;
   right: 0;
   min-width: 220px;
   background: var(--color-bg-secondary);
@@ -104,14 +104,14 @@
 /* Mobile adjustments */
 @media (max-width: 768px) {
   .construction-container {
-    bottom: 6rem;  /* Even higher on mobile */
-    right: 0.75rem;
+    bottom: 12rem;
+    right: 0.5rem;
   }
   
   .construction-button {
-    width: 36px;
-    height: 36px;
-    font-size: 0.9rem;
+    width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
   }
   
   .construction-menu {
