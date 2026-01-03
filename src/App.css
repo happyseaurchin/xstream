@@ -416,6 +416,14 @@
   padding: 0.5rem 0.75rem;
 }
 
+/* User's liquid anchored at TOP */
+.liquid-anchored-top {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
 .liquid-anchored {
   flex-shrink: 0;
   padding: 0.5rem 0.75rem;
@@ -433,6 +441,7 @@
 
 .liquid-entry.self {
   background: var(--color-bg-tertiary);
+  margin-bottom: 0;
 }
 
 .liquid-entry.other-liquid {
@@ -456,6 +465,57 @@
 @keyframes pulse-border {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+/* Content row: textarea + inline action */
+.liquid-content-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.liquid-content-row .liquid-text {
+  flex: 1;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.liquid-content-row .liquid-text:hover {
+  background: var(--color-bg);
+}
+
+/* Inline action button (commit, spinner, checkmark) */
+.liquid-action-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.commit-btn-inline {
+  background: var(--color-commit);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.commit-btn-inline:hover {
+  opacity: 0.85;
+}
+
+.committed-indicator {
+  color: var(--color-solid, #4ade80);
+  background: var(--color-bg-secondary);
+}
+
+.liquid-action-inline.synthesizing-indicator {
+  background: var(--color-bg-secondary);
+  color: var(--color-solid, #4ade80);
+  padding: 0;
 }
 
 .liquid-text {
