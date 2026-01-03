@@ -28,7 +28,7 @@ interface VaporPanelProps {
   // Input actions
   isLoading: boolean  // Medium-LLM processing (commit → solid)
   isQuerying: boolean // Soft-LLM processing (query)
-  hasVaporOrLiquid: boolean
+  hasLiquidToClear: boolean  // Whether there's a liquid entry to clear
   onQuery: () => void
   onSubmit: () => void
   onCommit: () => void
@@ -47,7 +47,7 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
     onSelectOption,
     isLoading,
     isQuerying,
-    hasVaporOrLiquid: _hasVaporOrLiquid, // prefixed with _ to indicate intentionally unused
+    hasLiquidToClear,
     onQuery,
     onSubmit,
     onCommit,
@@ -78,6 +78,9 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
         setTimeout(() => textareaRef.current?.focus(), 10)
       }
     }
+
+    // Submit enabled if: has input OR has liquid to clear
+    const canSubmit = !isQuerying && (!!input.trim() || hasLiquidToClear)
 
     return (
       <section className="vapor-zone">
@@ -160,7 +163,7 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
                   }
                 } else if (e.key === 'Enter' && e.shiftKey) {
                   e.preventDefault()
-                  if (!isQuerying && input.trim()) {
+                  if (canSubmit) {
                     onSubmit()
                   }
                 } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
@@ -185,8 +188,8 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
           <button 
             className={`vapor-btn submit-btn ${isLoading ? 'processing' : ''}`}
             onClick={withRefocus(onSubmit)} 
-            disabled={isQuerying || !input.trim()}
-            title="Submit to Liquid (Shift+Enter)"
+            disabled={!canSubmit}
+            title={input.trim() ? "Submit to Liquid (Shift+Enter)" : "Clear Liquid"}
           >
             →
           </button>
