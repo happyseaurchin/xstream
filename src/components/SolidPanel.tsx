@@ -13,7 +13,6 @@ interface SolidPanelProps {
   face: Face
   frameId: string | null
   isLoadingDirectory: boolean
-  isSynthesizing: boolean  // NEW: shows spinner during Medium-LLM processing
   showMeta: boolean
   onSkillClick: (skill: FrameSkill) => void
   onEntryClick: (entry: ShelfEntry) => void
@@ -28,7 +27,6 @@ export function SolidPanel({
   face,
   frameId,
   isLoadingDirectory,
-  isSynthesizing,
   showMeta,
   onSkillClick,
   onEntryClick,
@@ -36,10 +34,7 @@ export function SolidPanel({
   return (
     <section className="solid-zone">
       <div className="zone-header">
-        <span className="zone-label">
-          # Solid
-          {isSynthesizing && <span className="synthesizing-spinner" title="Synthesizing..."> ◌</span>}
-        </span>
+        <span className="zone-label"># Solid</span>
         <div className="solid-view-toggle">
           <button 
             className={`view-btn ${solidView === 'log' ? 'active' : ''}`}
@@ -90,21 +85,33 @@ function LogView({ entries, face, showMeta }: { entries: SolidEntry[], face: Fac
 
   return (
     <>
-      {faceEntries.map(entry => (
-        <div key={entry.id} className="solid-entry">
-          <div className="entry-header">
-            <FaceIcon face={entry.face as Face} size="sm" />
-            <span className="state-dot committed" title="Committed" />
-            <span className="timestamp">{new Date(entry.createdAt).toLocaleTimeString()}</span>
-          </div>
-          <div className="entry-response">{entry.narrative || '[No narrative]'}</div>
-          {showMeta && entry.participantUserIds.length > 0 && (
-            <div className="skills-meta">
-              Participants: {entry.participantUserIds.length}
+      {faceEntries.map(entry => {
+        // Phase 0.10.3: Show spinner for entries where narrative is null (synthesizing)
+        const isSynthesizing = entry.narrative === null
+        
+        return (
+          <div key={entry.id} className={`solid-entry ${isSynthesizing ? 'synthesizing' : ''}`}>
+            <div className="entry-header">
+              <FaceIcon face={entry.face as Face} size="sm" />
+              <span className={`state-dot ${isSynthesizing ? 'synthesizing' : 'committed'}`} title={isSynthesizing ? 'Synthesizing...' : 'Committed'} />
+              <span className="timestamp">{new Date(entry.createdAt).toLocaleTimeString()}</span>
             </div>
-          )}
-        </div>
-      ))}
+            {isSynthesizing ? (
+              <div className="entry-response synthesizing-placeholder">
+                <span className="synthesizing-spinner">◌</span>
+                <span className="synthesizing-text">Synthesizing...</span>
+              </div>
+            ) : (
+              <div className="entry-response">{entry.narrative || '[No narrative]'}</div>
+            )}
+            {showMeta && entry.participantUserIds.length > 0 && (
+              <div className="skills-meta">
+                Participants: {entry.participantUserIds.length}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </>
   )
 }
