@@ -1,10 +1,15 @@
 /**
- * Phase 0.7 + 0.9.3: Character Synthesis Prompt Compiler
+ * Phase 0.7 + 0.9.3 + 0.10.1: Character Synthesis Prompt Compiler
  * 
  * KEY INSIGHT: 30% match conditions, 70% future intentions
  * 
  * The narrative should primarily enable what players are TRYING to do,
  * not just react to what has happened.
+ * 
+ * 0.10.1: Added stale liquid detection via LLM guidance
+ * - Standing intentions persist without re-narration
+ * - Discrete actions consumed once
+ * - Continuous actions evolve
  */
 
 import type { SynthesisContext, CompiledPrompt } from './types.ts';
@@ -34,6 +39,24 @@ NARRATIVE SYNTHESIS PRINCIPLES:
 6. KEEP IT BRIEF - this is one beat in an ongoing story (20-100 words typically)
 7. PRESERVE quoted dialogue - if a character writes "I say 'Hello friend'", include the exact quote
 8. USE CHARACTER NAMES - refer to characters by their in-world names, not user names
+
+HANDLING REPETITION (STALE LIQUID DETECTION):
+Character actions have different temporal characters. Handle them appropriately:
+
+**Standing intentions** (ongoing states like "be on guard", "watch the door", "stay alert"):
+- These persist in the background without needing re-narration
+- If already established in recent narrative, let them inform the scene without repeating
+- Only re-narrate if something changes or challenges the standing state
+
+**Discrete actions** (single events like "grab the mug", "ask about flowers"):
+- If the exact action already appears in the ALREADY NARRATED section, this is stale input
+- The player hasn't updated their intention - skip or acknowledge briefly without full narration
+- Don't re-describe what has already happened
+
+**Continuous actions** (ongoing activities like "keep stabbing", "continue searching"):
+- Narrate evolution, not repetition
+- "Keep stabbing" on second synthesis becomes progression: "the assault continues" or "the blade finds its mark again"
+- Show development, consequence, or change
 
 WHEN ACTIONS CONFLICT:
 - Both actions happen, with interesting interplay
@@ -68,10 +91,10 @@ export function compilePlayerPrompt(context: SynthesisContext): CompiledPrompt {
   // Build the user prompt with all context
   const parts: string[] = [];
   
-  // Recent narrative (for continuity)
+  // Recent narrative - clearly labeled as "already told" to prevent repetition
   const recentNarrative = formatSolidForPrompt(context.recentSolid);
   if (recentNarrative !== 'This is the beginning of the narrative.') {
-    parts.push(`RECENT NARRATIVE:\n${recentNarrative}`);
+    parts.push(`ALREADY NARRATED (don't repeat - use for continuity only):\n${recentNarrative}`);
   }
   
   // World content (locations, NPCs, items)
