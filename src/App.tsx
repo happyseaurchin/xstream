@@ -28,19 +28,14 @@ import type {
   ZoneProportions,
 } from './types'
 import { parseInputTypography, parseArtifactFromText } from './utils/parsing'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from './lib/supabase'
 import './App.css'
 
-// Config
+// Config - use shared supabase client from lib/supabase to avoid multiple GoTrueClient instances
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 const EDIT_DEBOUNCE_MS = 500
-
-// Supabase client for direct queries
-const supabase = SUPABASE_URL && SUPABASE_ANON_KEY 
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null
 
 // Character type for selector
 interface FrameCharacter {
