@@ -48,6 +48,10 @@ export interface UseFrameChannelReturn {
 // Throttle vapor broadcasts to ~50ms for character-by-character feel
 const VAPOR_THROTTLE_MS = 50
 
+// Presence staleness threshold - ignore entries older than this (in ms)
+// Supabase presence can linger after tab close, this filters stale ghosts
+const PRESENCE_STALE_MS = 60000 // 60 seconds
+
 export function useFrameChannel({
   frameId,
   userId,
@@ -100,6 +104,7 @@ export function useFrameChannel({
     // Handle presence sync (when presence state changes)
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState()
+      const now = Date.now()
       console.log('[Presence] Sync - raw state:', Object.keys(state).length, 'users')
       
       const users: PresenceUser[] = []
@@ -108,6 +113,15 @@ export function useFrameChannel({
         // Get the most recent presence for this user
         const presence = presences[0] as any
         if (presence && presence.user_id !== userId) {
+          // Check staleness - filter out ghost presence entries
+          const onlineAt = presence.online_at ? new Date(presence.online_at).getTime() : 0
+          const age = now - onlineAt
+          
+          if (age > PRESENCE_STALE_MS) {
+            console.log('[Presence] Filtering stale user:', presence.user_name, 'age:', Math.round(age/1000), 's')
+            continue
+          }
+          
           users.push({
             id: presence.user_id,
             name: presence.user_name || `User-${presence.user_id.slice(0, 4)}`,
@@ -118,7 +132,7 @@ export function useFrameChannel({
         }
       }
       
-      console.log('[Presence] Other users:', users.map(u => u.name))
+      console.log('[Presence] Active users:', users.map(u => u.name))
       setPresentUsers(users)
     })
 
@@ -235,6 +249,27 @@ export function useFrameChannel({
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [userId, userName, face])
+
+  // Periodic presence refresh - re-track every 30 seconds to stay "fresh"
+  useEffect(() => {
+    if (!channelRef.current || !isConnected) return
+    
+    const interval = setInterval(() => {
+      if (channelRef.current && isConnectedRef.current) {
+        channelRef.current.track({
+          user_id: userId,
+          user_name: userName,
+          face: face,
+          is_typing: false,
+          online_at: new Date().toISOString(),
+        }).catch(err => {
+          console.warn('[Presence] Refresh failed:', err)
+        })
+      }
+    }, 30000) // Every 30 seconds
+    
+    return () => clearInterval(interval)
+  }, [isConnected, userId, userName, face])
 
   // Update face in presence when it changes
   useEffect(() => {
