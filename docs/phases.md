@@ -18,236 +18,154 @@ Each phase must be **complete and testable** before proceeding.
 | 0.5 | ✅ COMPLETE | Designer Creates Skills |
 | 0.6 | ✅ COMPLETE | Multi-User Presence |
 | 0.6.5 | ✅ COMPLETE | Live Multi-User Text States |
-| 0.7 | 🔄 NEXT | Core Gameplay: Cross-Player Synthesis |
-| 0.8 | ⏳ PLANNED | Hard-LLM & World Context |
-| 0.9 | ⏳ PLANNED | Management, Auth & Polish |
-| 1.0 | ⏳ PLANNED | Kernel Complete |
+| 0.7 | ✅ COMPLETE | Core Gameplay: Cross-Player Synthesis |
+| 0.8 | 📋 DESIGNED | Hard-LLM & World Context |
+| 0.9.0 | ✅ COMPLETE | UI Redesign |
+| 0.9.1 | ✅ COMPLETE | User Registration |
+| 0.9.2 | ✅ COMPLETE | LLM-Mediated Character Creation |
+| 0.9.3 | ✅ COMPLETE | Character Selection & Two-Player Test |
+| 1.0 | 🔄 IN PROGRESS | Kernel Complete |
 
 ---
 
-## Phase 0.1: Core Loop ✅
+## Plex 1 Success Criteria Status
 
-Single user, X0Y0Z0 configuration.
+From `plex-1-specification.md`:
+
+| # | Criterion | Status | Notes |
+|---|-----------|--------|-------|
+| 1 | User can enter text as player/author/designer | ✅ | All faces work |
+| 2 | Text states (vapor/liquid/solid) work correctly | ✅ | Full pipeline |
+| 3 | Text compiled using loaded skills | ✅ | Skills load per face/frame |
+| 4 | LLM generates response | ✅ | Claude API working |
+| 5 | Response stored and displayed | ✅ | Solid zone shows entries |
+| 6 | XYZ configuration controls behavior | ⚠️ | Only X1Y1Z0 tested |
+| 7 | User can create new skills in designer mode | ✅ | Works |
+| 8 | Created skills affect subsequent compilations | ✅ | Works |
+| 9 | Designer can create cosmology | ❌ | Not UI-accessible yet |
+| 10 | Designer can create frames | ❌ | Hard-coded only |
+| 11 | Player can create character | ✅ | LLM-mediated works |
+| 12 | Multiple users share frame skills + states | ✅ | **Tested 2026-01-03** |
+| 13 | **Mos Eisley Test passes** | ✅ | Two players coordinated! |
+
+**Key milestone:** On 2026-01-03, two players (Marcus & Elara) successfully coordinated narrative in real-time. The LLM synthesized both inputs coherently.
+
+---
+
+## Phase 0.7: Core Gameplay — Cross-Player Synthesis ✅
+
+**COMPLETE as of 2026-01-03**
 
 **Delivered:**
-- Text input → shelf (in-memory)
-- Hard-coded prompt compilation
-- Claude API call
-- Response displayed
-
-**Test:** User enters text, system responds. Nothing persists after refresh.
-
----
-
-## Phase 0.2: Skill Loading ✅
-
-Skills loaded from database, face-aware.
-
-**Delivered:**
-- `packages` table with platform package (onen)
-- `skills` table with format skills per face
-- `frame_packages` table for composition
-- `generate-v2` edge function loads skills by face + frame
-
-**Test:** Switching faces loads different format skills.
-
----
-
-## Phase 0.3: Frame Selection ✅
-
-UI to select frame, verify skill overrides work.
-
-**Delivered:**
-- Frame selector dropdown in UI
-- Test frame with custom package attached
-- Visual confirmation of which skills loaded
-
-**Test:** Select test-frame → response includes "[TEST FRAME ACTIVE]" marker.
-
----
-
-## Phase 0.4: Text States (Visual) ✅
-
-Make vapor/liquid/solid visible in single-user mode.
-
-**Delivered:**
-- Vapor area (typing indicators, Soft-LLM responses)
-- Liquid area (submitted intentions, editable)
-- Solid area (committed results)
-- State badges (submitted/editing/committed)
-- Visibility panel with state toggles
-
-**Test:** User sees their own text transition through states.
-
----
-
-## Phase 0.4.5: Soft-LLM Query Flow ✅
-
-Private refinement before public intention.
-
-**Delivered:**
-- `[?]` Query button triggers Soft-LLM
-- Soft-LLM response in vapor with [Use]/[Edit] buttons
-- Typography parsing: `{braces}` → liquid, `(parens)` → solid
-- Face filters in visibility panel (Player/Author/Designer)
-- Fixed: Cmd+Enter with empty input no longer errors
-
-**Test:** Type "open door" → `[?]` → vapor shows refined text → [Use] → moves to liquid.
-
----
-
-## Phase 0.5: Designer Creates Skills ✅
-
-Designer mode stores skills to database.
-
-**Delivered:**
-- Designer face prompts include skill-creation capability
-- New skills stored in user's personal package
-- Created skills load on subsequent requests
-- Validation against guard rails
-- Soft-LLM three response types: artifact, clarify, refine
-- Vapor/liquid persistence (no auto-dismiss)
-- Face selector filters all views
-- Directory shows skills (designer) or artifacts (player/author)
-- Meta toggle shows skill usage on entries
-
-**Test:** As designer, create a custom format skill. Switch to player, see custom skill in effect.
-
-**Summary:** See `docs/phase-0.5-summary.md`
-
----
-
-## Phase 0.6: Multi-User Presence ✅
-
-The social coordination layer foundation.
-
-**Delivered:**
-- Supabase Realtime channel per frame (useFrameChannel hook)
-- Connection status indicator in header
-- Presence tracking (who's in frame, their face, typing state)
-- Presence bar showing other users
-- Display name editing in visibility panel
-- Typing indicators visible to others
-
-**Test:** Two browser tabs in same frame. User A types → User B sees typing indicator.
-
----
-
-## Phase 0.6.5: Live Multi-User Text States ✅
-
-Full text state sharing between users.
-
-**Delivered:**
-- Live vapor broadcast (character-by-character, 50ms throttle)
-- Liquid table in Supabase for persistent shared submissions
-- useLiquidSubscription hook for real-time database sync
-- Others' vapor displays live with blinking cursor
-- Others' liquid entries from database subscription
-- Face-colored indicators for vapor and liquid
-- Visibility controls (shareVapor, shareLiquid, showVapor, showLiquid, showSolid)
-- Codebase refactored: App.tsx 38KB → 15KB with extracted components
-- UX refinements: immediate refocus, decisive Soft-LLM, liquid replacement not stacking
-
-**Architecture (post-refactor):**
-```
-src/
-├── types/index.ts           # All shared interfaces
-├── utils/parsing.ts         # Input/artifact parsing
-├── components/
-│   ├── VaporPanel.tsx       # Vapor area + soft responses
-│   ├── LiquidPanel.tsx      # Liquid entries + editing
-│   ├── SolidPanel.tsx       # Log/dir views
-│   ├── PresenceBar.tsx      # Other users display
-│   ├── VisibilityPanel.tsx  # Share/show toggles
-│   ├── InputArea.tsx        # Footer textarea + buttons
-│   └── ConstructionButton.tsx
-├── hooks/
-│   ├── useFrameChannel.ts   # Realtime presence + vapor
-│   └── useLiquidSubscription.ts  # Database liquid sync
-└── App.tsx                  # ~300 lines orchestration
-```
-
-**Test:** Two browser tabs in same frame. User A types → User B sees live text appear character-by-character. User A submits → User B sees liquid entry. User A commits → entry disappears from liquid.
-
-**Summary:** See `docs/phase-0.6-summary.md`
-
----
-
-## Phase 0.7: Core Gameplay — Cross-Player Synthesis 🔄
-
-**The heart of Xstream: Medium-LLM synthesizes all players into coherent narrative.**
-
-This is where individual inputs become shared story.
-
-**Will deliver:**
-
-### Medium-LLM Cross-Player Synthesis
-- Medium-LLM receives ALL committed content in frame (not just single user)
+- Medium-LLM receives ALL committed liquid in frame
 - Synthesizes multiple player actions into coherent narrative
-- Outputs to solid (settled reality for all)
-- Can comment in liquid if conflicts ("both players reached for the sword...")
+- Outputs to solid (shared reality)
+- Real-time presence and vapor sharing
+- Two-player coordination tested successfully
 
-### Author Content → Player Context
-- Author-created content (locations, NPCs, items) feeds into player generation
-- When player is in "The Rusty Anchor", Medium-LLM knows about Birdie
-- Content scoped by frame and proximity
-
-### Frame-Scoped Content
-- Content table stores author creations per frame
-- Player generation queries relevant content
-- Directory view shows frame's world elements
-
-### Timing Foundation
-- Medium-LLM waits for reasonable action accumulation
-- Timing conditions from Soft-LLM (immediate/reactive/coordinated)
-- Independent per-character synthesis (not centralized)
-
-**Test (The Pub Test):**
-1. Author creates pub + barkeep in test-frame
-2. Two players enter, both commit actions
-3. Medium-LLM synthesizes both actions + author content into one narrative
-4. Both players see coherent combined result in solid
-
-**Scope:** See `docs/phase-0.7-scope.md`
+**Test Result:** Two browser sessions, two characters (Marcus, Elara), both commit actions → Medium-LLM synthesizes → both see coherent combined narrative.
 
 ---
 
-## Phase 0.8: Hard-LLM & World Context ⏳
+## Phase 0.8: Hard-LLM & World Context 📋
 
-Background world coherence.
+**DESIGNED but NOT IMPLEMENTED**
+
+Full architecture in `docs/phase-0.8-architecture.md` and `docs/hard-llm-coordinate-extraction-skills.md`.
 
 **Will deliver:**
-- Hard-LLM runs as background process
-- Compiles world state from author content
-- Defines aperture (what's in scope for this moment)
-- Procedurally generates missing content (author-llm)
-- Feeds context to Medium-LLM
-- Proximity management (who can perceive what)
+- Hard-LLM extracts coordinates from narrative
+- Proximity auto-updates based on movement
+- Aperture calculation (who sees what)
+- Background coherence processing
+- Six database skills for coordinate operations
 
-**Test:** Player enters unnamed room → Hard-LLM generates description from nearby content patterns.
+**Deferred because:** Two-player narrative works without automatic coordinate extraction. Coordinates can be manually seeded for testing.
 
 ---
 
-## Phase 0.9: Management, Auth & Polish ⏳
+## Phase 0.9: Management, Auth & Polish ✅
 
-Production readiness.
+**Sub-phases complete:**
 
-**Will deliver:**
+### 0.9.0: UI Redesign ✅
+- Three-zone layout (solid/liquid/vapour)
+- Draggable separators
+- Terminology: player → character
+- Zone proportions persist in localStorage
+
+### 0.9.1: User Registration ✅
+- Email verification (6-digit code)
 - Supabase Auth integration
-- User profiles and sessions
-- Permission model for frames/packages
-- Frame creation/management UI
-- Package browsing/management UI
-- Skill visibility in player/author modes
-- UX polish, error handling, mobile
+- User profiles with display names
+- Protected routes
+
+### 0.9.2: LLM-Mediated Character Creation ✅
+- Natural language: "Create a character named Marcus..."
+- Soft-LLM detects intent, generates character
+- Coordinates auto-assigned to frame
+- No forms needed
+
+### 0.9.3: Character Selection ✅
+- Character selector in header (when in frame)
+- Inhabit/release flow
+- Two-player coordination tested
+- **Mos Eisley Test baseline passed**
 
 ---
 
-## Plex 1: Kernel Complete ⏳
+## Remaining for Plex 1.0
 
-All faces work, skills compose, multiple users coordinate.
+### Must Have (Blocking)
+1. **Stale liquid detection** — Mark liquid as consumed when synthesized, prevent re-narration
+2. **Concurrent commit coordination** — Handle simultaneous commits gracefully
 
-**Test (Mos Eisley Test):** 3 players in Star Wars cantina. X0Y0Z0 frame. 30 minutes. They feel synchronized imagination. They want to play again.
+### Nice to Have (Non-blocking)
+3. **Cosmology creation UI** — Currently hard-coded
+4. **Frame creation UI** — Currently hard-coded  
+5. **XYZ configuration UI** — Only X1Y1Z0 tested
+6. **Hard-LLM coordinate extraction** — Designed, defer to 1.1
+
+### Rationale
+The Mos Eisley Test asks: "Can 3 players spend 30 minutes in synchronized imagination?" We've proven 2 players can coordinate narrative. The remaining items are polish and automation, not fundamental capability.
+
+---
+
+## Plex 1.0: Kernel Complete 🔄
+
+**Target:** All Plex 1 success criteria pass.
+
+**Test (Mos Eisley Test — Full):**
+1. Three players create characters
+2. Enter same frame
+3. 30+ minutes of coordinated narrative
+4. All feel synchronized imagination
+5. All want to play again
+
+**Status:** 80% complete. Core loop works. Polish items remain.
+
+---
+
+## What Comes After Plex 1
+
+### Plex 1.1: Hard-LLM Integration
+- Implement coordinate extraction skills
+- Automatic proximity updates
+- Aperture-driven context selection
+
+### Plex 1.2: Purpose Trees
+- Character drive at multiple pscales
+- Phase 0.9.4 specification
+
+### Plex 1.3: Condensed Reflexive Triad  
+- Full character-llm processing
+- Phase 0.9.5 specification
+
+### Plex 2+
+- Everything else is skills/packages
+- World content (URB, etc.)
+- Rule systems (NOMAD, etc.)
+- Character-LLM autonomy
 
 ---
 
@@ -257,5 +175,43 @@ All faces work, skills compose, multiple users coordinate.
 - World maps (skill-defined display)
 - Dice rolling UI (skill-defined)
 - Any specific game mechanics (package-defined)
+- Hard-LLM coordinate extraction (defer to 1.1)
+- Purpose trees (defer to 1.2)
 
 All of these emerge from skills and packages. Plex 1 is the substrate.
+
+---
+
+## Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         FRONTEND                            │
+│  React + TypeScript + Vite                                  │
+│  Three-zone UI (solid/liquid/vapour)                        │
+│  Real-time presence via Supabase Realtime                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                      ORCHESTRATION                          │
+│  n8n workflow: xstream-orchestration                        │
+│  Routes to appropriate LLM tier                             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                      EDGE FUNCTIONS                         │
+│  generate-v2: Soft-LLM + Medium-LLM processing              │
+│  (Hard-LLM: designed, not deployed)                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│                        DATABASE                             │
+│  Supabase: users, characters, frames, liquid, solid,        │
+│  skills, packages, character_coordinates, etc.              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+*Last updated: 2026-01-03*
+*Two-player coordination tested successfully*
