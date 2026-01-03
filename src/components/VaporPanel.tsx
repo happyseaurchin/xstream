@@ -26,8 +26,8 @@ interface VaporPanelProps {
   onDismissSoftResponse: () => void
   onSelectOption: (option: string) => void
   // Input actions
-  isLoading: boolean
-  isQuerying: boolean
+  isLoading: boolean  // Medium-LLM processing (commit → solid)
+  isQuerying: boolean // Soft-LLM processing (query)
   hasVaporOrLiquid: boolean
   onQuery: () => void
   onSubmit: () => void
@@ -136,41 +136,37 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
         {/* Anchored: User's input area */}
         <div className="vapor-input-area">
           <button 
-            className="vapor-btn query-btn"
+            className={`vapor-btn query-btn ${isQuerying ? 'processing' : ''}`}
             onClick={withRefocus(onQuery)}
-            disabled={isLoading || isQuerying || !input.trim()}
+            disabled={isQuerying || !input.trim()}
             title="Query Soft-LLM (Enter)"
           >
-            {isQuerying ? '...' : '⚡'}
+            {isQuerying ? '◌' : '⚡'}
           </button>
           
           <div className="vapor-textarea-wrapper">
+            {/* Textarea is NEVER disabled - vapor is always available */}
             <textarea
               ref={textareaRef}
               className="vapor-textarea"
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
               placeholder={placeholder}
-              disabled={isQuerying}
               onKeyDown={(e) => {
-                // During isLoading (Medium-LLM), allow typing but block commit shortcuts
-                if (e.key === 'Enter' && e.metaKey) {
+                if (e.key === 'Enter' && e.metaCmd) {
                   e.preventDefault()
-                  if (!isLoading) {
+                  if (!isLoading && input.trim()) {
                     onCommit()
-                    setTimeout(() => textareaRef.current?.focus(), 10)
                   }
                 } else if (e.key === 'Enter' && e.shiftKey) {
                   e.preventDefault()
-                  if (!isLoading) {
+                  if (!isQuerying && input.trim()) {
                     onSubmit()
-                    setTimeout(() => textareaRef.current?.focus(), 10)
                   }
                 } else if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
-                  if (input.trim() && !isLoading) {
+                  if (input.trim() && !isQuerying) {
                     e.preventDefault()
                     onQuery()
-                    setTimeout(() => textareaRef.current?.focus(), 10)
                   }
                 }
               }}
@@ -187,9 +183,9 @@ export const VaporPanel = forwardRef<VaporPanelHandle, VaporPanelProps>(
           </div>
           
           <button 
-            className="vapor-btn submit-btn"
+            className={`vapor-btn submit-btn ${isLoading ? 'processing' : ''}`}
             onClick={withRefocus(onSubmit)} 
-            disabled={isLoading || isQuerying || !input.trim()}
+            disabled={isQuerying || !input.trim()}
             title="Submit to Liquid (Shift+Enter)"
           >
             →
