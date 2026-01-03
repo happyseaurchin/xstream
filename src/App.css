@@ -448,6 +448,16 @@
   border-left-color: var(--color-editing, #fb923c);
 }
 
+.liquid-entry.synthesizing {
+  border-left-color: var(--color-solid, #4ade80);
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .liquid-text {
   width: 100%;
   padding: 0.4rem;
@@ -478,6 +488,7 @@
   display: flex;
   justify-content: flex-end;
   margin-top: 0.4rem;
+  min-height: 28px;
 }
 
 .commit-entry-btn {
@@ -499,6 +510,32 @@
   cursor: not-allowed;
 }
 
+/* Synthesizing Indicator */
+.synthesizing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  background: var(--color-bg-secondary);
+  border-radius: 3px;
+  color: var(--color-solid, #4ade80);
+}
+
+.synthesizing-spinner {
+  animation: spin 1s linear infinite;
+  font-size: 0.9rem;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.synthesizing-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 .dismiss-entry-btn {
   margin-left: auto;
   background: transparent;
@@ -509,8 +546,13 @@
   font-size: 0.8rem;
 }
 
-.dismiss-entry-btn:hover {
+.dismiss-entry-btn:hover:not(:disabled) {
   color: var(--color-error, #f87171);
+}
+
+.dismiss-entry-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ================================================
@@ -758,6 +800,11 @@
 
 .state-dot.committed {
   background: var(--color-solid, #4ade80);
+}
+
+.state-dot.synthesizing {
+  background: var(--color-solid, #4ade80);
+  animation: pulse 1s ease-in-out infinite;
 }
 
 /* ================================================
