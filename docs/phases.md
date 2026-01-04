@@ -24,39 +24,78 @@ Each phase must be **complete and testable** before proceeding.
 | 0.9.1 | ✅ COMPLETE | User Registration |
 | 0.9.2 | ✅ COMPLETE | LLM-Mediated Character Creation |
 | 0.9.3 | ✅ COMPLETE | Character Selection & Two-Player Test |
-| **0.10** | 🔄 IN PROGRESS | **Consolidation** |
-| 1.0 | ⏳ PENDING | Kernel Complete |
+| **0.10** | ✅ COMPLETE | **Consolidation (through 0.10.3.3)** |
+| 1.0 | ⏳ PENDING | Kernel Complete (awaiting 3-player test) |
 
 ---
 
-## Phase 0.10: Consolidation 🔄
+## Phase 0.10: Consolidation ✅
 
 **Specification:** `docs/phase-0.10-specification.md`
 
-Consolidating functions needed for three-player test.
+Multi-user coordination fixes and consolidation for three-player test.
 
 | Sub-phase | Status | Description |
 |-----------|--------|-------------|
-| 0.10.1 | ✅ COMPLETE | Stale liquid detection (LLM-based) |
-| 0.10.2 | ❌ TODO | Concurrent commit coordination |
-| 0.10.3 | ⚠️ VERIFY | Author creates NPCs (feature exists, verify wiring) |
-| 0.10.4 | ⚠️ VERIFY | Author creates locations (feature exists, verify wiring) |
-| 0.10.5 | ❌ TODO | Designer edits skills |
-| 0.10.6 | ❌ TODO | Three-player test |
+| 0.10.1 | ✅ COMPLETE | Stale liquid detection (consumed_by_solid_id) |
+| 0.10.2 | ✅ COMPLETE | Concurrent commit coordination (synthesis lock) |
+| 0.10.3.1 | ✅ COMPLETE | Initial multi-user synthesis flow |
+| 0.10.3.2 | ✅ COMPLETE | Race condition diagnosis |
+| 0.10.3.3 | ✅ COMPLETE | Early liquid deletion fix |
 
 ### 0.10.1: Stale Liquid Detection ✅
 
 **Problem:** When user A commits, their liquid is synthesized. If they don't change it and user B commits, Medium-LLM sees user A's old liquid and re-narrates it.
 
-**Solution (LLM-based, no schema change):**
-- Added "HANDLING REPETITION" section to Medium-LLM system prompt
-- Distinguishes standing intentions, discrete actions, continuous actions
-- Renamed "RECENT NARRATIVE" to "ALREADY NARRATED (don't repeat)"
-- LLM understands context and avoids repetition naturally
+**Solution:** Mark liquid as "consumed" when synthesized.
 
-**Commit:** `32ebe6a` - 0.10.1: Add stale liquid detection via LLM guidance
+```sql
+ALTER TABLE liquid ADD COLUMN consumed_by_solid_id UUID REFERENCES solid(id);
+```
 
-**Requires deployment:** `generate-v2` edge function
+### 0.10.2: Concurrent Commit Coordination ✅
+
+**Problem:** If two users hit commit within seconds, two separate Medium-LLM calls fire, creating duplicate narratives.
+
+**Solution:** Leader election via synthesis lock on frames table.
+
+```sql
+ALTER TABLE frames ADD COLUMN synthesis_in_progress BOOLEAN DEFAULT FALSE;
+ALTER TABLE frames ADD COLUMN last_synthesis_at TIMESTAMPTZ;
+```
+
+### 0.10.3: Multi-User Synchronization ✅
+
+Original scope expanded when testing revealed race conditions in liquid handling.
+
+#### 0.10.3.1: Initial Multi-User Flow
+- Both users' liquid combined into single solid
+- Contributor tracking working
+
+#### 0.10.3.2: Race Condition Diagnosis  
+**Problem discovered:** New liquid submitted during synthesis gets deleted.
+
+**Root cause:** Database constraint `UNIQUE (frame_id, user_id)` means upsert UPDATES existing row. When synthesis completes and deletes the "old" liquid, it actually deletes the NEW content.
+
+#### 0.10.3.3: Early Liquid Deletion Fix (January 4, 2026)
+
+**Solution:** Move DB deletion EARLY - right after gathering context, before creating placeholder solid.
+
+**Flow:**
+```
+1. Commit → gatherContext() stores content in memory
+2. DELETE DB liquid immediately (content safe in context.allLiquid)
+3. Create placeholder solid (narrative=null)
+4. Placeholder INSERT → realtime → onSynthesisStart → local liquid clears
+5. Users can submit NEW liquid → creates NEW DB row
+6. Synthesis uses gathered context (memory)
+7. Solid updated with narrative → complete
+```
+
+**Files modified:**
+- `supabase/functions/generate-v2/synthesis/handler.ts`
+- `src/hooks/useSolidSubscription.ts` (added onSynthesisStart callback)
+- `src/App.tsx` (wired callback)
 
 ---
 
@@ -78,106 +117,53 @@ From `plex-1-specification.md`:
 | 10 | Designer can create frames | ❌ | Hard-coded only |
 | 11 | Player can create character | ✅ | LLM-mediated works |
 | 12 | Multiple users share frame skills + states | ✅ | **Tested 2026-01-03** |
-| 13 | **Mos Eisley Test passes** | ✅ | Two players coordinated! |
-
-**Key milestone:** On 2026-01-03, two players (Marcus & Elara) successfully coordinated narrative in real-time. The LLM synthesized both inputs coherently.
+| 13 | **Mos Eisley Test passes** | ⚠️ | Two players ✅, three players pending |
 
 ---
 
-## Phase 0.7: Core Gameplay — Cross-Player Synthesis ✅
+## Test Frames Available
 
-**COMPLETE as of 2026-01-03**
-
-**Delivered:**
-- Medium-LLM receives ALL committed liquid in frame
-- Synthesizes multiple player actions into coherent narrative
-- Outputs to solid (shared reality)
-- Real-time presence and vapor sharing
-- Two-player coordination tested successfully
-
-**Test Result:** Two browser sessions, two characters (Marcus, Elara), both commit actions → Medium-LLM synthesizes → both see coherent combined narrative.
-
----
-
-## Phase 0.8: Hard-LLM & World Context 📋
-
-**DESIGNED but NOT IMPLEMENTED**
-
-Full architecture in `docs/phase-0.8-architecture.md` and `docs/hard-llm-coordinate-extraction-skills.md`.
-
-**Will deliver:**
-- Hard-LLM extracts coordinates from narrative
-- Proximity auto-updates based on movement
-- Aperture calculation (who sees what)
-- Background coherence processing
-- Six database skills for coordinate operations
-
-**Deferred because:** Two-player narrative works without automatic coordinate extraction. Coordinates can be manually seeded for testing.
-
----
-
-## Phase 0.9: Management, Auth & Polish ✅
-
-**Sub-phases complete:**
-
-### 0.9.0: UI Redesign ✅
-- Three-zone layout (solid/liquid/vapour)
-- Draggable separators
-- Terminology: player → character
-- Zone proportions persist in localStorage
-
-### 0.9.1: User Registration ✅
-- Email verification (6-digit code)
-- Supabase Auth integration
-- User profiles with display names
-- Protected routes
-
-### 0.9.2: LLM-Mediated Character Creation ✅
-- Natural language: "Create a character named Marcus..."
-- Soft-LLM detects intent, generates character
-- Coordinates auto-assigned to frame
-- No forms needed
-
-### 0.9.3: Character Selection ✅
-- Character selector in header (when in frame)
-- Inhabit/release flow
-- Two-player coordination tested
-- **Mos Eisley Test baseline passed**
+| Frame | Cosmology | Characters | Use Case |
+|-------|-----------|------------|----------|
+| **test-frame** | test-inn-world | Zara, Marcus, etc. | Primary testing |
+| **test-frame-B** | test-inn-world | Shared with test-frame | Multi-frame same-world |
+| **test-frame-2** | test-world-2 | Empty | Isolated clean testing |
 
 ---
 
 ## Remaining for Plex 1.0
 
-### Must Have (Phase 0.10)
-1. ✅ **Stale liquid detection** — LLM-based guidance prevents re-narration
-2. ❌ **Concurrent commit coordination** — Handle simultaneous commits gracefully
-3. ⚠️ **Verify NPC/location creation** — Features exist, ensure proper wiring
-4. ❌ **Designer edits skills** — Load/modify/save existing skills
-5. ❌ **Three-player test** — Full Mos Eisley Test
+### Ready to Test
+1. ✅ **Stale liquid detection** — consumed_by_solid_id tracking
+2. ✅ **Concurrent commit coordination** — synthesis lock
+3. ✅ **Multi-user sync** — early deletion fix (0.10.3.3)
+4. ❌ **Three-player test** — Full Mos Eisley Test
+
+### Known Issues
+- **Vapor flakiness** — Others' vapor sometimes disappears (channel reconnect, presence issues)
+- **Author scenario output** — Medium-LLM produces verbose narrative instead of structured scenarios
 
 ### Deferred to Plex 1.1+
 - Cosmology creation UI
 - Frame creation UI  
 - XYZ configuration UI
 - Hard-LLM coordinate extraction
-
-### Rationale
-The Mos Eisley Test asks: "Can 3 players spend 30 minutes in synchronized imagination?" We've proven 2 players can coordinate narrative. Phase 0.10 consolidates for 3-player test.
+- Designer skill editing (load/modify/save)
 
 ---
 
 ## Plex 1.0: Kernel Complete ⏳
 
-**Target:** All Plex 1 success criteria pass.
+**Target:** Three-player coordination test passes.
 
 **Test (Mos Eisley Test — Full):**
-1. Three players create characters
+1. Three players create/select characters
 2. Enter same frame
 3. 30+ minutes of coordinated narrative
 4. All feel synchronized imagination
 5. All want to play again
 
-**Status:** ~85% complete. Core loop works. Consolidation (0.10) in progress.
+**Status:** ~95% complete. All technical infrastructure in place. Awaiting three-player test.
 
 ---
 
@@ -204,19 +190,6 @@ The Mos Eisley Test asks: "Can 3 players spend 30 minutes in synchronized imagin
 
 ---
 
-## What Plex 1 Does NOT Include
-
-- Character sheets (skill-defined display)
-- World maps (skill-defined display)
-- Dice rolling UI (skill-defined)
-- Any specific game mechanics (package-defined)
-- Hard-LLM coordinate extraction (defer to 1.1)
-- Purpose trees (defer to 1.2)
-
-All of these emerge from skills and packages. Plex 1 is the substrate.
-
----
-
 ## Architecture Summary
 
 ```
@@ -228,25 +201,21 @@ All of these emerge from skills and packages. Plex 1 is the substrate.
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
-│                      ORCHESTRATION                          │
-│  n8n workflow: xstream-orchestration                        │
-│  Routes to appropriate LLM tier                             │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
 │                      EDGE FUNCTIONS                         │
-│  generate-v2: Soft-LLM + Medium-LLM processing              │
-│  (Hard-LLM: designed, not deployed)                         │
+│  generate-v2: Soft-LLM + Medium-LLM + Hard-LLM              │
+│  Synthesis with early liquid deletion                       │
+│  Leader election for concurrent commits                     │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                        DATABASE                             │
 │  Supabase: users, characters, frames, liquid, solid,        │
-│  skills, packages, character_coordinates, etc.              │
+│  skills, packages, content, cosmologies                     │
+│  Real-time subscriptions for all text states                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-*Last updated: 2026-01-03*
-*Phase 0.10.1 complete - stale liquid detection via LLM guidance*
+*Last updated: 2026-01-04*
+*Phase 0.10.3.3 complete - early liquid deletion fix*
