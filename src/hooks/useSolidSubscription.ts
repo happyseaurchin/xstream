@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
@@ -22,6 +22,7 @@ export interface UseSolidSubscriptionReturn {
   solidEntries: SolidEntry[]
   isLoading: boolean
   error: string | null
+  clearSolid: () => Promise<void>  // Phase 0.10.3.2: Clear all solid entries for frame
 }
 
 export function useSolidSubscription({
@@ -32,14 +33,14 @@ export function useSolidSubscription({
   const [error, setError] = useState<string | null>(null)
 
   // Transform database row to SolidEntry
-  const transformRow = (row: any): SolidEntry => ({
-    id: row.id,
-    frameId: row.frame_id,
-    face: row.face,
-    narrative: row.narrative,
-    sourceLiquidIds: row.source_liquid_ids || [],
-    participantUserIds: row.participant_user_ids || [],
-    createdAt: row.created_at,
+  const transformRow = (row: Record<string, unknown>): SolidEntry => ({
+    id: row.id as string,
+    frameId: row.frame_id as string,
+    face: row.face as Face,
+    narrative: row.narrative as string | null,
+    sourceLiquidIds: (row.source_liquid_ids as string[]) || [],
+    participantUserIds: (row.participant_user_ids as string[]) || [],
+    createdAt: row.created_at as string,
   })
 
   // Load initial solid entries for frame
@@ -52,7 +53,7 @@ export function useSolidSubscription({
     const loadSolid = async () => {
       setIsLoading(true)
       try {
-        const { data, error: err } = await supabase!
+        const { data, error: err } = await supabase
           .from('solid')
           .select('*')
           .eq('frame_id', frameId)
@@ -76,9 +77,10 @@ export function useSolidSubscription({
   useEffect(() => {
     if (!frameId || !supabase) return
 
+    const sb = supabase
     console.log(`[Solid] Subscribing to solid changes for frame:${frameId}`)
 
-    const channel = supabase
+    const channel = sb
       .channel(`solid:${frameId}`)
       .on(
         'postgres_changes',
@@ -88,23 +90,26 @@ export function useSolidSubscription({
           table: 'solid',
           filter: `frame_id=eq.${frameId}`,
         },
-        (payload: RealtimePostgresChangesPayload<any>) => {
-          console.log('[Solid] Change:', payload.eventType, payload)
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          console.log('[Solid] Change:', payload.eventType)
 
-          if (payload.eventType === 'INSERT') {
-            const newEntry = transformRow(payload.new)
+          const newRecord = payload.new as Record<string, unknown> | undefined
+          const oldRecord = payload.old as Record<string, unknown> | undefined
+
+          if (payload.eventType === 'INSERT' && newRecord) {
+            const newEntry = transformRow(newRecord)
             setSolidEntries(prev => {
               // Avoid duplicates
               if (prev.some(e => e.id === newEntry.id)) return prev
               return [...prev, newEntry]
             })
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = transformRow(payload.new)
+          } else if (payload.eventType === 'UPDATE' && newRecord) {
+            const updated = transformRow(newRecord)
             setSolidEntries(prev =>
               prev.map(e => (e.id === updated.id ? updated : e))
             )
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old?.id
+          } else if (payload.eventType === 'DELETE' && oldRecord) {
+            const deletedId = oldRecord.id as string | undefined
             if (deletedId) {
               setSolidEntries(prev => prev.filter(e => e.id !== deletedId))
             }
@@ -117,7 +122,30 @@ export function useSolidSubscription({
 
     return () => {
       console.log('[Solid] Unsubscribing')
-      supabase!.removeChannel(channel)
+      sb.removeChannel(channel)
+    }
+  }, [frameId])
+
+  // Phase 0.10.3.2: Clear all solid entries for current frame
+  const clearSolid = useCallback(async () => {
+    if (!frameId || !supabase) return
+
+    console.log('[Solid] Clearing all solid entries for frame:', frameId)
+    try {
+      const { error: err } = await supabase
+        .from('solid')
+        .delete()
+        .eq('frame_id', frameId)
+
+      if (err) {
+        console.error('[Solid] Clear error:', err)
+        throw err
+      }
+
+      // Local state will update via realtime subscription
+      console.log('[Solid] Cleared successfully')
+    } catch (err) {
+      console.error('[Solid] Clear failed:', err)
     }
   }, [frameId])
 
@@ -125,5 +153,6 @@ export function useSolidSubscription({
     solidEntries,
     isLoading,
     error,
+    clearSolid,
   }
 }
