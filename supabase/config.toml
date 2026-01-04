@@ -1,9 +1,6 @@
 # Supabase Edge Functions Configuration
 # See: https://supabase.com/docs/guides/cli/config
 
-[project]
-id = "piqxyfmzzywxzqkzmpmm"
-
 [functions.generate-v2]
 verify_jwt = false
 
