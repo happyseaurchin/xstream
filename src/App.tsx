@@ -4,7 +4,6 @@ import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFram
 import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import { useSolidSubscription } from './hooks/useSolidSubscription'
 import { useContentSubscription } from './hooks/useContentSubscription'
-import type { ContentEntry, CharacterEntry } from './hooks/useContentSubscription'
 import {
   AuthPage,
   ConstructionButton,
@@ -184,11 +183,11 @@ function App() {
         return
       }
 
-      const characters: FrameCharacter[] = (data || []).map((row: any) => ({
-        id: row.id,
-        name: row.name,
-        is_npc: row.is_npc,
-        inhabited_by: row.inhabited_by,
+      const characters: FrameCharacter[] = (data || []).map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        name: row.name as string,
+        is_npc: row.is_npc as boolean,
+        inhabited_by: row.inhabited_by as string | null,
       }))
 
       console.log('[App] Loaded characters:', characters.map(c => c.name))
@@ -210,8 +209,8 @@ function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'characters' },
-        (payload: any) => {
-          console.log('[App] Character change detected:', payload.eventType)
+        () => {
+          console.log('[App] Character change detected, reloading...')
           // Reload all characters (filter happens in loadCharacters)
           loadCharacters()
         }
@@ -220,7 +219,6 @@ function App() {
 
     return () => {
       console.log('[App] Cleaning up character subscription')
-      // Phase 0.10.3.2: Add null check to fix TypeScript error
       if (supabase) supabase.removeChannel(channel)
     }
   }, [frameId, userId])
@@ -242,14 +240,18 @@ function App() {
   } = useLiquidSubscription({ frameId, userId })
 
   // Solid entries from database
-  const { solidEntries: dbSolidEntries } = useSolidSubscription({ frameId })
+  // Phase 0.10.3.2: Added clearSolid for clearing log on clear button
+  const { solidEntries: dbSolidEntries, clearSolid } = useSolidSubscription({ frameId })
 
   // Phase 0.10.3.2: Content and character entries for directory view
   // Queries by cosmology_id - content belongs to world, frame views it
+  // Added deleteContent and deleteCharacter for directory item deletion
   const {
     contentEntries: dbContentEntries,
     characterEntries: dbCharacterEntries,
     isLoading: isLoadingContent,
+    deleteContent,
+    deleteCharacter,
   } = useContentSubscription({ frameId })
 
   // Derived state
@@ -536,38 +538,17 @@ function App() {
     setSolidView('log')
   }
 
-  // Phase 0.10.3.2: Click handler for content in author directory
-  const handleContentClick = useCallback((content: ContentEntry) => {
-    // Load content data into liquid for editing/viewing
-    const dataStr = JSON.stringify(content.data, null, 2)
-    const document = `# ${content.name}\nType: ${content.contentType}\n\n${dataStr}`
-    const newEntry: ShelfEntry = { 
-      id: crypto.randomUUID(), 
-      text: document, 
-      face: 'author', 
-      frameId, 
-      state: 'submitted', 
-      timestamp: new Date().toISOString() 
-    }
-    replaceActiveEntry(newEntry, 'author')
-    setSolidView('log')
-  }, [frameId, replaceActiveEntry])
+  // Phase 0.10.3.2: Delete content handler for directory
+  const handleDeleteContent = useCallback((contentId: string) => {
+    console.log('[App] Deleting content:', contentId)
+    deleteContent(contentId)
+  }, [deleteContent])
 
-  // Phase 0.10.3.2: Click handler for character in character directory
-  const handleCharacterDirectoryClick = useCallback((character: CharacterEntry) => {
-    // Load character into liquid for viewing
-    const document = `# ${character.name}\nNPC: ${character.isNpc ? 'Yes' : 'No'}\n${character.description || ''}`
-    const newEntry: ShelfEntry = { 
-      id: crypto.randomUUID(), 
-      text: document, 
-      face: 'character', 
-      frameId, 
-      state: 'submitted', 
-      timestamp: new Date().toISOString() 
-    }
-    replaceActiveEntry(newEntry, 'character')
-    setSolidView('log')
-  }, [frameId, replaceActiveEntry])
+  // Phase 0.10.3.2: Delete character handler for directory
+  const handleDeleteCharacter = useCallback((characterId: string) => {
+    console.log('[App] Deleting character:', characterId)
+    deleteCharacter(characterId)
+  }, [deleteCharacter])
 
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, text: newText, isEditing: true } : e))
@@ -714,6 +695,7 @@ function App() {
     }
   }
 
+  // Phase 0.10.3.2: Clear now also clears solid log
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
@@ -722,6 +704,8 @@ function App() {
     if (frameId) {
       deleteLiquid()
       broadcastVapor('')
+      // Clear solid log entries for this frame
+      clearSolid()
     }
   }
 
@@ -845,8 +829,8 @@ function App() {
               isLoadingDirectory={isLoadingDirectory || isLoadingContent}
               showMeta={showMeta}
               onSkillClick={handleSkillClick}
-              onContentClick={handleContentClick}
-              onCharacterClick={handleCharacterDirectoryClick}
+              onDeleteContent={handleDeleteContent}
+              onDeleteCharacter={handleDeleteCharacter}
             />
           </div>
         )}
