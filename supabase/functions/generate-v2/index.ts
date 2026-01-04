@@ -1,5 +1,6 @@
 /**
  * Phase 0.10.3: Edge Function Entry Point
+ * Deployed via GitHub Actions
  * 
  * Handles soft mode (vapor→liquid) and medium mode (liquid→solid) for all faces.
  * Author face: Natural prose synthesis, Hard-LLM handles classification
