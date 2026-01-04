@@ -50,10 +50,13 @@ export function useSolidSubscription({
       return
     }
 
+    // Capture supabase reference for async use
+    const sb = supabase
+
     const loadSolid = async () => {
       setIsLoading(true)
       try {
-        const { data, error: err } = await supabase
+        const { data, error: err } = await sb
           .from('solid')
           .select('*')
           .eq('frame_id', frameId)
@@ -130,9 +133,10 @@ export function useSolidSubscription({
   const clearSolid = useCallback(async () => {
     if (!frameId || !supabase) return
 
+    const sb = supabase
     console.log('[Solid] Clearing all solid entries for frame:', frameId)
     try {
-      const { error: err } = await supabase
+      const { error: err } = await sb
         .from('solid')
         .delete()
         .eq('frame_id', frameId)
