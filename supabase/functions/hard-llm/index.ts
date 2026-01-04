@@ -1,3 +1,9 @@
+/**
+ * Hard-LLM: Background Coordination Layer
+ * Phase 0.10.3 - Entity extraction and filing for author content
+ * Deployed via GitHub Actions
+ */
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
