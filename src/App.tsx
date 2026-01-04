@@ -138,6 +138,7 @@ function App() {
   // Load characters when frame changes + realtime subscription
   // Phase 0.10.3: Query by cosmology (frame is container)
   // Phase 0.10.3.1: Added realtime subscription for new characters
+  // Phase 0.10.3.2: Fixed TypeScript null check for supabase
   // TODO Plex 2: Replace with pscale-based filtering via Hard-LLM coordinate proximity
   useEffect(() => {
     if (!frameId || !supabase) {
@@ -217,7 +218,8 @@ function App() {
 
     return () => {
       console.log('[App] Cleaning up character subscription')
-      supabase.removeChannel(channel)
+      // Phase 0.10.3.2: Add null check to fix TypeScript error
+      if (supabase) supabase.removeChannel(channel)
     }
   }, [frameId, userId])
 
