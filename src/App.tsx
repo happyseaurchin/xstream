@@ -79,6 +79,8 @@ function saveZoneProportions(proportions: ZoneProportions): void {
 const FRAMES: Frame[] = [
   { id: null, name: 'None (platform defaults)', xyz: 'X0Y0Z0' },
   { id: 'bbbbbbbb-0000-0000-0000-000000000001', name: 'test-frame', xyz: 'X0Y0Z0' },
+  { id: 'bbbbbbbb-0000-0000-0000-00000000000b', name: 'test-frame-B', xyz: 'X0Y0Z0' },  // Same cosmology as test-frame
+  { id: 'cccccccc-0000-0000-0000-000000000001', name: 'test-frame-2', xyz: 'X0Y0Z0' },  // Fresh cosmology
 ]
 
 function App() {
