@@ -1,21 +1,22 @@
 import type { FrameSkill, Face, SolidView } from '../types'
 import type { SolidEntry } from '../hooks/useSolidSubscription'
-import type { ShelfEntry } from '../types'
-import { parseArtifactFromText } from '../utils/parsing'
+import type { ContentEntry, CharacterEntry } from '../hooks/useContentSubscription'
 import { FaceIcon } from './FaceIcon'
 
 interface SolidPanelProps {
   solidView: SolidView
   onViewChange: (view: SolidView) => void
-  solidEntries: SolidEntry[]  // From database
-  frameSkills: FrameSkill[]
-  directoryEntries: ShelfEntry[]
+  solidEntries: SolidEntry[]  // From database - narrative log
+  frameSkills: FrameSkill[]   // Designer directory
+  contentEntries: ContentEntry[]    // Author directory - from content table
+  characterEntries: CharacterEntry[] // Character directory - from characters table
   face: Face
   frameId: string | null
   isLoadingDirectory: boolean
   showMeta: boolean
   onSkillClick: (skill: FrameSkill) => void
-  onEntryClick: (entry: ShelfEntry) => void
+  onContentClick: (content: ContentEntry) => void
+  onCharacterClick: (character: CharacterEntry) => void
 }
 
 export function SolidPanel({
@@ -23,13 +24,15 @@ export function SolidPanel({
   onViewChange,
   solidEntries,
   frameSkills,
-  directoryEntries,
+  contentEntries,
+  characterEntries,
   face,
   frameId,
   isLoadingDirectory,
   showMeta,
   onSkillClick,
-  onEntryClick,
+  onContentClick,
+  onCharacterClick,
 }: SolidPanelProps) {
   return (
     <section className="solid-zone">
@@ -59,10 +62,12 @@ export function SolidPanel({
             face={face}
             frameId={frameId}
             frameSkills={frameSkills}
-            directoryEntries={directoryEntries}
+            contentEntries={contentEntries}
+            characterEntries={characterEntries}
             isLoading={isLoadingDirectory}
             onSkillClick={onSkillClick}
-            onEntryClick={onEntryClick}
+            onContentClick={onContentClick}
+            onCharacterClick={onCharacterClick}
           />
         )}
       </div>
@@ -117,28 +122,33 @@ function LogView({ entries, face, showMeta }: { entries: SolidEntry[], face: Fac
 }
 
 // Directory view subcomponent
+// Phase 0.10.3.2: Now queries database tables instead of local React state
 function DirectoryView({
   face,
   frameId,
   frameSkills,
-  directoryEntries,
+  contentEntries,
+  characterEntries,
   isLoading,
   onSkillClick,
-  onEntryClick,
+  onContentClick,
+  onCharacterClick,
 }: {
   face: Face
   frameId: string | null
   frameSkills: FrameSkill[]
-  directoryEntries: ShelfEntry[]
+  contentEntries: ContentEntry[]
+  characterEntries: CharacterEntry[]
   isLoading: boolean
   onSkillClick: (skill: FrameSkill) => void
-  onEntryClick: (entry: ShelfEntry) => void
+  onContentClick: (content: ContentEntry) => void
+  onCharacterClick: (character: CharacterEntry) => void
 }) {
-  if (isLoading && face === 'designer') {
+  if (isLoading) {
     return <div className="directory-loading">Loading...</div>
   }
 
-  // Designer: use frameSkills from database
+  // Designer: show skills from database
   if (face === 'designer') {
     return (
       <div className="directory-list">
@@ -172,38 +182,74 @@ function DirectoryView({
     )
   }
 
-  // Character/Author: use committed shelf entries
-  const label = face === 'character' ? 'Characters' : 'World Elements'
-  
-  return (
-    <div className="directory-list">
-      <div className="directory-section-label">{label}</div>
-      {directoryEntries.length > 0 ? (
-        directoryEntries.map(entry => {
-          const artifact = parseArtifactFromText(entry.text, face)
-          if (!artifact) return null
-          
-          return (
+  // Character face: show characters from database
+  if (face === 'character') {
+    return (
+      <div className="directory-list">
+        <div className="directory-section-label">Characters</div>
+        {characterEntries.length > 0 ? (
+          characterEntries.map(char => (
             <div 
-              key={entry.id} 
-              className={`directory-item ${face}-item user`}
-              onClick={() => onEntryClick(entry)}
+              key={char.id} 
+              className="directory-item character-item user"
+              onClick={() => onCharacterClick(char)}
             >
               <div className="dir-item-header">
-                <span className="dir-item-name">{artifact.name}</span>
-                <span className="dir-item-level user">user</span>
+                <span className="dir-item-name">{char.name}</span>
+                <span className="dir-item-level user">
+                  {char.isNpc ? 'NPC' : 'PC'}
+                </span>
               </div>
               <div className="dir-item-meta">
-                <span className="dir-item-type">{artifact.type}</span>
+                <span className="dir-item-type">
+                  {char.inhabitedBy ? '● inhabited' : '○ available'}
+                </span>
+                {char.description && (
+                  <span className="dir-item-desc" title={char.description}>
+                    {char.description.slice(0, 40)}{char.description.length > 40 ? '...' : ''}
+                  </span>
+                )}
               </div>
             </div>
-          )
-        })
+          ))
+        ) : (
+          <div className="directory-empty">
+            No characters in this cosmology yet.
+            <br />
+            Switch to Author face to create characters.
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Author face: show all content from database (locations, items, lore, etc.)
+  return (
+    <div className="directory-list">
+      <div className="directory-section-label">World Content</div>
+      {contentEntries.length > 0 ? (
+        contentEntries.map(content => (
+          <div 
+            key={content.id} 
+            className="directory-item author-item user"
+            onClick={() => onContentClick(content)}
+          >
+            <div className="dir-item-header">
+              <span className="dir-item-name">{content.name}</span>
+              <span className="dir-item-level user">{content.contentType}</span>
+            </div>
+            <div className="dir-item-meta">
+              <span className="dir-item-type">
+                {new Date(content.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+        ))
       ) : (
         <div className="directory-empty">
-          No {label.toLowerCase()} created yet.
+          No world content created yet.
           <br />
-          Use [⚡] to create one, or type a {face === 'character' ? 'CHARACTER_CREATE' : 'WORLD_CREATE'} document.
+          Describe locations, items, or lore to populate the directory.
         </div>
       )}
     </div>
