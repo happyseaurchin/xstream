@@ -40,6 +40,7 @@ export interface UseFrameChannelReturn {
   
   // Actions
   broadcastVapor: (text: string) => void
+  broadcastLiquidClear: (face: Face) => void  // Phase 0.10.3.2: Signal all users to clear liquid
   
   // Error state
   error: string | null
@@ -66,6 +67,9 @@ export function useFrameChannel({
   const channelRef = useRef<RealtimeChannel | null>(null)
   const lastVaporBroadcast = useRef<number>(0)
   const isConnectedRef = useRef<boolean>(false) // Mirror for callback use
+  
+  // Phase 0.10.3.2: Callback for liquid clear events
+  const onLiquidClearRef = useRef<((face: Face) => void) | null>(null)
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -178,6 +182,15 @@ export function useFrameChannel({
         }
         return prev
       })
+    })
+
+    // Phase 0.10.3.2: Handle liquid-clear broadcasts
+    // When any user commits, all users clear liquid for that face
+    channel.on('broadcast', { event: 'liquid-clear' }, ({ payload }) => {
+      console.log('[Liquid-Clear] Received for face:', payload.face, 'from:', payload.triggered_by)
+      if (onLiquidClearRef.current) {
+        onLiquidClearRef.current(payload.face)
+      }
     })
 
     // Subscribe and track our presence
@@ -321,13 +334,39 @@ export function useFrameChannel({
     })
   }, [userId, userName, face])
 
+  // Phase 0.10.3.2: Broadcast liquid clear to all users in frame
+  const broadcastLiquidClear = useCallback((targetFace: Face) => {
+    const channel = channelRef.current
+    if (!channel || !isConnectedRef.current) {
+      console.log('[Liquid-Clear] Cannot broadcast - no channel or not connected')
+      return
+    }
+    
+    console.log('[Liquid-Clear] Broadcasting for face:', targetFace)
+    channel.send({
+      type: 'broadcast',
+      event: 'liquid-clear',
+      payload: {
+        face: targetFace,
+        triggered_by: userId,
+      },
+    }).then(result => {
+      console.log('[Liquid-Clear] Broadcast result:', result)
+    })
+  }, [userId])
+
   return {
     presentUsers,
     isConnected,
     othersVapor,
     broadcastVapor,
+    broadcastLiquidClear,
     error,
-  }
+    // Phase 0.10.3.2: Allow setting callback for liquid clear events
+    _setOnLiquidClear: (callback: ((face: Face) => void) | null) => {
+      onLiquidClearRef.current = callback
+    },
+  } as UseFrameChannelReturn & { _setOnLiquidClear: (callback: ((face: Face) => void) | null) => void }
 }
 
 // Helper to get/set display name
