@@ -137,19 +137,12 @@ function App() {
   }, [auth.profile?.displayName])
 
   // Load characters when frame changes + realtime subscription
-  // Phase 0.10.3: Query by cosmology (frame is container)
-  // Phase 0.10.3.1: Added realtime subscription for new characters
-  // Phase 0.10.3.2: Fixed TypeScript null check for supabase
-  // TODO Plex 2: Replace with pscale-based filtering via Hard-LLM coordinate proximity
   useEffect(() => {
     if (!frameId || !supabase) {
       setFrameCharacters([])
       setSelectedCharacterId(null)
       return
     }
-
-    // Store cosmology_id for subscription filter
-    let cosmologyId: string | null = null
 
     const loadCharacters = async () => {
       if (!supabase) return
@@ -168,11 +161,8 @@ function App() {
         return
       }
       
-      cosmologyId = frameData.cosmology_id
+      const cosmologyId = frameData.cosmology_id
       
-      // Get all characters in this cosmology
-      // Plex 1: All characters in cosmology appear in dropdown
-      // Plex 2: Hard-LLM will filter by pscale proximity
       const { data, error } = await supabase
         .from('characters')
         .select('id, name, is_npc, inhabited_by')
@@ -203,7 +193,6 @@ function App() {
     loadCharacters()
 
     // Realtime subscription for character changes
-    // Reloads when Hard-LLM creates new characters via author synthesis
     const channel = supabase
       .channel(`characters-${frameId}`)
       .on(
@@ -211,7 +200,6 @@ function App() {
         { event: '*', schema: 'public', table: 'characters' },
         () => {
           console.log('[App] Character change detected, reloading...')
-          // Reload all characters (filter happens in loadCharacters)
           loadCharacters()
         }
       )
@@ -224,38 +212,13 @@ function App() {
   }, [frameId, userId])
 
   // Hooks - only active when authenticated
-  // Phase 0.10.3.2: Added broadcastLiquidClear for coordinated liquid clearing
-  const frameChannel = useFrameChannel({ frameId, userId, userName, face })
   const { 
     presentUsers, 
     isConnected, 
     othersVapor,
     broadcastVapor, 
-    broadcastLiquidClear,
     error: channelError 
-  } = frameChannel
-
-  // Phase 0.10.3.2: Set up liquid-clear callback
-  // When any user commits, all users clear liquid for that face
-  useEffect(() => {
-    const channelWithCallback = frameChannel as typeof frameChannel & { 
-      _setOnLiquidClear?: (callback: ((face: Face) => void) | null) => void 
-    }
-    
-    if (channelWithCallback._setOnLiquidClear) {
-      channelWithCallback._setOnLiquidClear((clearedFace: Face) => {
-        console.log('[App] Received liquid-clear for face:', clearedFace)
-        // Clear local entries for this face
-        setEntries(prev => prev.filter(e => !(e.face === clearedFace && e.state === 'submitted')))
-        // Reset history index
-        setLiquidHistoryIndex(0)
-      })
-      
-      return () => {
-        channelWithCallback._setOnLiquidClear?.(null)
-      }
-    }
-  }, [frameChannel])
+  } = useFrameChannel({ frameId, userId, userName, face })
 
   const {
     liquidEntries: dbLiquidEntries,
@@ -265,12 +228,9 @@ function App() {
   } = useLiquidSubscription({ frameId, userId })
 
   // Solid entries from database
-  // Phase 0.10.3.2: Added clearSolid for clearing log on clear button
   const { solidEntries: dbSolidEntries, clearSolid } = useSolidSubscription({ frameId })
 
-  // Phase 0.10.3.2: Content and character entries for directory view
-  // Queries by cosmology_id - content belongs to world, frame views it
-  // Added deleteContent and deleteCharacter for directory item deletion
+  // Content and character entries for directory view
   const {
     contentEntries: dbContentEntries,
     characterEntries: dbCharacterEntries,
@@ -283,7 +243,6 @@ function App() {
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
   // LIQUID: Only submitted entries for this face - staging area only
-  // Committed entries are removed immediately, result appears in solid
   const myLiquidEntries = entries
     .filter(e => e.face === face && e.state === 'submitted')
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -353,11 +312,9 @@ function App() {
   // Helper: Replace the current active entry for a face
   const replaceActiveEntry = useCallback((newEntry: ShelfEntry, targetFace: Face) => {
     setEntries(prev => {
-      // Remove any existing submitted entry for this face
       const filtered = prev.filter(e => !(e.face === targetFace && e.state === 'submitted'))
       return [...filtered, newEntry]
     })
-    // Reset to newest entry after adding
     setLiquidHistoryIndex(0)
   }, [])
 
@@ -397,9 +354,7 @@ function App() {
     }
   }
 
-  // Phase 0.7: Generate response using Medium-LLM synthesis
-  // Phase 0.9.3: Added detailed logging and timeout safety
-  // Phase 0.10.3.2: Added liquid clear broadcast on success
+  // Generate response using Medium-LLM synthesis
   const generateResponse = async (entry: ShelfEntry) => {
     console.log('[App] generateResponse START', { entryId: entry.id, frameId: entry.frameId, face: entry.face })
     setIsLoading(true)
@@ -419,12 +374,7 @@ function App() {
       let createdSkill = null
 
       if (entry.frameId) {
-        console.log('[App] Step 1: Calling commitLiquid...', { 
-          userName: selectedCharacter?.name || userName,
-          characterId: selectedCharacterId,
-          currentFrameId: frameId,
-          entryFrameId: entry.frameId
-        })
+        console.log('[App] Step 1: Calling commitLiquid...')
         
         const liquidId = await commitLiquid({
           userName: selectedCharacter?.name || userName,
@@ -436,7 +386,7 @@ function App() {
         console.log('[App] Step 2: commitLiquid returned:', liquidId)
         
         if (!liquidId) {
-          throw new Error('Failed to commit to liquid table - commitLiquid returned null (frameId or supabase may be null)')
+          throw new Error('Failed to commit to liquid table')
         }
 
         console.log('[App] Step 3: Calling generate-v2 edge function...')
@@ -454,18 +404,9 @@ function App() {
 
         if (data.result?.skillData) createdSkill = data.result.skillData
 
-        console.log('[App] Step 6: Medium mode synthesis complete:', {
-          solidId: data.stored?.solidId,
-          contentId: data.stored?.contentId,
-          skillId: data.stored?.skillId,
-        })
+        console.log('[App] Step 6: Synthesis complete')
         
-        // Phase 0.10.3.2: Broadcast liquid clear to all users
-        // This ensures everyone's liquid panel clears, not just the committing user
-        console.log('[App] Step 7: Broadcasting liquid-clear for face:', entry.face)
-        broadcastLiquidClear(entry.face)
-        
-        // Also clear our own local entries immediately (don't wait for broadcast roundtrip)
+        // Clear local entries for this face after successful synthesis
         setEntries(prev => prev.filter(e => !(e.face === entry.face && e.state === 'submitted')))
         setLiquidHistoryIndex(0)
 
@@ -573,13 +514,11 @@ function App() {
     setSolidView('log')
   }
 
-  // Phase 0.10.3.2: Delete content handler for directory
   const handleDeleteContent = useCallback((contentId: string) => {
     console.log('[App] Deleting content:', contentId)
     deleteContent(contentId)
   }, [deleteContent])
 
-  // Phase 0.10.3.2: Delete character handler for directory
   const handleDeleteCharacter = useCallback((characterId: string) => {
     console.log('[App] Deleting character:', characterId)
     deleteCharacter(characterId)
@@ -603,7 +542,6 @@ function App() {
     })
   }, [myLiquidEntries.length])
 
-  // Copy liquid text to vapor for editing
   const handleCopyToVapor = useCallback((text: string) => {
     setInput(text)
     setTimeout(() => vaporPanelRef.current?.focus(), 10)
@@ -663,7 +601,6 @@ function App() {
   }
 
   const handleSubmit = () => {
-    // If vapor has content, submit it to liquid
     if (input.trim()) {
       const parsed = parseInputTypography(input)
       if (parsed.route === 'solid') { handleCommitDirect(parsed.text); return }
@@ -671,7 +608,6 @@ function App() {
       return
     }
     
-    // If vapor is empty but liquid exists, clear the liquid
     if (hasLiquidToClear) {
       const currentLiquid = myLiquidEntries[liquidHistoryIndex]
       if (currentLiquid) {
@@ -697,7 +633,6 @@ function App() {
       artifactType: artifact?.type 
     }
     setInput('')
-    // Don't add to entries - just send directly for processing
     await generateResponse(entry)
   }
 
@@ -711,8 +646,7 @@ function App() {
     
     console.log('[App] Found entry:', { id: entry.id, text: entry.text.slice(0, 50), frameId: entry.frameId })
     
-    // Remove entry from local state immediately - liquid is staging only
-    // Note: generateResponse will also clear + broadcast, but this gives immediate feedback
+    // Remove entry from local state immediately
     setEntries(prev => prev.filter(e => e.id !== entryId))
     
     // Process the entry
@@ -731,16 +665,13 @@ function App() {
     }
   }
 
-  // Phase 0.10.3.2: Clear now also clears solid log
   const handleClear = () => {
     setInput('')
     setSoftResponse(null)
-    // Clear all submitted entries for current face
     setEntries(prev => prev.filter(e => !(e.face === face && e.state === 'submitted')))
     if (frameId) {
       deleteLiquid()
       broadcastVapor('')
-      // Clear solid log entries for this frame
       clearSolid()
     }
   }
@@ -748,7 +679,6 @@ function App() {
   const handleNameChange = (name: string) => {
     setDisplayName(name)
     setUserName(name)
-    // Also update profile if authenticated
     if (auth.user) {
       auth.updateProfile({ displayName: name })
     }
@@ -791,9 +721,6 @@ function App() {
     return <AuthPage auth={auth} />
   }
 
-  // User is authenticated - go directly to main app
-  // Character creation happens via LLM in vapour zone (Phase 0.9.2)
-
   return (
     <div className="app">
       <header className="header">
@@ -808,7 +735,6 @@ function App() {
           </select>
         </div>
         <div className="header-controls">
-          {/* Character selector - only show when in character face and frame selected */}
           {face === 'character' && frameId && frameCharacters.length > 0 && (
             <select 
               value={selectedCharacterId || ''} 
