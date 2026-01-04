@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
-export type Face = 'player' | 'author' | 'designer'
+// Phase 0.10.3.3: Fixed Face type (character, not player)
+export type Face = 'character' | 'author' | 'designer'
 
 export interface SolidEntry {
   id: string
@@ -16,21 +17,30 @@ export interface SolidEntry {
 
 export interface UseSolidSubscriptionOptions {
   frameId: string | null
+  // Phase 0.10.3.3: Callback when placeholder solid (synthesis starting) is detected
+  onSynthesisStart?: (face: Face) => void
 }
 
 export interface UseSolidSubscriptionReturn {
   solidEntries: SolidEntry[]
   isLoading: boolean
   error: string | null
-  clearSolid: () => Promise<void>  // Phase 0.10.3.2: Clear all solid entries for frame
+  clearSolid: () => Promise<void>
 }
 
 export function useSolidSubscription({
   frameId,
+  onSynthesisStart,
 }: UseSolidSubscriptionOptions): UseSolidSubscriptionReturn {
   const [solidEntries, setSolidEntries] = useState<SolidEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Use ref to avoid stale closure in subscription callback
+  const onSynthesisStartRef = useRef(onSynthesisStart)
+  useEffect(() => {
+    onSynthesisStartRef.current = onSynthesisStart
+  }, [onSynthesisStart])
 
   // Transform database row to SolidEntry
   const transformRow = (row: Record<string, unknown>): SolidEntry => ({
@@ -50,7 +60,6 @@ export function useSolidSubscription({
       return
     }
 
-    // Capture supabase reference for async use
     const sb = supabase
 
     const loadSolid = async () => {
@@ -101,6 +110,13 @@ export function useSolidSubscription({
 
           if (payload.eventType === 'INSERT' && newRecord) {
             const newEntry = transformRow(newRecord)
+            
+            // Phase 0.10.3.3: Detect placeholder solid (narrative=null means synthesis starting)
+            if (newEntry.narrative === null && onSynthesisStartRef.current) {
+              console.log('[Solid] Placeholder detected - synthesis starting for face:', newEntry.face)
+              onSynthesisStartRef.current(newEntry.face)
+            }
+            
             setSolidEntries(prev => {
               // Avoid duplicates
               if (prev.some(e => e.id === newEntry.id)) return prev
@@ -129,7 +145,7 @@ export function useSolidSubscription({
     }
   }, [frameId])
 
-  // Phase 0.10.3.2: Clear all solid entries for current frame
+  // Clear all solid entries for current frame
   const clearSolid = useCallback(async () => {
     if (!frameId || !supabase) return
 
@@ -146,7 +162,6 @@ export function useSolidSubscription({
         throw err
       }
 
-      // Local state will update via realtime subscription
       console.log('[Solid] Cleared successfully')
     } catch (err) {
       console.error('[Solid] Clear failed:', err)
