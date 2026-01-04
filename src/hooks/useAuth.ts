@@ -83,6 +83,8 @@ export function useAuth(): UseAuthReturn {
     const initAuth = async () => {
       try {
         console.log('[Auth] Getting session...')
+        // Phase 0.10.3.2: Add null check for supabase
+        if (!supabase) return
         const { data: { session: s }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
@@ -119,6 +121,7 @@ export function useAuth(): UseAuthReturn {
     initAuth()
 
     // Listen for auth changes
+    // Phase 0.10.3.2: Add null check for supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
         console.log('[Auth] State change:', event)
