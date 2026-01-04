@@ -11,6 +11,9 @@
  * Phase 0.10.3: Added placeholder solid creation for shared spinner.
  * All players see the solid appear immediately (with null narrative = spinner),
  * then see the narrative appear when synthesis completes.
+ * 
+ * Phase 0.10.3.2: markLiquidProcessed now actually DELETES liquid entries
+ * so all users see liquid clear when synthesis completes.
  */
 
 import type { SynthesisContext, SynthesisResult, StoredSolid } from './types.ts';
@@ -54,7 +57,7 @@ export async function createPlaceholderSolid(
 ): Promise<string> {
   const solidId = crypto.randomUUID();
   
-  // Get participant IDs for character face
+  // Get participant IDs - ALL users with liquid for this face (not just committed)
   let participantIds: string[];
   let sourceLiquidIds: string[];
   
@@ -64,8 +67,18 @@ export async function createPlaceholderSolid(
         .filter(e => isCharacterFace(e.face))
         .map(e => e.user_id)
     )];
+    // Phase 0.10.3.2: Include ALL liquid for this face, not just committed
     sourceLiquidIds = context.allLiquid
-      .filter(e => isCharacterFace(e.face) && e.committed)
+      .filter(e => isCharacterFace(e.face))
+      .map(e => e.id);
+  } else if (face === 'author') {
+    participantIds = [...new Set(
+      context.allLiquid
+        .filter(e => e.face === 'author')
+        .map(e => e.user_id)
+    )];
+    sourceLiquidIds = context.allLiquid
+      .filter(e => e.face === 'author')
       .map(e => e.id);
   } else {
     participantIds = [context.trigger.userId];
@@ -374,19 +387,32 @@ export async function routeDesignerResult(
 }
 
 /**
- * Clean up liquid entries after synthesis.
- * Mark committed entries as processed (don't delete - keep as audit trail).
+ * Phase 0.10.3.2: Delete liquid entries after synthesis.
  * 
- * Note: For Phase 0.7, we don't delete liquid entries.
- * They remain as a record of what was submitted.
- * Cleanup strategy may evolve in Phase 0.8.
+ * When synthesis completes, ALL liquid for that face should be cleared.
+ * This triggers realtime DELETE events so all users see liquid disappear.
+ * The solid entry serves as the audit trail (contains source_liquid_ids).
  */
 export async function markLiquidProcessed(
   supabase: any,
   liquidIds: string[]
 ): Promise<void> {
-  // For now, we keep liquid entries as-is
-  // The 'committed' flag already marks them as processed
-  // Future: may add 'processed_at' timestamp or 'solid_id' reference
-  console.log(`Liquid entries processed: ${liquidIds.join(', ')}`);
+  if (liquidIds.length === 0) {
+    console.log('[Router] No liquid entries to delete');
+    return;
+  }
+  
+  console.log('[Router] Deleting processed liquid entries:', liquidIds.length);
+  
+  const { error } = await supabase
+    .from('liquid')
+    .delete()
+    .in('id', liquidIds);
+  
+  if (error) {
+    console.error('[Router] Error deleting liquid entries:', error);
+    // Don't throw - synthesis succeeded, cleanup failure is non-fatal
+  } else {
+    console.log('[Router] Deleted liquid entries:', liquidIds.join(', '));
+  }
 }
