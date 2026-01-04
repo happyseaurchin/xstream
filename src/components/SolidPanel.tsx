@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { FrameSkill, Face, SolidView } from '../types'
 import type { SolidEntry } from '../hooks/useSolidSubscription'
 import type { ContentEntry, CharacterEntry } from '../hooks/useContentSubscription'
@@ -15,8 +16,8 @@ interface SolidPanelProps {
   isLoadingDirectory: boolean
   showMeta: boolean
   onSkillClick: (skill: FrameSkill) => void
-  onContentClick: (content: ContentEntry) => void
-  onCharacterClick: (character: CharacterEntry) => void
+  onDeleteContent: (contentId: string) => void     // Phase 0.10.3.2: Delete content
+  onDeleteCharacter: (characterId: string) => void // Phase 0.10.3.2: Delete character
 }
 
 export function SolidPanel({
@@ -31,8 +32,8 @@ export function SolidPanel({
   isLoadingDirectory,
   showMeta,
   onSkillClick,
-  onContentClick,
-  onCharacterClick,
+  onDeleteContent,
+  onDeleteCharacter,
 }: SolidPanelProps) {
   return (
     <section className="solid-zone">
@@ -66,8 +67,8 @@ export function SolidPanel({
             characterEntries={characterEntries}
             isLoading={isLoadingDirectory}
             onSkillClick={onSkillClick}
-            onContentClick={onContentClick}
-            onCharacterClick={onCharacterClick}
+            onDeleteContent={onDeleteContent}
+            onDeleteCharacter={onDeleteCharacter}
           />
         )}
       </div>
@@ -122,7 +123,7 @@ function LogView({ entries, face, showMeta }: { entries: SolidEntry[], face: Fac
 }
 
 // Directory view subcomponent
-// Phase 0.10.3.2: Now queries database tables instead of local React state
+// Phase 0.10.3.2: Now shows read-only cards with delete buttons (no loading into liquid)
 function DirectoryView({
   face,
   frameId,
@@ -131,8 +132,8 @@ function DirectoryView({
   characterEntries,
   isLoading,
   onSkillClick,
-  onContentClick,
-  onCharacterClick,
+  onDeleteContent,
+  onDeleteCharacter,
 }: {
   face: Face
   frameId: string | null
@@ -141,11 +142,40 @@ function DirectoryView({
   characterEntries: CharacterEntry[]
   isLoading: boolean
   onSkillClick: (skill: FrameSkill) => void
-  onContentClick: (content: ContentEntry) => void
-  onCharacterClick: (character: CharacterEntry) => void
+  onDeleteContent: (contentId: string) => void
+  onDeleteCharacter: (characterId: string) => void
 }) {
+  // Track which item is expanded for read-only view
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Track pending delete confirmation
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingDeleteType, setPendingDeleteType] = useState<'content' | 'character' | null>(null)
+
   if (isLoading) {
     return <div className="directory-loading">Loading...</div>
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string, type: 'content' | 'character') => {
+    e.stopPropagation()
+    setPendingDeleteId(id)
+    setPendingDeleteType(type)
+  }
+
+  const handleConfirmDelete = () => {
+    if (pendingDeleteId && pendingDeleteType) {
+      if (pendingDeleteType === 'content') {
+        onDeleteContent(pendingDeleteId)
+      } else {
+        onDeleteCharacter(pendingDeleteId)
+      }
+    }
+    setPendingDeleteId(null)
+    setPendingDeleteType(null)
+  }
+
+  const handleCancelDelete = () => {
+    setPendingDeleteId(null)
+    setPendingDeleteType(null)
   }
 
   // Designer: show skills from database
@@ -182,36 +212,62 @@ function DirectoryView({
     )
   }
 
-  // Character face: show characters from database
+  // Character face: show characters from database (read-only with delete)
   if (face === 'character') {
     return (
       <div className="directory-list">
         <div className="directory-section-label">Characters</div>
+        
+        {/* Delete confirmation dialog */}
+        {pendingDeleteId && pendingDeleteType === 'character' && (
+          <div className="delete-confirm-dialog">
+            <span>Delete this character?</span>
+            <div className="delete-confirm-buttons">
+              <button className="confirm-yes" onClick={handleConfirmDelete}>Yes</button>
+              <button className="confirm-no" onClick={handleCancelDelete}>No</button>
+            </div>
+          </div>
+        )}
+        
         {characterEntries.length > 0 ? (
-          characterEntries.map(char => (
-            <div 
-              key={char.id} 
-              className="directory-item character-item user"
-              onClick={() => onCharacterClick(char)}
-            >
-              <div className="dir-item-header">
-                <span className="dir-item-name">{char.name}</span>
-                <span className="dir-item-level user">
-                  {char.isNpc ? 'NPC' : 'PC'}
-                </span>
-              </div>
-              <div className="dir-item-meta">
-                <span className="dir-item-type">
-                  {char.inhabitedBy ? '● inhabited' : '○ available'}
-                </span>
-                {char.description && (
-                  <span className="dir-item-desc" title={char.description}>
-                    {char.description.slice(0, 40)}{char.description.length > 40 ? '...' : ''}
-                  </span>
+          characterEntries.map(char => {
+            const isExpanded = expandedId === char.id
+            return (
+              <div 
+                key={char.id} 
+                className={`directory-item character-item user ${isExpanded ? 'expanded' : ''}`}
+                onClick={() => setExpandedId(isExpanded ? null : char.id)}
+              >
+                <div className="dir-item-header">
+                  <span className="dir-item-name">{char.name}</span>
+                  <div className="dir-item-actions">
+                    <span className="dir-item-level user">
+                      {char.isNpc ? 'NPC' : 'PC'}
+                    </span>
+                    <button 
+                      className="dir-item-delete"
+                      onClick={(e) => handleDeleteClick(e, char.id, 'character')}
+                      title="Delete character"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                {isExpanded && char.description && (
+                  <div className="dir-item-expanded">
+                    {char.description}
+                  </div>
+                )}
+                {!isExpanded && (
+                  <div className="dir-item-meta">
+                    <span className="dir-item-type">
+                      {char.inhabitedBy ? '● inhabited' : '○ available'}
+                    </span>
+                  </div>
                 )}
               </div>
-            </div>
-          ))
+            )
+          })
         ) : (
           <div className="directory-empty">
             No characters in this cosmology yet.
@@ -223,28 +279,60 @@ function DirectoryView({
     )
   }
 
-  // Author face: show all content from database (locations, items, lore, etc.)
+  // Author face: show all content from database (read-only with delete)
   return (
     <div className="directory-list">
       <div className="directory-section-label">World Content</div>
-      {contentEntries.length > 0 ? (
-        contentEntries.map(content => (
-          <div 
-            key={content.id} 
-            className="directory-item author-item user"
-            onClick={() => onContentClick(content)}
-          >
-            <div className="dir-item-header">
-              <span className="dir-item-name">{content.name}</span>
-              <span className="dir-item-level user">{content.contentType}</span>
-            </div>
-            <div className="dir-item-meta">
-              <span className="dir-item-type">
-                {new Date(content.createdAt).toLocaleDateString()}
-              </span>
-            </div>
+      
+      {/* Delete confirmation dialog */}
+      {pendingDeleteId && pendingDeleteType === 'content' && (
+        <div className="delete-confirm-dialog">
+          <span>Delete this content?</span>
+          <div className="delete-confirm-buttons">
+            <button className="confirm-yes" onClick={handleConfirmDelete}>Yes</button>
+            <button className="confirm-no" onClick={handleCancelDelete}>No</button>
           </div>
-        ))
+        </div>
+      )}
+      
+      {contentEntries.length > 0 ? (
+        contentEntries.map(content => {
+          const isExpanded = expandedId === content.id
+          const description = (content.data as Record<string, unknown>)?.description as string | undefined
+          return (
+            <div 
+              key={content.id} 
+              className={`directory-item author-item user ${isExpanded ? 'expanded' : ''}`}
+              onClick={() => setExpandedId(isExpanded ? null : content.id)}
+            >
+              <div className="dir-item-header">
+                <span className="dir-item-name">{content.name}</span>
+                <div className="dir-item-actions">
+                  <span className="dir-item-level user">{content.contentType}</span>
+                  <button 
+                    className="dir-item-delete"
+                    onClick={(e) => handleDeleteClick(e, content.id, 'content')}
+                    title="Delete content"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              {isExpanded && description && (
+                <div className="dir-item-expanded">
+                  {description}
+                </div>
+              )}
+              {!isExpanded && (
+                <div className="dir-item-meta">
+                  <span className="dir-item-type">
+                    {new Date(content.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          )
+        })
       ) : (
         <div className="directory-empty">
           No world content created yet.
