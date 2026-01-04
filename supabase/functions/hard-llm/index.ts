@@ -1,6 +1,6 @@
 /**
  * Hard-LLM: Background Coordination Layer
- * Phase 0.10.3 - Entity extraction and filing for author content
+ * Phase 0.10.3.1 - Entity extraction with proper frame_id filing
  * Deployed via GitHub Actions
  */
 
@@ -544,12 +544,13 @@ async function cacheOperationalFrames(supabase: any, frames: OperationalFrame[])
 }
 
 /**
- * Phase 0.10.3: File extracted entities to database
- * Fixed: removed invalid created_by fields that caused insert failures
+ * Phase 0.10.3.1: File extracted entities to database
+ * Fixed: Now includes frame_id for content entries
  */
 async function fileExtractedEntities(
   supabase: any,
   cosmologyId: string,
+  frameId: string,
   entities: EntityExtraction[]
 ): Promise<{ characters: string[]; content: string[] }> {
   const filed = { characters: [] as string[], content: [] as string[] };
@@ -557,7 +558,6 @@ async function fileExtractedEntities(
   for (const entity of entities) {
     if (entity.type === 'character') {
       // File to characters table
-      // Note: created_by is UUID type, so we leave it null for system-created entities
       const characterId = crypto.randomUUID();
       const { error } = await supabase
         .from('characters')
@@ -567,7 +567,6 @@ async function fileExtractedEntities(
           name: entity.name,
           description: entity.description,
           is_npc: entity.is_npc ?? true,
-          // created_by: null (default) - can't use string 'hard-llm' for UUID column
         });
       
       if (error) {
@@ -578,24 +577,24 @@ async function fileExtractedEntities(
       }
     } else {
       // File to content table (location, item, event, faction, lore)
-      // Note: content table has author_id (UUID), not created_by
+      // Phase 0.10.3.1: Now includes frame_id for proper filtering
       const contentId = crypto.randomUUID();
       const { error } = await supabase
         .from('content')
         .insert({
           id: contentId,
           cosmology_id: cosmologyId,
+          frame_id: frameId,  // Added: enables filtering by frame
           content_type: entity.type,
           name: entity.name,
           data: { description: entity.description },
           active: true,
-          // author_id: null (default) - system-created content has no author
         });
       
       if (error) {
         console.error('[Hard-LLM] Error filing content:', entity.name, error);
       } else {
-        console.log(`[Hard-LLM] Filed ${entity.type}: ${entity.name} (${contentId.slice(0, 8)})`);
+        console.log(`[Hard-LLM] Filed ${entity.type}: ${entity.name} (${contentId.slice(0, 8)}) to frame ${frameId.slice(0, 8)}`);
         filed.content.push(contentId);
       }
     }
@@ -702,10 +701,10 @@ Deno.serve(async (req: Request) => {
         entities: result.entities_extracted?.length || 0,
       });
 
-      // File extracted entities
+      // File extracted entities - now with frame_id
       if (cosmology && result.entities_extracted && result.entities_extracted.length > 0) {
-        console.log('[Hard-LLM] Filing', result.entities_extracted.length, 'entities to cosmology', cosmology.id.slice(0, 8));
-        entitiesFiled = await fileExtractedEntities(supabase, cosmology.id, result.entities_extracted);
+        console.log('[Hard-LLM] Filing', result.entities_extracted.length, 'entities to cosmology', cosmology.id.slice(0, 8), 'frame', request.frame_id.slice(0, 8));
+        entitiesFiled = await fileExtractedEntities(supabase, cosmology.id, request.frame_id, result.entities_extracted);
         console.log('[Hard-LLM] Filed entities:', entitiesFiled);
       } else {
         console.log('[Hard-LLM] No entities to file:', {
