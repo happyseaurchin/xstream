@@ -224,13 +224,38 @@ function App() {
   }, [frameId, userId])
 
   // Hooks - only active when authenticated
+  // Phase 0.10.3.2: Added broadcastLiquidClear for coordinated liquid clearing
+  const frameChannel = useFrameChannel({ frameId, userId, userName, face })
   const { 
     presentUsers, 
     isConnected, 
     othersVapor,
     broadcastVapor, 
+    broadcastLiquidClear,
     error: channelError 
-  } = useFrameChannel({ frameId, userId, userName, face })
+  } = frameChannel
+
+  // Phase 0.10.3.2: Set up liquid-clear callback
+  // When any user commits, all users clear liquid for that face
+  useEffect(() => {
+    const channelWithCallback = frameChannel as typeof frameChannel & { 
+      _setOnLiquidClear?: (callback: ((face: Face) => void) | null) => void 
+    }
+    
+    if (channelWithCallback._setOnLiquidClear) {
+      channelWithCallback._setOnLiquidClear((clearedFace: Face) => {
+        console.log('[App] Received liquid-clear for face:', clearedFace)
+        // Clear local entries for this face
+        setEntries(prev => prev.filter(e => !(e.face === clearedFace && e.state === 'submitted')))
+        // Reset history index
+        setLiquidHistoryIndex(0)
+      })
+      
+      return () => {
+        channelWithCallback._setOnLiquidClear?.(null)
+      }
+    }
+  }, [frameChannel])
 
   const {
     liquidEntries: dbLiquidEntries,
@@ -374,6 +399,7 @@ function App() {
 
   // Phase 0.7: Generate response using Medium-LLM synthesis
   // Phase 0.9.3: Added detailed logging and timeout safety
+  // Phase 0.10.3.2: Added liquid clear broadcast on success
   const generateResponse = async (entry: ShelfEntry) => {
     console.log('[App] generateResponse START', { entryId: entry.id, frameId: entry.frameId, face: entry.face })
     setIsLoading(true)
@@ -433,6 +459,15 @@ function App() {
           contentId: data.stored?.contentId,
           skillId: data.stored?.skillId,
         })
+        
+        // Phase 0.10.3.2: Broadcast liquid clear to all users
+        // This ensures everyone's liquid panel clears, not just the committing user
+        console.log('[App] Step 7: Broadcasting liquid-clear for face:', entry.face)
+        broadcastLiquidClear(entry.face)
+        
+        // Also clear our own local entries immediately (don't wait for broadcast roundtrip)
+        setEntries(prev => prev.filter(e => !(e.face === entry.face && e.state === 'submitted')))
+        setLiquidHistoryIndex(0)
 
       } else {
         console.log('[App] No frameId on entry - using non-frame path')
@@ -677,6 +712,7 @@ function App() {
     console.log('[App] Found entry:', { id: entry.id, text: entry.text.slice(0, 50), frameId: entry.frameId })
     
     // Remove entry from local state immediately - liquid is staging only
+    // Note: generateResponse will also clear + broadcast, but this gives immediate feedback
     setEntries(prev => prev.filter(e => e.id !== entryId))
     
     // Process the entry
