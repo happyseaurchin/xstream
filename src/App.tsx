@@ -227,8 +227,19 @@ function App() {
     deleteLiquid,
   } = useLiquidSubscription({ frameId, userId })
 
+  // Phase 0.10.3.3: When placeholder solid appears (synthesis starting), clear local liquid for that face
+  // This callback is triggered by realtime subscription when solid with narrative=null is inserted
+  const handleSynthesisStart = useCallback((synthesizingFace: Face) => {
+    console.log('[App] Synthesis started for face:', synthesizingFace, '- clearing local liquid')
+    setEntries(prev => prev.filter(e => !(e.face === synthesizingFace && e.state === 'submitted')))
+    setLiquidHistoryIndex(0)
+  }, [])
+
   // Solid entries from database
-  const { solidEntries: dbSolidEntries, clearSolid } = useSolidSubscription({ frameId })
+  const { solidEntries: dbSolidEntries, clearSolid } = useSolidSubscription({ 
+    frameId,
+    onSynthesisStart: handleSynthesisStart,
+  })
 
   // Content and character entries for directory view
   const {
@@ -406,9 +417,8 @@ function App() {
 
         console.log('[App] Step 6: Synthesis complete')
         
-        // Clear local entries for this face after successful synthesis
-        setEntries(prev => prev.filter(e => !(e.face === entry.face && e.state === 'submitted')))
-        setLiquidHistoryIndex(0)
+        // Note: Local liquid clearing now happens via onSynthesisStart callback
+        // when placeholder solid is detected by realtime subscription
 
       } else {
         console.log('[App] No frameId on entry - using non-frame path')
