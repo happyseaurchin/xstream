@@ -427,6 +427,92 @@
   color: var(--color-text-muted);
 }
 
+/* Phase 0.10.3.2: Directory item actions (level badge + delete button) */
+.dir-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.dir-item-delete {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.directory-item:hover .dir-item-delete {
+  opacity: 0.6;
+}
+
+.dir-item-delete:hover {
+  opacity: 1 !important;
+  color: var(--color-error, #f87171);
+  background: var(--color-bg);
+}
+
+/* Phase 0.10.3.2: Expanded view for directory items */
+.directory-item.expanded {
+  background: var(--color-bg);
+}
+
+.dir-item-expanded {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--color-border);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
+
+/* Phase 0.10.3.2: Delete confirmation dialog */
+.delete-confirm-dialog {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-error, #f87171);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.delete-confirm-buttons {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.delete-confirm-buttons button {
+  padding: 0.2rem 0.5rem;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: opacity 0.15s ease;
+}
+
+.delete-confirm-buttons .confirm-yes {
+  background: var(--color-error, #f87171);
+  color: white;
+}
+
+.delete-confirm-buttons .confirm-no {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+}
+
 /* ================================================
    LIQUID Zone
    ================================================ */
