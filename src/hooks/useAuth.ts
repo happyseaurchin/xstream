@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
@@ -21,14 +21,18 @@ export interface UseAuthReturn {
   updateProfile: (updates: Partial<Pick<UserProfile, 'displayName' | 'defaultFace' | 'preferences'>>) => Promise<boolean>
 }
 
+// Auth initialization timeout (ms) - prevents frozen loading screen
+const AUTH_TIMEOUT_MS = 5000
+
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
 
-  // Load user profile from users table
+  // Load user profile from users table (non-blocking - UI can render without it)
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return null
     
@@ -40,7 +44,8 @@ export function useAuth(): UseAuthReturn {
         .single()
       
       if (err) {
-        console.error('[Auth] Profile load error:', err)
+        // User might not exist in users table yet - that's OK
+        console.warn('[Auth] Profile load error (may be new user):', err.message)
         return null
       }
       
@@ -58,41 +63,87 @@ export function useAuth(): UseAuthReturn {
 
   // Initialize auth state
   useEffect(() => {
+    mountedRef.current = true
+    
     if (!supabase) {
+      console.warn('[Auth] Supabase not configured')
       setIsLoading(false)
       return
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      setSession(s)
-      setUser(s?.user ?? null)
-      
-      if (s?.user) {
-        const p = await loadProfile(s.user.id)
-        setProfile(p)
+    // Safety timeout - prevents frozen loading screen
+    const timeoutId = setTimeout(() => {
+      if (mountedRef.current && isLoading) {
+        console.warn('[Auth] Timeout - forcing isLoading to false')
+        setIsLoading(false)
       }
-      
-      setIsLoading(false)
-    })
+    }, AUTH_TIMEOUT_MS)
+
+    // Get initial session
+    const initAuth = async () => {
+      try {
+        console.log('[Auth] Getting session...')
+        const { data: { session: s }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.error('[Auth] Session error:', sessionError)
+          if (mountedRef.current) {
+            setIsLoading(false)
+          }
+          return
+        }
+        
+        if (mountedRef.current) {
+          setSession(s)
+          setUser(s?.user ?? null)
+          // Set loading false BEFORE profile loads - profile is non-blocking
+          setIsLoading(false)
+          console.log('[Auth] Session loaded, user:', s?.user?.email ?? 'none')
+        }
+        
+        // Load profile in background (non-blocking)
+        if (s?.user && mountedRef.current) {
+          const p = await loadProfile(s.user.id)
+          if (mountedRef.current) {
+            setProfile(p)
+          }
+        }
+      } catch (err) {
+        console.error('[Auth] Init exception:', err)
+        if (mountedRef.current) {
+          setIsLoading(false)
+        }
+      }
+    }
+    
+    initAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, s) => {
         console.log('[Auth] State change:', event)
+        if (!mountedRef.current) return
+        
         setSession(s)
         setUser(s?.user ?? null)
         
         if (s?.user) {
+          // Load profile in background
           const p = await loadProfile(s.user.id)
-          setProfile(p)
+          if (mountedRef.current) {
+            setProfile(p)
+          }
         } else {
           setProfile(null)
         }
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mountedRef.current = false
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [loadProfile])
 
   const signUp = useCallback(async (email: string, password: string, displayName: string): Promise<boolean> => {
