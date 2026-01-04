@@ -1,11 +1,14 @@
 /**
- * Phase 0.10.3.1: Edge Function Entry Point
+ * Phase 0.10.3.2: Edge Function Entry Point
  * Deployed via GitHub Actions
  * 
  * Handles soft mode (vapor→liquid) and medium mode (liquid→solid) for all faces.
  * Author face: Natural prose synthesis, Hard-LLM handles classification
  * Character face: ACTION/INFO_REQUEST/CLARIFY classification
  * Designer face: SKILL_CREATE structured format
+ * 
+ * Phase 0.10.3.2 fixes:
+ * - INFO_REQUEST uses upsert instead of insert (unique constraint on frame_id+user_id)
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -556,9 +559,10 @@ For clarification, respond conversationally.`;
 }
 
 /**
- * Phase 0.10.3.1: Handle soft-mode for character face.
+ * Phase 0.10.3.2: Handle soft-mode for character face.
  * 
- * Fixed: max_tokens must be > budget_tokens for extended thinking
+ * Fixed: Uses upsert instead of insert for INFO_REQUEST liquid entries
+ * (unique constraint on frame_id + user_id)
  */
 async function handleCharacterSoftMode(
   supabase: any,
@@ -611,7 +615,7 @@ RULES:
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,  // Fixed: was 1024, must be > budget_tokens (3000)
+      max_tokens: 4000,
       thinking: { type: 'enabled', budget_tokens: 3000 },
       system: systemPrompt,
       messages: [{ role: 'user', content: userInput }],
@@ -650,31 +654,37 @@ RULES:
       return { type: 'clarify', text: 'You need to be in a frame to observe your surroundings.' };
     }
     
-    // Create liquid and call medium-LLM in informational mode
+    // Phase 0.10.3.2: Use upsert instead of insert
+    // Liquid table has unique constraint on (frame_id, user_id)
     const liquidId = crypto.randomUUID();
-    const { error: liquidError } = await supabase
+    const { data: upsertData, error: liquidError } = await supabase
       .from('liquid')
-      .insert({
-        id: liquidId,
-        frame_id: frameId,
-        user_id: userId,
-        user_name: userName,
-        face: 'character',
-        content: intention,
-        committed: true,
-      });
+      .upsert(
+        {
+          frame_id: frameId,
+          user_id: userId,
+          user_name: userName,
+          face: 'character',
+          content: intention,
+          committed: true,
+        },
+        { onConflict: 'frame_id,user_id' }
+      )
+      .select('id')
+      .single();
     
     if (liquidError) {
-      console.error('Error creating liquid for info request:', liquidError);
+      console.error('Error upserting liquid for info request:', liquidError);
       throw new Error('Failed to create liquid entry');
     }
     
-    console.log('[Soft-LLM Character] Created info request liquid:', liquidId);
+    const finalLiquidId = upsertData?.id || liquidId;
+    console.log('[Soft-LLM Character] Upserted info request liquid:', finalLiquidId);
     
     const infoResult = await handleMediumMode(
       supabase,
       anthropicKey,
-      liquidId,
+      finalLiquidId,
       null,
       true  // informational - skip solid storage
     );
@@ -686,7 +696,7 @@ RULES:
     return {
       type: 'info',
       text: infoResult.result?.narrative || 'You observe your surroundings.',
-      liquid_id: liquidId,
+      liquid_id: finalLiquidId,
     };
   }
   
