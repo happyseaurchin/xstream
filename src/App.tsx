@@ -3,6 +3,8 @@ import { useAuth } from './hooks/useAuth'
 import { useFrameChannel, getDisplayName, setDisplayName } from './hooks/useFrameChannel'
 import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import { useSolidSubscription } from './hooks/useSolidSubscription'
+import { useContentSubscription } from './hooks/useContentSubscription'
+import type { ContentEntry, CharacterEntry } from './hooks/useContentSubscription'
 import {
   AuthPage,
   ConstructionButton,
@@ -36,7 +38,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 const EDIT_DEBOUNCE_MS = 500
 
-// Character type for selector
+// Character type for selector (dropdown)
 interface FrameCharacter {
   id: string
   name: string
@@ -242,6 +244,14 @@ function App() {
   // Solid entries from database
   const { solidEntries: dbSolidEntries } = useSolidSubscription({ frameId })
 
+  // Phase 0.10.3.2: Content and character entries for directory view
+  // Queries by cosmology_id - content belongs to world, frame views it
+  const {
+    contentEntries: dbContentEntries,
+    characterEntries: dbCharacterEntries,
+    isLoading: isLoadingContent,
+  } = useContentSubscription({ frameId })
+
   // Derived state
   const currentFrame = FRAMES.find(f => f.id === frameId) || FRAMES[0]
   
@@ -275,10 +285,6 @@ function App() {
     }, {} as Record<string, typeof othersLiquidRaw[0]>)
   )
   
-  const directoryEntries = entries.filter(e => {
-    if (e.state !== 'committed' || e.face !== face || face === 'designer') return false
-    return parseArtifactFromText(e.text, face) !== null
-  })
   const hasLiquidToClear = myLiquidEntries.length > 0
 
   // Zone drag handlers
@@ -516,19 +522,6 @@ function App() {
   }
 
   // Handlers
-  const handleShelfEntryClick = (entry: ShelfEntry) => {
-    const newEntry: ShelfEntry = { 
-      id: crypto.randomUUID(), 
-      text: entry.text, 
-      face: entry.face, 
-      frameId, 
-      state: 'submitted', 
-      timestamp: new Date().toISOString() 
-    }
-    replaceActiveEntry(newEntry, entry.face)
-    setSolidView('log')
-  }
-
   const handleSkillClick = (skill: FrameSkill) => {
     const document = `SKILL_CREATE\nname: ${skill.name}\ncategory: ${skill.category}\napplies_to: ${skill.applies_to.join(', ')}\ncontent: |\n${skill.content.split('\n').map(line => '  ' + line).join('\n')}`
     const newEntry: ShelfEntry = { 
@@ -542,6 +535,39 @@ function App() {
     replaceActiveEntry(newEntry, 'designer')
     setSolidView('log')
   }
+
+  // Phase 0.10.3.2: Click handler for content in author directory
+  const handleContentClick = useCallback((content: ContentEntry) => {
+    // Load content data into liquid for editing/viewing
+    const dataStr = JSON.stringify(content.data, null, 2)
+    const document = `# ${content.name}\nType: ${content.contentType}\n\n${dataStr}`
+    const newEntry: ShelfEntry = { 
+      id: crypto.randomUUID(), 
+      text: document, 
+      face: 'author', 
+      frameId, 
+      state: 'submitted', 
+      timestamp: new Date().toISOString() 
+    }
+    replaceActiveEntry(newEntry, 'author')
+    setSolidView('log')
+  }, [frameId, replaceActiveEntry])
+
+  // Phase 0.10.3.2: Click handler for character in character directory
+  const handleCharacterDirectoryClick = useCallback((character: CharacterEntry) => {
+    // Load character into liquid for viewing
+    const document = `# ${character.name}\nNPC: ${character.isNpc ? 'Yes' : 'No'}\n${character.description || ''}`
+    const newEntry: ShelfEntry = { 
+      id: crypto.randomUUID(), 
+      text: document, 
+      face: 'character', 
+      frameId, 
+      state: 'submitted', 
+      timestamp: new Date().toISOString() 
+    }
+    replaceActiveEntry(newEntry, 'character')
+    setSolidView('log')
+  }, [frameId, replaceActiveEntry])
 
   const handleLiquidEdit = useCallback((entryId: string, newText: string) => {
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, text: newText, isEditing: true } : e))
@@ -812,13 +838,15 @@ function App() {
               onViewChange={setSolidView}
               solidEntries={dbSolidEntries}
               frameSkills={frameSkills}
-              directoryEntries={directoryEntries}
+              contentEntries={dbContentEntries}
+              characterEntries={dbCharacterEntries}
               face={face}
               frameId={frameId}
-              isLoadingDirectory={isLoadingDirectory}
+              isLoadingDirectory={isLoadingDirectory || isLoadingContent}
               showMeta={showMeta}
               onSkillClick={handleSkillClick}
-              onEntryClick={handleShelfEntryClick}
+              onContentClick={handleContentClick}
+              onCharacterClick={handleCharacterDirectoryClick}
             />
           </div>
         )}
