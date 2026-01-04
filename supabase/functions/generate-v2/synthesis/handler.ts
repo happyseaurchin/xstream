@@ -7,6 +7,11 @@
  * - Designer: Synthesize skill requests → skill document
  * 
  * Hard-LLM handles classification and entity filing for all faces.
+ * 
+ * Phase 0.10.3.2: Fixed liquid cleanup
+ * - When synthesis completes, ALL liquid for that face is deleted
+ * - This includes uncommitted liquid (someone committing pulls everyone in)
+ * - Realtime DELETE events propagate to all users
  */
 
 import type { SynthesisContext, SynthesisResult } from './types.ts';
@@ -121,6 +126,7 @@ export async function handleMediumMode(
     console.log('[Medium-LLM] Face:', face, 'Frame:', context.frame.name);
     console.log('[Medium-LLM] Skills loaded:', Object.keys(context.skills).filter(k => context.skills[k as keyof typeof context.skills]).join(', ') || 'none');
     console.log('[Medium-LLM] Characters:', context.characters.map(c => c.name).join(', ') || 'none');
+    console.log('[Medium-LLM] All liquid entries:', context.allLiquid.length);
     
     // Create placeholder solid FIRST (shows spinner for all users)
     // Only for non-informational requests
@@ -184,13 +190,17 @@ export async function handleMediumMode(
     switch (compileFace) {
       case 'player': {
         // Player/Character face: narrative synthesis
+        // Phase 0.10.3.2: Include ALL liquid for this face (not just committed)
+        // When one player commits, all players' liquid is processed together
+        const playerLiquidIds = context.allLiquid
+          .filter(e => e.face === 'player' || e.face === 'character')
+          .map(e => e.id);
+        
         result = { 
           success: true, 
           face: 'player', 
           narrative: generatedText, 
-          sourceLiquidIds: context.allLiquid
-            .filter(e => e.committed && (e.face === 'player' || e.face === 'character'))
-            .map(e => e.id), 
+          sourceLiquidIds: playerLiquidIds, 
           participantUserIds: [...new Set(
             context.allLiquid
               .filter(e => e.face === 'player' || e.face === 'character')
@@ -214,13 +224,16 @@ export async function handleMediumMode(
       
       case 'author': {
         // Author face: content synthesis (like player - just synthesize)
+        // Include ALL author liquid
+        const authorLiquidIds = context.allLiquid
+          .filter(e => e.face === 'author')
+          .map(e => e.id);
+        
         result = { 
           success: true, 
           face: 'author', 
           narrative: generatedText,  // Store as narrative, not contentData
-          sourceLiquidIds: context.allLiquid
-            .filter(e => e.face === 'author')
-            .map(e => e.id), 
+          sourceLiquidIds: authorLiquidIds, 
           participantUserIds: [...new Set(
             context.allLiquid
               .filter(e => e.face === 'author')
@@ -283,7 +296,10 @@ export async function handleMediumMode(
       }
     }
     
+    // Phase 0.10.3.2: Delete all processed liquid entries
+    // This triggers realtime DELETE events for all users
     if (!informational) {
+      console.log('[Medium-LLM] Marking liquid as processed:', result.sourceLiquidIds.length, 'entries');
       await markLiquidProcessed(supabase, result.sourceLiquidIds);
     }
     
