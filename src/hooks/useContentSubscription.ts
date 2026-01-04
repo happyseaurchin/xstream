@@ -60,27 +60,27 @@ export function useContentSubscription({
   const [error, setError] = useState<string | null>(null)
 
   // Transform content row
-  const transformContentRow = (row: any): ContentEntry => ({
-    id: row.id,
-    name: row.name,
-    contentType: row.content_type,
-    data: row.data || {},
-    cosmologyId: row.cosmology_id,
-    frameId: row.frame_id,
-    authorId: row.author_id,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+  const transformContentRow = (row: Record<string, unknown>): ContentEntry => ({
+    id: row.id as string,
+    name: row.name as string,
+    contentType: row.content_type as string,
+    data: (row.data as Record<string, unknown>) || {},
+    cosmologyId: row.cosmology_id as string | null,
+    frameId: row.frame_id as string | null,
+    authorId: row.author_id as string | null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   })
 
   // Transform character row
-  const transformCharacterRow = (row: any): CharacterEntry => ({
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    isNpc: row.is_npc,
-    inhabitedBy: row.inhabited_by,
-    cosmologyId: row.cosmology_id,
-    createdAt: row.created_at,
+  const transformCharacterRow = (row: Record<string, unknown>): CharacterEntry => ({
+    id: row.id as string,
+    name: row.name as string,
+    description: row.description as string | null,
+    isNpc: row.is_npc as boolean,
+    inhabitedBy: row.inhabited_by as string | null,
+    cosmologyId: row.cosmology_id as string | null,
+    createdAt: row.created_at as string,
   })
 
   // Load content and characters when frame changes
@@ -92,13 +92,15 @@ export function useContentSubscription({
       return
     }
 
+    // Store reference to supabase for cleanup
+    const sb = supabase
     let currentCosmologyId: string | null = null
 
     const loadData = async () => {
       setIsLoading(true)
       try {
         // First get frame's cosmology
-        const { data: frameData, error: frameError } = await supabase
+        const { data: frameData, error: frameError } = await sb
           .from('frames')
           .select('cosmology_id')
           .eq('id', frameId)
@@ -114,7 +116,7 @@ export function useContentSubscription({
         setCosmologyId(currentCosmologyId)
 
         // Load content by cosmology
-        const { data: contentData, error: contentError } = await supabase
+        const { data: contentData, error: contentError } = await sb
           .from('content')
           .select('*')
           .eq('cosmology_id', currentCosmologyId)
@@ -128,7 +130,7 @@ export function useContentSubscription({
         }
 
         // Load characters by cosmology
-        const { data: charData, error: charError } = await supabase
+        const { data: charData, error: charError } = await sb
           .from('characters')
           .select('*')
           .eq('cosmology_id', currentCosmologyId)
@@ -153,7 +155,7 @@ export function useContentSubscription({
     loadData()
 
     // Subscribe to content table changes
-    const contentChannel = supabase
+    const contentChannel = sb
       .channel(`content:${frameId}`)
       .on(
         'postgres_changes',
@@ -162,10 +164,12 @@ export function useContentSubscription({
           schema: 'public',
           table: 'content',
         },
-        (payload: RealtimePostgresChangesPayload<any>) => {
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
           // Only process if matches our cosmology
-          const newCosmology = payload.new?.cosmology_id
-          const oldCosmology = payload.old?.cosmology_id
+          const newRecord = payload.new as Record<string, unknown> | undefined
+          const oldRecord = payload.old as Record<string, unknown> | undefined
+          const newCosmology = newRecord?.cosmology_id as string | undefined
+          const oldCosmology = oldRecord?.cosmology_id as string | undefined
           
           if (newCosmology !== currentCosmologyId && oldCosmology !== currentCosmologyId) {
             return // Not our cosmology
@@ -173,19 +177,19 @@ export function useContentSubscription({
 
           console.log('[Content] Change:', payload.eventType)
 
-          if (payload.eventType === 'INSERT' && newCosmology === currentCosmologyId) {
-            const newEntry = transformContentRow(payload.new)
+          if (payload.eventType === 'INSERT' && newRecord && newCosmology === currentCosmologyId) {
+            const newEntry = transformContentRow(newRecord)
             setContentEntries(prev => {
               if (prev.some(e => e.id === newEntry.id)) return prev
               return [newEntry, ...prev]
             })
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = transformContentRow(payload.new)
+          } else if (payload.eventType === 'UPDATE' && newRecord) {
+            const updated = transformContentRow(newRecord)
             setContentEntries(prev =>
               prev.map(e => (e.id === updated.id ? updated : e))
             )
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old?.id
+          } else if (payload.eventType === 'DELETE' && oldRecord) {
+            const deletedId = oldRecord.id as string | undefined
             if (deletedId) {
               setContentEntries(prev => prev.filter(e => e.id !== deletedId))
             }
@@ -195,7 +199,7 @@ export function useContentSubscription({
       .subscribe()
 
     // Subscribe to characters table changes
-    const charChannel = supabase
+    const charChannel = sb
       .channel(`characters-content:${frameId}`)
       .on(
         'postgres_changes',
@@ -204,9 +208,11 @@ export function useContentSubscription({
           schema: 'public',
           table: 'characters',
         },
-        (payload: RealtimePostgresChangesPayload<any>) => {
-          const newCosmology = payload.new?.cosmology_id
-          const oldCosmology = payload.old?.cosmology_id
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          const newRecord = payload.new as Record<string, unknown> | undefined
+          const oldRecord = payload.old as Record<string, unknown> | undefined
+          const newCosmology = newRecord?.cosmology_id as string | undefined
+          const oldCosmology = oldRecord?.cosmology_id as string | undefined
           
           if (newCosmology !== currentCosmologyId && oldCosmology !== currentCosmologyId) {
             return
@@ -214,19 +220,19 @@ export function useContentSubscription({
 
           console.log('[Content] Character change:', payload.eventType)
 
-          if (payload.eventType === 'INSERT' && newCosmology === currentCosmologyId) {
-            const newEntry = transformCharacterRow(payload.new)
+          if (payload.eventType === 'INSERT' && newRecord && newCosmology === currentCosmologyId) {
+            const newEntry = transformCharacterRow(newRecord)
             setCharacterEntries(prev => {
               if (prev.some(e => e.id === newEntry.id)) return prev
               return [newEntry, ...prev]
             })
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = transformCharacterRow(payload.new)
+          } else if (payload.eventType === 'UPDATE' && newRecord) {
+            const updated = transformCharacterRow(newRecord)
             setCharacterEntries(prev =>
               prev.map(e => (e.id === updated.id ? updated : e))
             )
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old?.id
+          } else if (payload.eventType === 'DELETE' && oldRecord) {
+            const deletedId = oldRecord.id as string | undefined
             if (deletedId) {
               setCharacterEntries(prev => prev.filter(e => e.id !== deletedId))
             }
@@ -237,10 +243,8 @@ export function useContentSubscription({
 
     return () => {
       console.log('[Content] Cleaning up subscriptions')
-      if (supabase) {
-        supabase.removeChannel(contentChannel)
-        supabase.removeChannel(charChannel)
-      }
+      sb.removeChannel(contentChannel)
+      sb.removeChannel(charChannel)
     }
   }, [frameId])
 
