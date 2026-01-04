@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 /**
  * Content entry from database - author-created world content
@@ -41,6 +40,9 @@ export interface UseContentSubscriptionReturn {
   cosmologyId: string | null
   isLoading: boolean
   error: string | null
+  deleteContent: (contentId: string) => Promise<boolean>      // Phase 0.10.3.2: Delete content
+  deleteCharacter: (characterId: string) => Promise<boolean>  // Phase 0.10.3.2: Delete character
+  refresh: () => Promise<void>                                 // Phase 0.10.3.2: Manual refresh
 }
 
 /**
@@ -58,6 +60,9 @@ export function useContentSubscription({
   const [cosmologyId, setCosmologyId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Use ref to track cosmologyId for subscriptions (fixes race condition)
+  const cosmologyIdRef = useRef<string | null>(null)
 
   // Transform content row
   const transformContentRow = (row: Record<string, unknown>): ContentEntry => ({
@@ -83,20 +88,61 @@ export function useContentSubscription({
     createdAt: row.created_at as string,
   })
 
+  // Load data function - can be called for refresh
+  const loadData = useCallback(async (targetCosmologyId: string) => {
+    if (!supabase) return
+
+    const sb = supabase
+
+    // Load content by cosmology
+    const { data: contentData, error: contentError } = await sb
+      .from('content')
+      .select('*')
+      .eq('cosmology_id', targetCosmologyId)
+      .order('created_at', { ascending: false })
+
+    if (contentError) {
+      console.error('[Content] Error loading content:', contentError)
+    } else {
+      setContentEntries((contentData || []).map(transformContentRow))
+      console.log('[Content] Loaded content entries:', contentData?.length || 0)
+    }
+
+    // Load characters by cosmology
+    const { data: charData, error: charError } = await sb
+      .from('characters')
+      .select('*')
+      .eq('cosmology_id', targetCosmologyId)
+      .order('created_at', { ascending: false })
+
+    if (charError) {
+      console.error('[Content] Error loading characters:', charError)
+    } else {
+      setCharacterEntries((charData || []).map(transformCharacterRow))
+      console.log('[Content] Loaded character entries:', charData?.length || 0)
+    }
+  }, [])
+
+  // Manual refresh function
+  const refresh = useCallback(async () => {
+    if (cosmologyIdRef.current) {
+      await loadData(cosmologyIdRef.current)
+    }
+  }, [loadData])
+
   // Load content and characters when frame changes
   useEffect(() => {
     if (!frameId || !supabase) {
       setContentEntries([])
       setCharacterEntries([])
       setCosmologyId(null)
+      cosmologyIdRef.current = null
       return
     }
 
-    // Store reference to supabase for cleanup
     const sb = supabase
-    let currentCosmologyId: string | null = null
 
-    const loadData = async () => {
+    const initAndSubscribe = async () => {
       setIsLoading(true)
       try {
         // First get frame's cosmology
@@ -112,37 +158,12 @@ export function useContentSubscription({
           return
         }
 
-        currentCosmologyId = frameData.cosmology_id
+        const currentCosmologyId = frameData.cosmology_id
+        cosmologyIdRef.current = currentCosmologyId
         setCosmologyId(currentCosmologyId)
 
-        // Load content by cosmology
-        const { data: contentData, error: contentError } = await sb
-          .from('content')
-          .select('*')
-          .eq('cosmology_id', currentCosmologyId)
-          .order('created_at', { ascending: false })
-
-        if (contentError) {
-          console.error('[Content] Error loading content:', contentError)
-        } else {
-          setContentEntries((contentData || []).map(transformContentRow))
-          console.log('[Content] Loaded content entries:', contentData?.length || 0)
-        }
-
-        // Load characters by cosmology
-        const { data: charData, error: charError } = await sb
-          .from('characters')
-          .select('*')
-          .eq('cosmology_id', currentCosmologyId)
-          .order('created_at', { ascending: false })
-
-        if (charError) {
-          console.error('[Content] Error loading characters:', charError)
-        } else {
-          setCharacterEntries((charData || []).map(transformCharacterRow))
-          console.log('[Content] Loaded character entries:', charData?.length || 0)
-        }
-
+        // Load initial data
+        await loadData(currentCosmologyId)
         setError(null)
       } catch (err) {
         console.error('[Content] Load error:', err)
@@ -152,9 +173,10 @@ export function useContentSubscription({
       }
     }
 
-    loadData()
+    initAndSubscribe()
 
     // Subscribe to content table changes
+    // Phase 0.10.3.2: Simplified - reload on any change to avoid race conditions
     const contentChannel = sb
       .channel(`content:${frameId}`)
       .on(
@@ -164,35 +186,10 @@ export function useContentSubscription({
           schema: 'public',
           table: 'content',
         },
-        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-          // Only process if matches our cosmology
-          const newRecord = payload.new as Record<string, unknown> | undefined
-          const oldRecord = payload.old as Record<string, unknown> | undefined
-          const newCosmology = newRecord?.cosmology_id as string | undefined
-          const oldCosmology = oldRecord?.cosmology_id as string | undefined
-          
-          if (newCosmology !== currentCosmologyId && oldCosmology !== currentCosmologyId) {
-            return // Not our cosmology
-          }
-
-          console.log('[Content] Change:', payload.eventType)
-
-          if (payload.eventType === 'INSERT' && newRecord && newCosmology === currentCosmologyId) {
-            const newEntry = transformContentRow(newRecord)
-            setContentEntries(prev => {
-              if (prev.some(e => e.id === newEntry.id)) return prev
-              return [newEntry, ...prev]
-            })
-          } else if (payload.eventType === 'UPDATE' && newRecord) {
-            const updated = transformContentRow(newRecord)
-            setContentEntries(prev =>
-              prev.map(e => (e.id === updated.id ? updated : e))
-            )
-          } else if (payload.eventType === 'DELETE' && oldRecord) {
-            const deletedId = oldRecord.id as string | undefined
-            if (deletedId) {
-              setContentEntries(prev => prev.filter(e => e.id !== deletedId))
-            }
+        () => {
+          console.log('[Content] Content table change detected, reloading...')
+          if (cosmologyIdRef.current) {
+            loadData(cosmologyIdRef.current)
           }
         }
       )
@@ -208,34 +205,10 @@ export function useContentSubscription({
           schema: 'public',
           table: 'characters',
         },
-        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
-          const newRecord = payload.new as Record<string, unknown> | undefined
-          const oldRecord = payload.old as Record<string, unknown> | undefined
-          const newCosmology = newRecord?.cosmology_id as string | undefined
-          const oldCosmology = oldRecord?.cosmology_id as string | undefined
-          
-          if (newCosmology !== currentCosmologyId && oldCosmology !== currentCosmologyId) {
-            return
-          }
-
-          console.log('[Content] Character change:', payload.eventType)
-
-          if (payload.eventType === 'INSERT' && newRecord && newCosmology === currentCosmologyId) {
-            const newEntry = transformCharacterRow(newRecord)
-            setCharacterEntries(prev => {
-              if (prev.some(e => e.id === newEntry.id)) return prev
-              return [newEntry, ...prev]
-            })
-          } else if (payload.eventType === 'UPDATE' && newRecord) {
-            const updated = transformCharacterRow(newRecord)
-            setCharacterEntries(prev =>
-              prev.map(e => (e.id === updated.id ? updated : e))
-            )
-          } else if (payload.eventType === 'DELETE' && oldRecord) {
-            const deletedId = oldRecord.id as string | undefined
-            if (deletedId) {
-              setCharacterEntries(prev => prev.filter(e => e.id !== deletedId))
-            }
+        () => {
+          console.log('[Content] Characters table change detected, reloading...')
+          if (cosmologyIdRef.current) {
+            loadData(cosmologyIdRef.current)
           }
         }
       )
@@ -246,7 +219,57 @@ export function useContentSubscription({
       sb.removeChannel(contentChannel)
       sb.removeChannel(charChannel)
     }
-  }, [frameId])
+  }, [frameId, loadData])
+
+  // Phase 0.10.3.2: Delete content entry
+  const deleteContent = useCallback(async (contentId: string): Promise<boolean> => {
+    if (!supabase) return false
+
+    console.log('[Content] Deleting content:', contentId)
+    try {
+      const { error: err } = await supabase
+        .from('content')
+        .delete()
+        .eq('id', contentId)
+
+      if (err) {
+        console.error('[Content] Delete error:', err)
+        return false
+      }
+
+      // State will update via realtime subscription
+      console.log('[Content] Deleted successfully')
+      return true
+    } catch (err) {
+      console.error('[Content] Delete failed:', err)
+      return false
+    }
+  }, [])
+
+  // Phase 0.10.3.2: Delete character entry
+  const deleteCharacter = useCallback(async (characterId: string): Promise<boolean> => {
+    if (!supabase) return false
+
+    console.log('[Content] Deleting character:', characterId)
+    try {
+      const { error: err } = await supabase
+        .from('characters')
+        .delete()
+        .eq('id', characterId)
+
+      if (err) {
+        console.error('[Content] Delete character error:', err)
+        return false
+      }
+
+      // State will update via realtime subscription
+      console.log('[Content] Character deleted successfully')
+      return true
+    } catch (err) {
+      console.error('[Content] Character delete failed:', err)
+      return false
+    }
+  }, [])
 
   return {
     contentEntries,
@@ -254,5 +277,8 @@ export function useContentSubscription({
     cosmologyId,
     isLoading,
     error,
+    deleteContent,
+    deleteCharacter,
+    refresh,
   }
 }
