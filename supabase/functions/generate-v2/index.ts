@@ -1,5 +1,5 @@
 /**
- * Phase 0.10.3: Edge Function Entry Point
+ * Phase 0.10.3.1: Edge Function Entry Point
  * Deployed via GitHub Actions
  * 
  * Handles soft mode (vapor→liquid) and medium mode (liquid→solid) for all faces.
@@ -524,7 +524,7 @@ For clarification, respond conversationally.`;
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
+      max_tokens: 8000,
       thinking: { type: 'enabled', budget_tokens: 4000 },
       system: systemPrompt,
       messages: [{ role: 'user', content: `${frameId ? `[Frame: ${frameId.slice(0, 8)}]` : '[No frame]'}\n\n${userInput}` }],
@@ -556,11 +556,9 @@ For clarification, respond conversationally.`;
 }
 
 /**
- * Phase 0.10.3: Handle soft-mode for character face.
+ * Phase 0.10.3.1: Handle soft-mode for character face.
  * 
- * NO MORE HARD-CODED CHARACTER CREATION DETECTION.
- * Just classify as ACTION/INFO_REQUEST/CLARIFY.
- * Hard-LLM handles entity recognition and filing.
+ * Fixed: max_tokens must be > budget_tokens for extended thinking
  */
 async function handleCharacterSoftMode(
   supabase: any,
@@ -603,6 +601,7 @@ RULES:
 - Keep intentions brief and character-voiced
 - For INFO_REQUEST, the intention should be observable by others`;
 
+  // Phase 0.10.3.1: Fixed - max_tokens must be > budget_tokens
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -612,14 +611,18 @@ RULES:
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      max_tokens: 4000,  // Fixed: was 1024, must be > budget_tokens (3000)
       thinking: { type: 'enabled', budget_tokens: 3000 },
       system: systemPrompt,
       messages: [{ role: 'user', content: userInput }],
     }),
   });
 
-  if (!response.ok) throw new Error(`Claude API error: ${response.status}`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Soft-LLM Character] API error:', response.status, errorText);
+    throw new Error(`Claude API error: ${response.status}`);
+  }
   const claudeResponse = await response.json();
   
   let generatedText = '';
@@ -836,7 +839,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
+        max_tokens: 2000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }),
