@@ -135,8 +135,9 @@ function App() {
     }
   }, [auth.profile?.displayName])
 
-  // Load characters when frame changes
+  // Load characters when frame changes + realtime subscription
   // Phase 0.10.3: Query by cosmology (frame is container)
+  // Phase 0.10.3.1: Added realtime subscription for new characters
   // TODO Plex 2: Replace with pscale-based filtering via Hard-LLM coordinate proximity
   useEffect(() => {
     if (!frameId || !supabase) {
@@ -144,6 +145,9 @@ function App() {
       setSelectedCharacterId(null)
       return
     }
+
+    // Store cosmology_id for subscription filter
+    let cosmologyId: string | null = null
 
     const loadCharacters = async () => {
       if (!supabase) return
@@ -162,13 +166,15 @@ function App() {
         return
       }
       
+      cosmologyId = frameData.cosmology_id
+      
       // Get all characters in this cosmology
       // Plex 1: All characters in cosmology appear in dropdown
       // Plex 2: Hard-LLM will filter by pscale proximity
       const { data, error } = await supabase
         .from('characters')
         .select('id, name, is_npc, inhabited_by')
-        .eq('cosmology_id', frameData.cosmology_id)
+        .eq('cosmology_id', cosmologyId)
 
       if (error) {
         console.error('[App] Error loading characters:', error)
@@ -193,6 +199,26 @@ function App() {
     }
 
     loadCharacters()
+
+    // Realtime subscription for character changes
+    // Reloads when Hard-LLM creates new characters via author synthesis
+    const channel = supabase
+      .channel(`characters-${frameId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'characters' },
+        (payload: any) => {
+          console.log('[App] Character change detected:', payload.eventType)
+          // Reload all characters (filter happens in loadCharacters)
+          loadCharacters()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      console.log('[App] Cleaning up character subscription')
+      supabase.removeChannel(channel)
+    }
   }, [frameId, userId])
 
   // Hooks - only active when authenticated
