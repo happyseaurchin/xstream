@@ -24,6 +24,9 @@ export interface UseAuthReturn {
 // Auth initialization timeout (ms) - prevents frozen loading screen
 const AUTH_TIMEOUT_MS = 5000
 
+// Supabase storage key pattern (includes project ID)
+const SUPABASE_AUTH_KEY = 'sb-piqxyfmzzywxzqkzmpmm-auth-token'
+
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -31,6 +34,7 @@ export function useAuth(): UseAuthReturn {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(true)
+  const sessionLoadedRef = useRef(false)
 
   // Load user profile from users table (non-blocking - UI can render without it)
   const loadProfile = useCallback(async (userId: string) => {
@@ -64,6 +68,7 @@ export function useAuth(): UseAuthReturn {
   // Initialize auth state
   useEffect(() => {
     mountedRef.current = true
+    sessionLoadedRef.current = false
     
     if (!supabase) {
       console.warn('[Auth] Supabase not configured')
@@ -72,9 +77,16 @@ export function useAuth(): UseAuthReturn {
     }
 
     // Safety timeout - prevents frozen loading screen
+    // If getSession() hangs (corrupt token, network issue), clear storage and show login
     const timeoutId = setTimeout(() => {
-      if (mountedRef.current && isLoading) {
-        console.warn('[Auth] Timeout - forcing isLoading to false')
+      if (mountedRef.current && !sessionLoadedRef.current) {
+        console.warn('[Auth] Timeout - clearing potentially corrupt auth storage')
+        try {
+          // Clear Supabase auth storage to prevent persistent hang
+          localStorage.removeItem(SUPABASE_AUTH_KEY)
+        } catch (e) {
+          console.warn('[Auth] Could not clear storage:', e)
+        }
         setIsLoading(false)
       }
     }, AUTH_TIMEOUT_MS)
@@ -86,6 +98,10 @@ export function useAuth(): UseAuthReturn {
         // Phase 0.10.3.2: Add null check for supabase
         if (!supabase) return
         const { data: { session: s }, error: sessionError } = await supabase.auth.getSession()
+        
+        // Mark session as loaded (prevents timeout from clearing storage)
+        sessionLoadedRef.current = true
+        clearTimeout(timeoutId)
         
         if (sessionError) {
           console.error('[Auth] Session error:', sessionError)
@@ -112,6 +128,8 @@ export function useAuth(): UseAuthReturn {
         }
       } catch (err) {
         console.error('[Auth] Init exception:', err)
+        sessionLoadedRef.current = true
+        clearTimeout(timeoutId)
         if (mountedRef.current) {
           setIsLoading(false)
         }
