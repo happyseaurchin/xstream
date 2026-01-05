@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { Construction } from './pages/Construction'
 import { Architecture } from './pages/Architecture'
+import { SampleUI } from './pages/SampleUI'
 import './index.css'
 
 // Simple routing based on pathname
@@ -16,6 +17,10 @@ function Router() {
   
   if (path === '/architecture') {
     return <Architecture />
+  }
+
+  if (path === '/sample-ui') {
+    return <SampleUI />
   }
 
   return <App />
