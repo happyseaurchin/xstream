@@ -9,12 +9,13 @@ import {
   ConstructionButton,
   PresenceBar,
   VisibilityPanel,
-  VaporPanel,
-  LiquidPanel,
-  SolidPanel,
   DraggableSeparator,
 } from './components'
-import type { VaporPanelHandle } from './components/VaporPanel'
+// New zone components
+import { SolidZone } from './components/xstream/SolidZone'
+import { LiquidZone } from './components/xstream/LiquidZone'
+import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZone'
+import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 import type {
   Face,
   LLMMode,
@@ -128,7 +129,7 @@ function App() {
   })
 
   const debounceTimerRef = useRef<number | null>(null)
-  const vaporPanelRef = useRef<VaporPanelHandle>(null)
+  const vaporPanelRef = useRef<VapourZoneHandle>(null)
 
   // Sync userName with profile
   useEffect(() => {
@@ -719,6 +720,12 @@ function App() {
     }
   }
 
+  // Compute zone heights
+  const getZoneHeight = (zone: 'solid' | 'liquid' | 'vapour') => {
+    if (!mainRef.current) return 200
+    return Math.floor(mainRef.current.clientHeight * zoneProportions[zone] / 100)
+  }
+
   // Show loading while checking auth
   if (auth.isLoading) {
     return (
@@ -791,20 +798,9 @@ function App() {
       <main className="main" ref={mainRef}>
         {visibility.showSolid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.solid}%` }}>
-            <SolidPanel
-              solidView={solidView}
-              onViewChange={setSolidView}
-              solidEntries={dbSolidEntries}
-              frameSkills={frameSkills}
-              contentEntries={dbContentEntries}
-              characterEntries={dbCharacterEntries}
-              face={face}
-              frameId={frameId}
-              isLoadingDirectory={isLoadingDirectory || isLoadingContent}
-              showMeta={showMeta}
-              onSkillClick={handleSkillClick}
-              onDeleteContent={handleDeleteContent}
-              onDeleteCharacter={handleDeleteCharacter}
+            <SolidZone
+              blocks={adaptSolidEntries(dbSolidEntries)}
+              height={getZoneHeight('solid')}
             />
           </div>
         )}
@@ -815,17 +811,12 @@ function App() {
 
         {visibility.showLiquid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.liquid}%` }}>
-            <LiquidPanel
-              liquidEntries={myLiquidEntries}
-              currentIndex={liquidHistoryIndex}
-              othersLiquid={othersLiquid}
+            <LiquidZone
+              cards={combineLiquidCards(myLiquidEntries, selectedCharacter?.name || userName, othersLiquid)}
+              height={getZoneHeight('liquid')}
+              currentUserId={userId}
               isLoading={isLoading}
-              onEdit={handleLiquidEdit}
               onCommit={handleCommitEntry}
-              onDismiss={(id) => {
-                setEntries(prev => prev.filter(e => e.id !== id))
-              }}
-              onNavigate={handleLiquidNavigate}
               onCopyToVapor={handleCopyToVapor}
             />
           </div>
@@ -837,23 +828,18 @@ function App() {
 
         {visibility.showVapor && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.vapour}%` }}>
-            <VaporPanel
+            <VapourZone
               ref={vaporPanelRef}
-              input={input}
-              onInputChange={setInput}
-              userName={selectedCharacter?.name || userName}
-              face={face}
-              othersVapor={othersVapor}
+              entries={adaptVaporContents(othersVapor)}
+              value={input}
+              onChange={setInput}
+              onQuery={handleQuery}
+              onSubmit={handleSubmitDirect}
+              onCommit={handleCommitDirect}
               softResponse={softResponse}
               onDismissSoftResponse={handleDismissSoftResponse}
-              onSelectOption={handleSelectOption}
-              isLoading={isLoading}
               isQuerying={isQuerying}
-              hasLiquidToClear={hasLiquidToClear}
-              onQuery={handleQuery}
-              onSubmit={handleSubmit}
-              onCommit={handleCommit}
-              onClear={handleClear}
+              placeholder={`As ${selectedCharacter?.name || userName}...`}
             />
           </div>
         )}
