@@ -1,228 +1,173 @@
-# Technical Design Spec: Column Viewport Integration
+# Technical Design Spec: Zone Component Integration
 
 **Created:** 2026-01-06  
+**Updated:** 2026-01-06 - Simplified to single column  
 **Branch:** feature/third-ui  
-**Goal:** Multi-column UI where columns are viewports into shared frame data
+**Goal:** Swap old panels for new zone components (single column)
 
 ---
 
 ## Architecture
 
 ```
-App.tsx (hooks for the FRAME - single subscription per hook)
-  ├── columns[] state (UI viewports only)
-  └── map(columns) → XStreamColumn
-        └── receives filtered props via adapters
-              ├── VapourZone (face-filtered vapor)
-              ├── LiquidZone (face-filtered liquid)
-              └── SolidZone (face-filtered solid)
+App.tsx (hooks + state - unchanged)
+  └── render()
+        ├── SolidZone (was SolidPanel)
+        ├── LiquidZone (was LiquidPanel)
+        └── VapourZone (was VaporPanel)
 ```
 
-**Key principle:** Hooks don't multiply. Columns are views, not data sources.
+**Key principle:** Only the render components change. Hooks and state remain identical.
 
 ---
 
 ## Step-by-Step Implementation
 
-### Step 1: Add column state to App.tsx
-
-Add ~30 lines for column management:
+### Step 1: Import new zone components in App.tsx
 
 ```typescript
-interface ColumnState {
-  id: string;
-  face: Face;
-  background?: string;
-}
-
-const [columns, setColumns] = useState<ColumnState[]>([
-  { id: 'col-1', face: activeFace }
-]);
-
-const addColumn = (face: Face) => {
-  setColumns(prev => [...prev, { 
-    id: `col-${Date.now()}`, 
-    face 
-  }]);
-};
-
-const removeColumn = (id: string) => {
-  setColumns(prev => prev.filter(c => c.id !== id));
-};
-
-const updateColumnFace = (id: string, face: Face) => {
-  setColumns(prev => prev.map(c => 
-    c.id === id ? { ...c, face } : c
-  ));
-};
+import { SolidZone } from './components/xstream/SolidZone'
+import { LiquidZone } from './components/xstream/LiquidZone'  
+import { VapourZone } from './components/xstream/VapourZone'
+import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 ```
 
-**Commit:** `[App] Add column viewport state management`
+**Commit:** `[App] Import new zone components and adapters`
 
 ---
 
-### Step 2: Create buildColumnProps helper
+### Step 2: Replace SolidPanel with SolidZone
 
-In `src/utils/adapters.ts`, add:
-
-```typescript
-export function buildColumnProps(params: {
-  face: Face;
-  solidEntries: SolidEntry[];
-  liquidEntries: ShelfEntry[];
-  vaporContent: VaporContent[];
-  currentUserId: string;
-  isLoading: boolean;
-}) {
-  // Filter by face
-  const faceSolid = params.solidEntries.filter(e => e.face === params.face);
-  const faceLiquid = params.liquidEntries.filter(e => e.face === params.face);
-  const faceVapor = params.vaporContent.filter(v => v.face === params.face);
-  
-  return {
-    solid: adaptSolidEntries(faceSolid),
-    liquid: adaptShelfEntries(faceLiquid),
-    vapor: adaptVaporContents(faceVapor),
-    currentUserId: params.currentUserId,
-    isLoading: params.isLoading,
-  };
-}
+OLD:
+```tsx
+<SolidPanel
+  solidView={solidView}
+  onViewChange={setSolidView}
+  solidEntries={dbSolidEntries}
+  frameSkills={frameSkills}
+  contentEntries={dbContentEntries}
+  characterEntries={dbCharacterEntries}
+  face={face}
+  frameId={frameId}
+  isLoadingDirectory={isLoadingDirectory || isLoadingContent}
+  showMeta={showMeta}
+  onSkillClick={handleSkillClick}
+  onDeleteContent={handleDeleteContent}
+  onDeleteCharacter={handleDeleteCharacter}
+/>
 ```
 
-**Commit:** `[adapters] Add buildColumnProps helper for face filtering`
+NEW:
+```tsx
+<SolidZone
+  blocks={adaptSolidEntries(dbSolidEntries)}
+  height={mainRef.current ? mainRef.current.clientHeight * zoneProportions.solid / 100 : 200}
+/>
+```
+
+**Note:** Directory view functionality temporarily lost - add back later or keep SolidPanel for dir mode.
+
+**Commit:** `[App] Replace SolidPanel with SolidZone`
 
 ---
 
-### Step 3: Import new zone components
+### Step 3: Replace LiquidPanel with LiquidZone
 
-Update App.tsx imports:
-
-```typescript
-import { SolidZone } from './components/xstream/SolidZone';
-import { LiquidZone } from './components/xstream/LiquidZone';
-import { VapourZone } from './components/xstream/VapourZone';
-import { buildColumnProps } from './utils/adapters';
+OLD:
+```tsx
+<LiquidPanel
+  liquidEntries={myLiquidEntries}
+  currentIndex={liquidHistoryIndex}
+  othersLiquid={othersLiquid}
+  isLoading={isLoading}
+  onEdit={handleLiquidEdit}
+  onCommit={handleCommitEntry}
+  onDismiss={(id) => setEntries(prev => prev.filter(e => e.id !== id))}
+  onNavigate={handleLiquidNavigate}
+  onCopyToVapor={handleCopyToVapor}
+/>
 ```
 
-**Commit:** `[App] Import new zone components`
+NEW:
+```tsx
+<LiquidZone
+  cards={combineLiquidCards(myLiquidEntries, selectedCharacter?.name || userName, othersLiquid)}
+  height={mainRef.current ? mainRef.current.clientHeight * zoneProportions.liquid / 100 : 150}
+  currentUserId={userId}
+  isLoading={isLoading}
+  onCommit={(cardId) => handleCommitEntry(cardId)}
+  onCopyToVapor={handleCopyToVapor}
+/>
+```
+
+**Commit:** `[App] Replace LiquidPanel with LiquidZone`
 
 ---
 
-### Step 4: Replace single-column render with multi-column
+### Step 4: Replace VaporPanel with VapourZone
 
-Replace the panel render section with:
-
-```typescript
-<div className={`flex-1 flex gap-2 p-2 ${columns.length > 1 ? 'overflow-x-auto' : ''}`}>
-  {columns.map(col => {
-    const props = buildColumnProps({
-      face: col.face,
-      solidEntries,
-      liquidEntries: shelfEntries,
-      vaporContent,
-      currentUserId: user?.id || '',
-      isLoading: isSynthesizing,
-    });
-    
-    return (
-      <div key={col.id} className="flex-1 min-w-[300px] flex flex-col border rounded-lg overflow-hidden">
-        {/* Column header with face selector */}
-        <div className="p-2 border-b bg-muted/20 flex items-center gap-2">
-          <FaceSelector 
-            value={col.face} 
-            onChange={(face) => updateColumnFace(col.id, face)} 
-          />
-          {columns.length > 1 && (
-            <button onClick={() => removeColumn(col.id)}>×</button>
-          )}
-        </div>
-        
-        {/* Zones */}
-        <SolidZone blocks={props.solid} height={200} />
-        <LiquidZone 
-          cards={props.liquid}
-          height={150}
-          currentUserId={props.currentUserId}
-          isLoading={props.isLoading}
-          onCommit={handleCommit}
-          onCopyToVapor={(text) => setVaporInput(text)}
-        />
-        <VapourZone
-          entries={props.vapor}
-          onQuery={handleQuery}
-          onSubmit={handleSubmit}
-          onCommit={handleDirectCommit}
-          softResponse={softResponse}
-          onDismissSoftResponse={() => setSoftResponse(null)}
-          isQuerying={isQuerying}
-          placeholder={`As ${col.face}...`}
-        />
-      </div>
-    );
-  })}
-</div>
+OLD:
+```tsx
+<VaporPanel
+  ref={vaporPanelRef}
+  input={input}
+  onInputChange={setInput}
+  userName={selectedCharacter?.name || userName}
+  face={face}
+  othersVapor={othersVapor}
+  softResponse={softResponse}
+  onDismissSoftResponse={handleDismissSoftResponse}
+  onSelectOption={handleSelectOption}
+  isLoading={isLoading}
+  isQuerying={isQuerying}
+  hasLiquidToClear={hasLiquidToClear}
+  onQuery={handleQuery}
+  onSubmit={handleSubmit}
+  onCommit={handleCommit}
+  onClear={handleClear}
+/>
 ```
 
-**Commit:** `[App] Replace panels with multi-column zone render`
+NEW:
+```tsx
+<VapourZone
+  ref={vaporPanelRef}
+  entries={adaptVaporContents(othersVapor)}
+  onQuery={handleQuery}
+  onSubmit={() => handleSubmitDirect(input)}
+  onCommit={() => handleCommitDirect(input)}
+  softResponse={softResponse}
+  onDismissSoftResponse={handleDismissSoftResponse}
+  isQuerying={isQuerying}
+  placeholder={`As ${selectedCharacter?.name || userName}...`}
+/>
+```
+
+**Note:** VapourZone manages its own input state internally. Need to sync or remove App's input state.
+
+**Commit:** `[App] Replace VaporPanel with VapourZone`
 
 ---
 
-### Step 5: Add column controls
+### Step 5: Wire remaining functionality
 
-Add button to add columns:
+- Check ref compatibility (VapourZoneHandle vs VaporPanelHandle)
+- Ensure callbacks work correctly
+- Test soft response display
+- Test keyboard shortcuts
 
-```typescript
-<button 
-  onClick={() => addColumn('character')}
-  className="..."
->
-  + Add Column
-</button>
-```
-
-**Commit:** `[App] Add column management controls`
+**Commit:** `[App] Wire zone callbacks and fix integration issues`
 
 ---
 
-### Step 6: Wire callbacks
+### Step 6: Apply styling
 
-Ensure all zone callbacks work with column context:
-
-- `onCommit` needs to know which face
-- `onSubmit` needs to know which face
-- `onQuery` needs to know which face
-
-May need to curry the handlers:
-
+Import theme CSS if needed:
 ```typescript
-onCommit={(cardId) => handleCommit(cardId, col.face)}
-```
-
-**Commit:** `[App] Wire column-aware callbacks`
-
----
-
-### Step 7: Apply styling
-
-Import new CSS variables and apply theme:
-
-```typescript
-import './components/xstream/xstream-theme.css';
+import './components/xstream/xstream-theme.css'
 ```
 
 **Commit:** `[App] Apply xstream theme styling`
-
----
-
-### Step 8: Test and bug hunt
-
-- Single column works
-- Add second column
-- Different faces in different columns
-- Submit/commit from each column
-- Real-time updates appear in both
-
-**Commit:** `[App] Fix [specific issues found]`
 
 ---
 
@@ -230,26 +175,24 @@ import './components/xstream/xstream-theme.css';
 
 | File | Change | Risk |
 |------|--------|------|
-| src/App.tsx | Add column state, swap panels | HIGH |
-| src/utils/adapters.ts | Add buildColumnProps | LOW |
-| src/index.css | Import theme | LOW |
+| src/App.tsx | Swap panels for zones | MEDIUM |
 
 ---
 
 ## Rollback Plan
 
-If integration fails:
-1. `git checkout main -- src/App.tsx`
-2. Keep new zone components for future use
-3. Document what broke
+```bash
+git checkout main -- src/App.tsx
+```
 
 ---
 
 ## Success Criteria
 
-- [ ] Single column displays correctly with new zones
-- [ ] Multiple columns can be added
-- [ ] Each column can have different face
-- [ ] Submit/commit works from any column
-- [ ] Real-time updates appear in all columns
-- [ ] No hook duplication (check network tab)
+- [ ] Single column displays with new zones
+- [ ] Solid shows narratives
+- [ ] Liquid shows self + others' entries
+- [ ] Commit button works from liquid
+- [ ] Vapor input works (query/submit/commit)
+- [ ] Soft response displays and dismisses
+- [ ] Keyboard shortcuts work
