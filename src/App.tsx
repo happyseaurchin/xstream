@@ -38,7 +38,7 @@ function App() {
     face,
   })
   
-  const { liquidEntries, upsertLiquid, commitLiquid } = useLiquidSubscription({
+  const { liquidEntries, upsertLiquid } = useLiquidSubscription({
     frameId: FRAME_ID,
     userId,
   })
