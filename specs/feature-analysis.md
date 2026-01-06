@@ -5,6 +5,18 @@
 
 ---
 
+## KNOWN ISSUE: Liquid Clear on Commit
+
+**Problem:** When Player A commits, Medium-LLM synthesizes ALL liquid (A + B + C) into one solid. But currently only Player A's liquid clears.
+
+**Expected:** ALL liquid should clear when synthesis starts.
+
+**Fix location:** Edge function or useLiquidSubscription - when placeholder solid appears, delete ALL liquid for that frame/face, not just committer's.
+
+**Tracked for:** Phase 0.12 or separate bugfix
+
+---
+
 ## LIQUID ZONE
 
 ### Feature: Liquid Edit
@@ -20,9 +32,7 @@
 - Long content can expand/collapse
 - No editing capability
 
-**Question:** Is in-place editing valuable, or is "copy back to vapor, edit there" better?
-
-**Proposal:** Copy-to-vapor seems cleaner. Liquid is *submitted* state - editing it feels like breaking the state model. If you want to change it, pull it back to vapor.
+**Decision:** ❌ DROP - if you want to change, pull back to vapor via copy-to-vapor
 
 ---
 
@@ -39,62 +49,27 @@
 - No "current" selection concept
 - All visible at once
 
-**Question:** Is history navigation needed, or is "show all" better?
+**Clarification:** Actually ONE entry per user per face (replace behavior). "History" was never implemented - arrows were unused. Show all = show each user's one entry.
 
-**Observation:** Working panel shows ONE entry at a time with nav arrows. New panel shows ALL entries scrollable. The new approach seems more intuitive - why hide entries?
-
-**Proposal:** Keep "show all" from new component. The history nav was probably an early design when screen space was tighter.
+**Decision:** ❌ DROP history nav - show all entries (one per user)
 
 ---
 
 ### Feature: Commit Button per Entry
 
-**What it does in working LiquidPanel:**
-- Each liquid entry has a ⏺ commit button
-- Clicking triggers Medium-LLM synthesis (liquid → solid)
-- Shows ◌ spinner while synthesizing
-- Critical for the vapor→liquid→solid flow
-
-**What new LiquidZone does:**
-- No commit button
-- Cards are display-only
-- No way to advance state
-
-**Proposal:** MUST ADD. This is core functionality. Each card needs:
-- Commit button (for own entries)
-- Loading state indicator
-- Maybe: dismiss button to remove without committing
+**Decision:** ✅ ADDED - CircleDot icon, self-only, with loading spinner
 
 ---
 
 ### Feature: Copy to Vapor
 
-**What it does in working LiquidPanel:**
-- Clicking on liquid entry copies text to vapor input
-- Allows quick iteration: see result → tweak → resubmit
-
-**What new LiquidZone does:**
-- No click handler
-- No vapor integration
-
-**Proposal:** ADD. Useful for iteration. Click card → text appears in vapor input.
+**Decision:** ✅ ADDED - Click card to copy content to vapor input
 
 ---
 
 ### Feature: Others' Liquid Display
 
-**What it does in working LiquidPanel:**
-- Shows other users' liquid entries below yours
-- Different styling ("other-liquid" class)
-- Shows their username and face
-- Shows committed/submitted state
-
-**What new LiquidZone does:**
-- All cards look the same
-- Has userName display
-- No distinction between self/other
-
-**Proposal:** ADD distinction. Visual difference matters for coordination.
+**Decision:** ✅ ADDED - Self vs Other visual distinction (ring, opacity, "(you)" label)
 
 ---
 
@@ -247,45 +222,45 @@
 
 ---
 
-## SUMMARY: Required Changes
+## SUMMARY: Progress
 
-### LiquidZone - MUST ADD:
+### LiquidZone - DONE ✅
 1. ✅ Commit button per card (own entries only)
 2. ✅ Loading state per card  
 3. ✅ Click-to-copy-to-vapor
 4. ✅ Self vs Other visual distinction
-5. ❌ History navigation (remove - show all is better)
-6. ❌ In-place editing (remove - use vapor for edits)
+5. ❌ History navigation (dropped - show all is better)
+6. ❌ In-place editing (dropped - use vapor for edits)
 
-### VapourZone - MUST ADD:
-1. ✅ Soft-LLM response display area
-2. ✅ Clarify options as buttons
-3. ✅ Loading states (isQuerying)
-4. ✅ Keyboard shortcuts (Enter/Shift+Enter/Cmd+Enter)
-5. ✅ Rename onLLMActivate → onQuery for clarity
-6. ✅ Add onCommit prop for Cmd+Enter
+### VapourZone - TODO
+1. ⬜ Soft-LLM response display area
+2. ⬜ Clarify options as buttons
+3. ⬜ Loading states (isQuerying)
+4. ⬜ Keyboard shortcuts (Enter/Shift+Enter/Cmd+Enter)
+5. ⬜ Rename onLLMActivate → onQuery for clarity
+6. ⬜ Add onCommit prop for Cmd+Enter
 
-### SolidZone - KEEP AS IS:
+### SolidZone - KEEP AS IS
 - Log view is sufficient
 - Directory view handled separately
 
 ---
 
-## Proposed New Props
+## Updated Props
 
-### LiquidZone
+### LiquidZone (IMPLEMENTED)
 ```typescript
 interface LiquidZoneProps {
-  cards: LiquidCard[];
+  cards: LiquidCardType[];
   height: number;
-  currentUserId: string;  // NEW: to distinguish self vs other
-  onCommit?: (cardId: string) => void;  // NEW
-  onCopyToVapor?: (text: string) => void;  // NEW
-  loadingCardId?: string | null;  // NEW: which card is synthesizing
+  currentUserId: string;
+  isLoading?: boolean;
+  onCommit?: (cardId: string) => void;
+  onCopyToVapor?: (text: string) => void;
 }
 ```
 
-### VapourZone
+### VapourZone (PROPOSED)
 ```typescript
 interface VapourZoneProps {
   entries: VapourEntry[];
@@ -302,9 +277,8 @@ interface VapourZoneProps {
 }
 ```
 
-### SolidZone
+### SolidZone (NO CHANGES)
 ```typescript
-// No changes needed for now
 interface SolidZoneProps {
   blocks: SolidBlock[];
   height: number;
