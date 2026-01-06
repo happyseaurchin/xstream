@@ -1,5 +1,5 @@
 // App.tsx - Main app with vapor-flow UI wired to xstream hooks
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { useFrameChannel, getDisplayName } from './hooks/useFrameChannel'
 import { useLiquidSubscription } from './hooks/useLiquidSubscription'
@@ -14,28 +14,45 @@ import './index.css'
 const THEME_KEY = 'xstream-theme'
 const FRAME_ID = 'bbbbbbbb-0000-0000-0000-000000000001' // test-frame
 
+interface ColumnState {
+  id: string
+  face: Face
+  background?: string
+}
+
 function App() {
   const auth = useAuth()
   const userId = auth.user?.id ?? ''
   const userName = auth.profile?.displayName ?? getDisplayName()
   
   // UI state
-  const [face, setFace] = useState<Face>('character')
+  const [columns, setColumns] = useState<ColumnState[]>([
+    { id: 'col-1', face: 'character' }
+  ])
   const [theme, setTheme] = useState<Theme>(() => 
     (localStorage.getItem(THEME_KEY) as Theme) || 'dark'
   )
-  const [layout] = useState<Layout>('single')
   const [showVapourOthers, setShowVapourOthers] = useState(true)
   const [showDirectory, setShowDirectory] = useState(true)
   const [vaporText, setVaporText] = useState('')
-  const [columnBackground, setColumnBackground] = useState<string>()
+  
+  // Derive layout from column count
+  const layout: Layout = useMemo(() => {
+    if (columns.length === 1) return 'single'
+    if (columns.length === 2) return 'double'
+    if (columns.length === 3) return 'triple'
+    return 'auto'
+  }, [columns.length])
+  
+  // Use first column's face for hooks (shared subscription)
+  const primaryFace = columns[0]?.face ?? 'character'
   
   // Hooks - only active when authenticated
   const { presentUsers, othersVapor, broadcastVapor, isConnected } = useFrameChannel({
     frameId: FRAME_ID,
     userId,
     userName,
-    face,
+    face: primaryFace,
   })
   
   const { liquidEntries, upsertLiquid } = useLiquidSubscription({
@@ -57,44 +74,32 @@ function App() {
     broadcastVapor(vaporText)
   }, [vaporText, broadcastVapor])
 
-  // Build column data using adapters
-  const column = buildColumn({
-    id: 'col-1',
-    face,
-    frameId: FRAME_ID,
-    frameName: 'test-frame',
-    characterName: face === 'character' ? userName : undefined,
-    solidEntries,
-    liquidEntries,
-    othersVapor,
-    selfVaporText: vaporText,
-    currentUserId: userId,
-    currentUserName: userName,
-    stateCode: 'X0Y0Z0',
-    background: columnBackground,
-  })
-
   // Handlers
-  const handleFaceChange = useCallback((_columnId: string, newFace: Face) => {
-    setFace(newFace)
+  const handleFaceChange = useCallback((columnId: string, newFace: Face) => {
+    setColumns(prev => prev.map(col => 
+      col.id === columnId ? { ...col, face: newFace } : col
+    ))
   }, [])
 
-  const handleVapourSubmit = useCallback(async (_columnId: string, text: string) => {
+  const handleVapourSubmit = useCallback(async (columnId: string, text: string) => {
     if (!text.trim()) return
     
-    // Submit to liquid
+    const col = columns.find(c => c.id === columnId)
+    if (!col) return
+    
     await upsertLiquid({
       userName,
-      face,
+      face: col.face,
       content: text,
     })
     
-    // Clear vapor
     setVaporText('')
-  }, [upsertLiquid, userName, face])
+  }, [upsertLiquid, userName, columns])
 
-  const handleBackgroundChange = useCallback((_columnId: string, bg: string) => {
-    setColumnBackground(bg || undefined)
+  const handleBackgroundChange = useCallback((columnId: string, bg: string) => {
+    setColumns(prev => prev.map(col => 
+      col.id === columnId ? { ...col, background: bg || undefined } : col
+    ))
   }, [])
 
   const handleLogout = useCallback(() => {
@@ -102,9 +107,14 @@ function App() {
   }, [auth])
 
   const handleAddColumn = useCallback(() => {
-    // For now, single column - could expand later
-    console.log('Add column requested')
-  }, [])
+    if (columns.length >= 3) return // Max 3 columns
+    
+    const faces: Face[] = ['character', 'author', 'designer']
+    const newFace = faces[columns.length % 3]
+    const newId = `col-${Date.now()}`
+    
+    setColumns(prev => [...prev, { id: newId, face: newFace }])
+  }, [columns.length])
 
   // Loading state
   if (auth.isLoading) {
@@ -138,17 +148,34 @@ function App() {
       
       {/* Columns container */}
       <div className="columns-container h-full grid">
-        <XStreamColumn
-          column={column}
-          presenceCount={presentUsers.length}
-          showVapourOthers={showVapourOthers}
-          showDirectory={showDirectory}
-          onFaceChange={handleFaceChange}
-          onVapourSubmit={handleVapourSubmit}
-          onShowVapourOthersChange={setShowVapourOthers}
-          onShowDirectoryChange={setShowDirectory}
-          onBackgroundChange={handleBackgroundChange}
-        />
+        {columns.map(col => (
+          <XStreamColumn
+            key={col.id}
+            column={buildColumn({
+              id: col.id,
+              face: col.face,
+              frameId: FRAME_ID,
+              frameName: 'test-frame',
+              characterName: col.face === 'character' ? userName : undefined,
+              solidEntries,
+              liquidEntries,
+              othersVapor,
+              selfVaporText: vaporText,
+              currentUserId: userId,
+              currentUserName: userName,
+              stateCode: 'X0Y0Z0',
+              background: col.background,
+            })}
+            presenceCount={presentUsers.length}
+            showVapourOthers={showVapourOthers}
+            showDirectory={showDirectory}
+            onFaceChange={handleFaceChange}
+            onVapourSubmit={handleVapourSubmit}
+            onShowVapourOthersChange={setShowVapourOthers}
+            onShowDirectoryChange={setShowDirectory}
+            onBackgroundChange={handleBackgroundChange}
+          />
+        ))}
       </div>
 
       {/* Floating construction button */}
