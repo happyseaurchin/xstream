@@ -13,6 +13,9 @@ interface VapourZoneProps {
   onQuery: (text: string) => void;    // Enter → Soft-LLM
   onSubmit: (text: string) => void;   // Shift+Enter → Liquid
   onCommit?: (text: string) => void;  // Cmd+Enter → Solid
+  // Controlled mode (optional)
+  value?: string;
+  onChange?: (value: string) => void;
   // Soft response
   softResponse?: SoftLLMResponse | null;
   onDismissSoftResponse?: () => void;
@@ -27,12 +30,26 @@ export const VapourZone = forwardRef<VapourZoneHandle, VapourZoneProps>(
     onQuery,
     onSubmit, 
     onCommit,
+    value: controlledValue,
+    onChange: controlledOnChange,
     softResponse,
     onDismissSoftResponse,
     isQuerying = false,
     placeholder = "Type your thought...",
   }, ref) {
-    const [inputValue, setInputValue] = useState("");
+    // Support both controlled and uncontrolled modes
+    const [internalValue, setInternalValue] = useState("");
+    const isControlled = controlledValue !== undefined;
+    const inputValue = isControlled ? controlledValue : internalValue;
+    
+    const setInputValue = (newValue: string) => {
+      if (isControlled) {
+        controlledOnChange?.(newValue);
+      } else {
+        setInternalValue(newValue);
+      }
+    };
+    
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Expose focus method to parent
