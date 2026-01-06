@@ -124,7 +124,7 @@ export function buildColumn(params: {
   const {
     id,
     face,
-    frameId,
+    frameId: _frameId, // Reserved for future use
     frameName = 'main-frame',
     characterName,
     solidEntries,
