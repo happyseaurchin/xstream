@@ -173,7 +173,7 @@ export const VapourZone = forwardRef<VapourZoneHandle, VapourZoneProps>(
         </div>
         
         {/* Anchored input area */}
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-2">
           <div className="vapour-input-container flex items-center gap-2 p-2">
             {/* Query button (Enter) */}
             <button
@@ -225,8 +225,8 @@ export const VapourZone = forwardRef<VapourZoneHandle, VapourZoneProps>(
             </button>
           </div>
           
-          {/* Keyboard hint */}
-          <div className="mt-1 px-1 flex gap-3 text-[10px] text-muted-foreground/40">
+          {/* Keyboard hint - tighter spacing */}
+          <div className="px-1 flex gap-3 text-[10px] text-muted-foreground/40">
             <span>↵ query</span>
             <span>⇧↵ submit</span>
             <span>⌘↵ commit</span>
