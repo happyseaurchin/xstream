@@ -15,6 +15,7 @@ import { SolidZone } from './components/xstream/SolidZone'
 import { LiquidZone } from './components/xstream/LiquidZone'
 import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZone'
 import { ConstructionButton } from './components/xstream/ConstructionButton'
+import { ColumnHeader } from './components/xstream/ColumnHeader'
 import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 import type {
   Face,
@@ -779,50 +780,25 @@ function App() {
 
   return (
     <div className="app" data-theme={theme} data-face={face} data-layout="single">
-      {/* Top accent line - color matches current face */}
-      <div className="face-accent-strip" />
-      
-      <header className="header">
-        <div className="selectors">
-          <select value={face} onChange={(e) => setFace(e.target.value as Face)} className="face-selector">
-            <option value="character">🎭 Character</option>
-            <option value="author">📖 Author</option>
-            <option value="designer">⚙️ Designer</option>
-          </select>
-          <select value={frameId || ''} onChange={(e) => setFrameId(e.target.value || null)} className="frame-selector">
-            {FRAMES.map(f => <option key={f.id || 'none'} value={f.id || ''}>{f.name}</option>)}
-          </select>
-        </div>
-        <div className="header-controls">
-          {face === 'character' && frameId && frameCharacters.length > 0 && (
-            <select 
-              value={selectedCharacterId || ''} 
-              onChange={(e) => handleCharacterSelect(e.target.value || null)}
-              className="character-selector"
-              title="Select character to inhabit"
-            >
-              <option value="">-- Select Character --</option>
-              {frameCharacters.map(c => (
-                <option key={c.id} value={c.id} disabled={c.inhabited_by !== null && c.inhabited_by !== userId}>
-                  {c.name} {c.is_npc ? '(NPC)' : ''} {c.inhabited_by === userId ? '✓' : c.inhabited_by ? '⊘' : ''}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="presence-indicator">
-            {frameId && (
-              <>
-                <span className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`} title={isConnected ? 'Connected' : channelError || 'Disconnected'}>●</span>
-                {presentUsers.length > 0 && <span className="presence-count" title={presentUsers.map(u => `${u.name} (${u.face})`).join(', ')}>+{presentUsers.length}</span>}
-              </>
-            )}
-          </div>
-          <span className="xyz-badge">{currentFrame.xyz}</span>
-          <button className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`} onClick={() => setShowVisibilityPanel(!showVisibilityPanel)} title="Visibility settings">⚙</button>
-          <button className="meta-toggle" onClick={() => setShowMeta(!showMeta)} title="Toggle skill metadata">{showMeta ? '◉' : '○'}</button>
-          <button className="logout-btn" onClick={() => auth.signOut()} title={`Signed in as ${userName}`}>↪</button>
-        </div>
-      </header>
+      {/* Vapor-flow style header */}
+      <ColumnHeader
+        face={face}
+        frame={currentFrame.name}
+        character={selectedCharacter?.name}
+        stateCode={currentFrame.xyz}
+        presenceCount={presentUsers.length}
+        isConnected={isConnected}
+        characters={frameCharacters}
+        selectedCharacterId={selectedCharacterId}
+        currentUserId={userId}
+        onCharacterSelect={handleCharacterSelect}
+        frames={FRAMES.map(f => ({ id: f.id, name: f.name }))}
+        selectedFrameId={frameId}
+        onFrameSelect={setFrameId}
+        onFaceChange={setFace}
+        onFilterToggle={() => setShowVisibilityPanel(!showVisibilityPanel)}
+        onDetailsToggle={() => setShowMeta(!showMeta)}
+      />
 
       {showVisibilityPanel && (
         <VisibilityPanel
