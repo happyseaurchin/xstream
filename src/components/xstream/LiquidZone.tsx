@@ -25,9 +25,7 @@ function LiquidCard({ card, isSelf, isLoading, onCommit, onCopyToVapor }: Liquid
 
   return (
     <div 
-      className={`card-liquid rounded-lg p-3 animate-slide-up cursor-pointer transition-colors hover:bg-accent/5 ${
-        isSelf ? 'ring-1 ring-face-accent/30' : 'opacity-80'
-      }`}
+      className="card-liquid rounded-lg p-3 animate-slide-up cursor-pointer transition-colors hover:bg-accent/5"
       onClick={handleClick}
       title={isSelf ? "Click to copy to vapor" : `${card.userName}'s submission`}
     >
