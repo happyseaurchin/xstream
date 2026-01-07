@@ -7,7 +7,6 @@ import { useContentSubscription } from './hooks/useContentSubscription'
 import {
   AuthPage,
   PresenceBar,
-  VisibilityPanel,
   DraggableSeparator,
 } from './components'
 // New zone components
@@ -17,6 +16,7 @@ import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZo
 import { ConstructionButton } from './components/xstream/ConstructionButton'
 import { ColumnHeader } from './components/xstream/ColumnHeader'
 import { DirectoryDrawer } from './components/xstream/DirectoryDrawer'
+import { FilterDrawer } from './components/xstream/FilterDrawer'
 import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 import type {
   Face,
@@ -54,6 +54,7 @@ const DEFAULT_PROPORTIONS: ZoneProportions = { solid: 40, liquid: 30, vapour: 30
 const MIN_ZONE_HEIGHT = 60 // pixels
 const ZONE_STORAGE_KEY = 'xstream-zone-proportions'
 const THEME_STORAGE_KEY = 'xstream-theme'
+const BACKGROUND_STORAGE_KEY = 'xstream-column-background'
 
 // Load zone proportions from localStorage
 function loadZoneProportions(): ZoneProportions {
@@ -101,6 +102,24 @@ function saveTheme(theme: Theme): void {
   }
 }
 
+// Background persistence
+function loadBackground(): string {
+  try {
+    return localStorage.getItem(BACKGROUND_STORAGE_KEY) || ''
+  } catch (e) {
+    console.warn('[Background] Failed to load:', e)
+  }
+  return ''
+}
+
+function saveBackground(bg: string): void {
+  try {
+    localStorage.setItem(BACKGROUND_STORAGE_KEY, bg)
+  } catch (e) {
+    console.warn('[Background] Failed to save:', e)
+  }
+}
+
 // Available frames
 const FRAMES: Frame[] = [
   { id: null, name: 'None (platform defaults)', xyz: 'X0Y0Z0' },
@@ -124,6 +143,9 @@ function App() {
   // Theme state (for vapor ConstructionButton)
   const [theme, setTheme] = useState<Theme>(loadTheme)
   
+  // Column background state
+  const [columnBackground, setColumnBackground] = useState<string>(loadBackground)
+  
   // Character selection state (Phase 0.9.3)
   const [frameCharacters, setFrameCharacters] = useState<FrameCharacter[]>([])
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
@@ -140,7 +162,7 @@ function App() {
   
   // UI state
   const [showMeta, setShowMeta] = useState(false)
-  const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false)
   const [showDirectory, setShowDirectory] = useState(false)
   const [solidView, setSolidView] = useState<SolidView>('log')
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
@@ -164,6 +186,12 @@ function App() {
   const handleThemeChange = useCallback((newTheme: Theme) => {
     setTheme(newTheme)
     saveTheme(newTheme)
+  }, [])
+
+  // Background change handler
+  const handleBackgroundChange = useCallback((bg: string) => {
+    setColumnBackground(bg)
+    saveBackground(bg)
   }, [])
 
   // Sync userName with profile
@@ -758,17 +786,17 @@ function App() {
     }
   }
 
-  // Directory toggle - close visibility panel if opening directory
+  // Directory toggle - close filter drawer if opening directory
   const handleDirectoryToggle = useCallback(() => {
     setShowDirectory(prev => {
-      if (!prev) setShowVisibilityPanel(false)
+      if (!prev) setShowFilterDrawer(false)
       return !prev
     })
   }, [])
 
   // Filter toggle - close directory if opening filter
   const handleFilterToggle = useCallback(() => {
-    setShowVisibilityPanel(prev => {
+    setShowFilterDrawer(prev => {
       if (!prev) setShowDirectory(false)
       return !prev
     })
@@ -833,7 +861,7 @@ function App() {
         onFilterToggle={handleFilterToggle}
         onDetailsToggle={() => setShowMeta(!showMeta)}
         isDirectoryOpen={showDirectory}
-        isFilterOpen={showVisibilityPanel}
+        isFilterOpen={showFilterDrawer}
       />
 
       {/* Directory drawer - face-specific content */}
@@ -859,18 +887,25 @@ function App() {
         isLoading={isLoadingDirectory || isLoadingContent}
       />
 
-      {showVisibilityPanel && (
-        <VisibilityPanel
-          visibility={visibility}
-          onToggle={(key) => setVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
-          userName={userName}
-          onNameChange={handleNameChange}
-        />
-      )}
+      {/* Filter drawer - vapor-flow style */}
+      <FilterDrawer
+        isOpen={showFilterDrawer}
+        onClose={() => setShowFilterDrawer(false)}
+        visibility={visibility}
+        onToggle={(key) => setVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
+        userName={userName}
+        onNameChange={handleNameChange}
+        columnBackground={columnBackground}
+        onBackgroundChange={handleBackgroundChange}
+      />
 
       {frameId && <PresenceBar users={presentUsers} />}
 
-      <main className="main" ref={mainRef}>
+      <main 
+        className="main" 
+        ref={mainRef}
+        style={columnBackground ? { background: columnBackground } : undefined}
+      >
         {visibility.showSolid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.solid}%` }}>
             <SolidZone
