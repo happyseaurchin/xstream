@@ -9,6 +9,42 @@
   max-width: 800px;
   margin: 0 auto;
   background: var(--color-bg);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Column background with fade effect (from vapor-flow) - on .app to include header */
+.app[data-column-bg="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--xstream-column-bg);
+  pointer-events: none;
+  z-index: 0;
+
+  /* Fade: solid at top → ~10% at mid → 0% at bottom */
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+}
+
+.app > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Face Accent Strip - exact match from vapor-flow index.css */
@@ -37,6 +73,12 @@
   padding: 0.5rem 0.75rem;
   background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Header transparent when column has custom bg */
+.app[data-column-bg="true"] .header,
+.app[data-column-bg="true"] .column-header {
+  background: transparent;
 }
 
 .selectors {
@@ -170,50 +212,17 @@
   background: var(--color-bg-secondary);
   overflow: hidden;
   position: relative;
-  isolation: isolate;
-}
-
-/* Column background with fade effect (from vapor-flow) */
-.main[data-column-bg="true"]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--xstream-column-bg);
-  pointer-events: none;
-  z-index: 0;
-
-  /* Fade: solid at top → ~10% at mid → 0% at bottom */
-  mask-image: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 1) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  mask-repeat: no-repeat;
-  mask-size: 100% 100%;
-
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 1) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-}
-
-.main > * {
-  position: relative;
   z-index: 1;
 }
 
 /* Zone backgrounds transparent when column has custom bg */
-.main[data-column-bg="true"] .zone-solid,
-.main[data-column-bg="true"] .zone-liquid,
-.main[data-column-bg="true"] .zone-vapour,
-.main[data-column-bg="true"] .solid-zone,
-.main[data-column-bg="true"] .liquid-zone,
-.main[data-column-bg="true"] .vapor-zone {
+.app[data-column-bg="true"] .main,
+.app[data-column-bg="true"] .zone-solid,
+.app[data-column-bg="true"] .zone-liquid,
+.app[data-column-bg="true"] .zone-vapour,
+.app[data-column-bg="true"] .solid-zone,
+.app[data-column-bg="true"] .liquid-zone,
+.app[data-column-bg="true"] .vapor-zone {
   background: transparent;
 }
 
@@ -999,6 +1008,11 @@
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
+}
+
+/* Presence bar transparent when column has custom bg */
+.app[data-column-bg="true"] .presence-bar {
+  background: transparent;
 }
 
 .presence-user {
