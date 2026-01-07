@@ -778,7 +778,10 @@ function App() {
   }
 
   return (
-    <div className="app" data-theme={theme} data-layout="single">
+    <div className="app" data-theme={theme} data-face={face} data-layout="single">
+      {/* Top accent line - color matches current face */}
+      <div className="face-accent-strip" />
+      
       <header className="header">
         <div className="selectors">
           <select value={face} onChange={(e) => setFace(e.target.value as Face)} className="face-selector">
