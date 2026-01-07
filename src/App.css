@@ -65,7 +65,13 @@
   font-size: 1rem;
 }
 
-/* Header */
+/* Header - higher z-index so dropdowns appear above zones */
+.header,
+.column-header {
+  position: relative;
+  z-index: 10;
+}
+
 .header {
   display: flex;
   justify-content: space-between;
