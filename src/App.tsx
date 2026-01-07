@@ -6,15 +6,18 @@ import { useSolidSubscription } from './hooks/useSolidSubscription'
 import { useContentSubscription } from './hooks/useContentSubscription'
 import {
   AuthPage,
-  ConstructionButton,
   PresenceBar,
-  VisibilityPanel,
-  VaporPanel,
-  LiquidPanel,
-  SolidPanel,
   DraggableSeparator,
 } from './components'
-import type { VaporPanelHandle } from './components/VaporPanel'
+// New zone components
+import { SolidZone } from './components/xstream/SolidZone'
+import { LiquidZone } from './components/xstream/LiquidZone'
+import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZone'
+import { ConstructionButton } from './components/xstream/ConstructionButton'
+import { ColumnHeader } from './components/xstream/ColumnHeader'
+import { DirectoryDrawer } from './components/xstream/DirectoryDrawer'
+import { FilterDrawer } from './components/xstream/FilterDrawer'
+import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 import type {
   Face,
   LLMMode,
@@ -27,6 +30,7 @@ import type {
   SoftLLMResponse,
   ZoneProportions,
 } from './types'
+import type { Theme } from './types/xstream'
 import { parseInputTypography, parseArtifactFromText } from './utils/parsing'
 import { supabase } from './lib/supabase'
 import './App.css'
@@ -49,6 +53,8 @@ interface FrameCharacter {
 const DEFAULT_PROPORTIONS: ZoneProportions = { solid: 40, liquid: 30, vapour: 30 }
 const MIN_ZONE_HEIGHT = 60 // pixels
 const ZONE_STORAGE_KEY = 'xstream-zone-proportions'
+const THEME_STORAGE_KEY = 'xstream-theme'
+const BACKGROUND_STORAGE_KEY = 'xstream-column-background'
 
 // Load zone proportions from localStorage
 function loadZoneProportions(): ZoneProportions {
@@ -75,6 +81,45 @@ function saveZoneProportions(proportions: ZoneProportions): void {
   }
 }
 
+// Theme persistence
+function loadTheme(): Theme {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    if (stored && ['dark', 'light', 'cyber', 'soft'].includes(stored)) {
+      return stored as Theme
+    }
+  } catch (e) {
+    console.warn('[Theme] Failed to load:', e)
+  }
+  return 'dark'
+}
+
+function saveTheme(theme: Theme): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme)
+  } catch (e) {
+    console.warn('[Theme] Failed to save:', e)
+  }
+}
+
+// Background persistence
+function loadBackground(): string {
+  try {
+    return localStorage.getItem(BACKGROUND_STORAGE_KEY) || ''
+  } catch (e) {
+    console.warn('[Background] Failed to load:', e)
+  }
+  return ''
+}
+
+function saveBackground(bg: string): void {
+  try {
+    localStorage.setItem(BACKGROUND_STORAGE_KEY, bg)
+  } catch (e) {
+    console.warn('[Background] Failed to save:', e)
+  }
+}
+
 // Available frames
 const FRAMES: Frame[] = [
   { id: null, name: 'None (platform defaults)', xyz: 'X0Y0Z0' },
@@ -95,6 +140,12 @@ function App() {
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
   
+  // Theme state (for vapor ConstructionButton)
+  const [theme, setTheme] = useState<Theme>(loadTheme)
+  
+  // Column background state
+  const [columnBackground, setColumnBackground] = useState<string>(loadBackground)
+  
   // Character selection state (Phase 0.9.3)
   const [frameCharacters, setFrameCharacters] = useState<FrameCharacter[]>([])
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
@@ -111,7 +162,8 @@ function App() {
   
   // UI state
   const [showMeta, setShowMeta] = useState(false)
-  const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false)
+  const [showDirectory, setShowDirectory] = useState(false)
   const [solidView, setSolidView] = useState<SolidView>('log')
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
@@ -128,7 +180,19 @@ function App() {
   })
 
   const debounceTimerRef = useRef<number | null>(null)
-  const vaporPanelRef = useRef<VaporPanelHandle>(null)
+  const vaporPanelRef = useRef<VapourZoneHandle>(null)
+
+  // Theme change handler
+  const handleThemeChange = useCallback((newTheme: Theme) => {
+    setTheme(newTheme)
+    saveTheme(newTheme)
+  }, [])
+
+  // Background change handler
+  const handleBackgroundChange = useCallback((bg: string) => {
+    setColumnBackground(bg)
+    saveBackground(bg)
+  }, [])
 
   // Sync userName with profile
   useEffect(() => {
@@ -137,6 +201,33 @@ function App() {
       setDisplayName(auth.profile.displayName)
     }
   }, [auth.profile?.displayName])
+
+  // Reset all session state when user changes (login/logout/switch user)
+  const prevUserIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const currentUserId = auth.user?.id ?? null
+    const prevUserId = prevUserIdRef.current
+    
+    // Only reset if userId actually changed (not just on mount)
+    if (prevUserId !== null && prevUserId !== currentUserId) {
+      console.log('[App] User changed, resetting session state:', prevUserId, '→', currentUserId)
+      
+      // Reset all session-specific state
+      setFrameId(null)
+      setInput('')
+      setEntries([])
+      setFrameCharacters([])
+      setSelectedCharacterId(null)
+      setSoftResponse(null)
+      setLiquidHistoryIndex(0)
+      setFrameSkills([])
+      setShowDirectory(false)
+      setShowFilterDrawer(false)
+      setShowMeta(false)
+    }
+    
+    prevUserIdRef.current = currentUserId
+  }, [auth.user?.id])
 
   // Load characters when frame changes + realtime subscription
   useEffect(() => {
@@ -344,9 +435,12 @@ function App() {
     return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current) }
   }, [])
 
+  // Load skills when directory opens for designer face
   useEffect(() => {
-    if (solidView === 'dir' && face === 'designer') loadFrameSkills()
-  }, [solidView, frameId, face])
+    if (showDirectory && face === 'designer') {
+      loadFrameSkills()
+    }
+  }, [showDirectory, frameId, face])
 
   // API calls
   const loadFrameSkills = async () => {
@@ -434,7 +528,7 @@ function App() {
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
       }
 
-      if (createdSkill && solidView === 'dir') loadFrameSkills()
+      if (createdSkill && showDirectory && face === 'designer') loadFrameSkills()
       console.log('[App] generateResponse SUCCESS')
 
     } catch (error) {
@@ -523,7 +617,7 @@ function App() {
       timestamp: new Date().toISOString() 
     }
     replaceActiveEntry(newEntry, 'designer')
-    setSolidView('log')
+    setShowDirectory(false)
   }
 
   const handleDeleteContent = useCallback((contentId: string) => {
@@ -719,6 +813,54 @@ function App() {
     }
   }
 
+  // Directory toggle - close filter drawer if opening directory
+  const handleDirectoryToggle = useCallback(() => {
+    setShowDirectory(prev => {
+      if (!prev) setShowFilterDrawer(false)
+      return !prev
+    })
+  }, [])
+
+  // Filter toggle - close directory if opening filter
+  const handleFilterToggle = useCallback(() => {
+    setShowFilterDrawer(prev => {
+      if (!prev) setShowDirectory(false)
+      return !prev
+    })
+  }, [])
+
+  // Placeholder for add column (not yet implemented)
+  const handleAddColumn = useCallback(() => {
+    console.log('[App] Add column requested (not yet implemented)')
+  }, [])
+
+  // Compute zone heights
+  const getZoneHeight = (zone: 'solid' | 'liquid' | 'vapour') => {
+    if (!mainRef.current) return 200
+    return Math.floor(mainRef.current.clientHeight * zoneProportions[zone] / 100)
+  }
+
+  // Adapt content entries for directory
+  const directoryContentEntries = dbContentEntries.map(e => ({
+    id: e.id,
+    type: e.type,
+    name: e.name,
+    preview: e.content?.slice(0, 100),
+  }))
+
+  // Adapt skills for directory
+  const directorySkills = frameSkills.map(s => ({
+    id: s.id || crypto.randomUUID(),
+    name: s.name,
+    category: s.category,
+    applies_to: s.applies_to,
+  }))
+
+  // Column background style (vapor-flow pattern with CSS variable)
+  const columnBgStyle: React.CSSProperties | undefined = columnBackground
+    ? { '--xstream-column-bg': columnBackground } as React.CSSProperties
+    : undefined
+
   // Show loading while checking auth
   if (auth.isLoading) {
     return (
@@ -734,77 +876,79 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="selectors">
-          <select value={face} onChange={(e) => setFace(e.target.value as Face)} className="face-selector">
-            <option value="character">🎭 Character</option>
-            <option value="author">📖 Author</option>
-            <option value="designer">⚙️ Designer</option>
-          </select>
-          <select value={frameId || ''} onChange={(e) => setFrameId(e.target.value || null)} className="frame-selector">
-            {FRAMES.map(f => <option key={f.id || 'none'} value={f.id || ''}>{f.name}</option>)}
-          </select>
-        </div>
-        <div className="header-controls">
-          {face === 'character' && frameId && frameCharacters.length > 0 && (
-            <select 
-              value={selectedCharacterId || ''} 
-              onChange={(e) => handleCharacterSelect(e.target.value || null)}
-              className="character-selector"
-              title="Select character to inhabit"
-            >
-              <option value="">-- Select Character --</option>
-              {frameCharacters.map(c => (
-                <option key={c.id} value={c.id} disabled={c.inhabited_by !== null && c.inhabited_by !== userId}>
-                  {c.name} {c.is_npc ? '(NPC)' : ''} {c.inhabited_by === userId ? '✓' : c.inhabited_by ? '⊘' : ''}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="presence-indicator">
-            {frameId && (
-              <>
-                <span className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`} title={isConnected ? 'Connected' : channelError || 'Disconnected'}>●</span>
-                {presentUsers.length > 0 && <span className="presence-count" title={presentUsers.map(u => `${u.name} (${u.face})`).join(', ')}>+{presentUsers.length}</span>}
-              </>
-            )}
-          </div>
-          <span className="xyz-badge">{currentFrame.xyz}</span>
-          <button className={`visibility-toggle ${showVisibilityPanel ? 'active' : ''}`} onClick={() => setShowVisibilityPanel(!showVisibilityPanel)} title="Visibility settings">⚙</button>
-          <button className="meta-toggle" onClick={() => setShowMeta(!showMeta)} title="Toggle skill metadata">{showMeta ? '◉' : '○'}</button>
-          <button className="logout-btn" onClick={() => auth.signOut()} title={`Signed in as ${userName}`}>↪</button>
-        </div>
-      </header>
+    <div 
+      className="app" 
+      data-theme={theme} 
+      data-face={face} 
+      data-layout="single"
+      data-column-bg={columnBackground ? "true" : "false"}
+      style={columnBgStyle}
+    >
+      {/* Vapor-flow style header */}
+      <ColumnHeader
+        face={face}
+        frame={currentFrame.name}
+        character={selectedCharacter?.name}
+        stateCode={currentFrame.xyz}
+        presenceCount={presentUsers.length}
+        isConnected={isConnected}
+        frames={FRAMES.map(f => ({ id: f.id, name: f.name }))}
+        selectedFrameId={frameId}
+        onFrameSelect={setFrameId}
+        onFaceChange={setFace}
+        onDirectoryToggle={handleDirectoryToggle}
+        onFilterToggle={handleFilterToggle}
+        onDetailsToggle={() => setShowMeta(!showMeta)}
+        isDirectoryOpen={showDirectory}
+        isFilterOpen={showFilterDrawer}
+      />
 
-      {showVisibilityPanel && (
-        <VisibilityPanel
-          visibility={visibility}
-          onToggle={(key) => setVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
-          userName={userName}
-          onNameChange={handleNameChange}
-        />
-      )}
+      {/* Directory drawer - face-specific content */}
+      <DirectoryDrawer
+        isOpen={showDirectory}
+        onClose={() => setShowDirectory(false)}
+        face={face}
+        characters={frameCharacters}
+        selectedCharacterId={selectedCharacterId}
+        currentUserId={userId}
+        onCharacterSelect={handleCharacterSelect}
+        contentEntries={directoryContentEntries}
+        onContentSelect={(entry) => {
+          handleCopyToVapor(entry.name)
+          setShowDirectory(false)
+        }}
+        onContentDelete={handleDeleteContent}
+        skills={directorySkills}
+        onSkillSelect={(skill) => {
+          const fullSkill = frameSkills.find(s => s.name === skill.name)
+          if (fullSkill) handleSkillClick(fullSkill)
+        }}
+        isLoading={isLoadingDirectory || isLoadingContent}
+      />
+
+      {/* Filter drawer - vapor-flow style */}
+      <FilterDrawer
+        isOpen={showFilterDrawer}
+        onClose={() => setShowFilterDrawer(false)}
+        visibility={visibility}
+        onToggle={(key) => setVisibility(prev => ({ ...prev, [key]: !prev[key] }))}
+        userName={userName}
+        onNameChange={handleNameChange}
+        columnBackground={columnBackground}
+        onBackgroundChange={handleBackgroundChange}
+      />
 
       {frameId && <PresenceBar users={presentUsers} />}
 
-      <main className="main" ref={mainRef}>
+      <main 
+        className="main" 
+        ref={mainRef}
+      >
         {visibility.showSolid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.solid}%` }}>
-            <SolidPanel
-              solidView={solidView}
-              onViewChange={setSolidView}
-              solidEntries={dbSolidEntries}
-              frameSkills={frameSkills}
-              contentEntries={dbContentEntries}
-              characterEntries={dbCharacterEntries}
-              face={face}
-              frameId={frameId}
-              isLoadingDirectory={isLoadingDirectory || isLoadingContent}
-              showMeta={showMeta}
-              onSkillClick={handleSkillClick}
-              onDeleteContent={handleDeleteContent}
-              onDeleteCharacter={handleDeleteCharacter}
+            <SolidZone
+              blocks={adaptSolidEntries(dbSolidEntries)}
+              height={getZoneHeight('solid')}
             />
           </div>
         )}
@@ -815,17 +959,12 @@ function App() {
 
         {visibility.showLiquid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.liquid}%` }}>
-            <LiquidPanel
-              liquidEntries={myLiquidEntries}
-              currentIndex={liquidHistoryIndex}
-              othersLiquid={othersLiquid}
+            <LiquidZone
+              cards={combineLiquidCards(myLiquidEntries, selectedCharacter?.name || userName, othersLiquid)}
+              height={getZoneHeight('liquid')}
+              currentUserId={userId}
               isLoading={isLoading}
-              onEdit={handleLiquidEdit}
               onCommit={handleCommitEntry}
-              onDismiss={(id) => {
-                setEntries(prev => prev.filter(e => e.id !== id))
-              }}
-              onNavigate={handleLiquidNavigate}
               onCopyToVapor={handleCopyToVapor}
             />
           </div>
@@ -837,29 +976,29 @@ function App() {
 
         {visibility.showVapor && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.vapour}%` }}>
-            <VaporPanel
+            <VapourZone
               ref={vaporPanelRef}
-              input={input}
-              onInputChange={setInput}
-              userName={selectedCharacter?.name || userName}
-              face={face}
-              othersVapor={othersVapor}
+              entries={adaptVaporContents(othersVapor)}
+              value={input}
+              onChange={setInput}
+              onQuery={handleQuery}
+              onSubmit={handleSubmitDirect}
+              onCommit={handleCommitDirect}
               softResponse={softResponse}
               onDismissSoftResponse={handleDismissSoftResponse}
-              onSelectOption={handleSelectOption}
-              isLoading={isLoading}
               isQuerying={isQuerying}
-              hasLiquidToClear={hasLiquidToClear}
-              onQuery={handleQuery}
-              onSubmit={handleSubmit}
-              onCommit={handleCommit}
-              onClear={handleClear}
+              placeholder={`As ${selectedCharacter?.name || userName}...`}
             />
           </div>
         )}
       </main>
 
-      <ConstructionButton />
+      <ConstructionButton
+        onAddColumn={handleAddColumn}
+        onThemeChange={handleThemeChange}
+        onLogout={() => auth.signOut()}
+        currentTheme={theme}
+      />
     </div>
   )
 }

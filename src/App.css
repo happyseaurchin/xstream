@@ -1,5 +1,5 @@
 /* ================================================
-   Phase 0.9.0: UI Redesign - Zones, Separators, Demure Styling
+   Phase 0.11: Zone UI Integration
    ================================================ */
 
 .app {
@@ -8,7 +8,50 @@
   height: 100vh;
   max-width: 800px;
   margin: 0 auto;
-  padding: 1rem;
+  background: var(--color-bg);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Column background with fade effect (from vapor-flow) - on .app to include header */
+.app[data-column-bg="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--xstream-column-bg);
+  pointer-events: none;
+  z-index: 0;
+
+  /* Fade: solid at top → ~10% at mid → 0% at bottom */
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+}
+
+.app > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Face Accent Strip - exact match from vapor-flow index.css */
+.face-accent-strip {
+  height: 2px;
+  background: hsl(var(--column-accent, var(--primary)));
+  opacity: 0.8;
 }
 
 /* Loading Screen */
@@ -22,15 +65,26 @@
   font-size: 1rem;
 }
 
-/* Header */
+/* Header - higher z-index so dropdowns appear above zones */
+.header,
+.column-header {
+  position: relative;
+  z-index: 10;
+}
+
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 0.75rem;
   background: var(--color-bg-secondary);
-  border-radius: 8px 8px 0 0;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Header transparent when column has custom bg */
+.app[data-column-bg="true"] .header,
+.app[data-column-bg="true"] .column-header {
+  background: transparent;
 }
 
 .selectors {
@@ -163,7 +217,19 @@
   flex-direction: column;
   background: var(--color-bg-secondary);
   overflow: hidden;
-  border-radius: 0 0 8px 8px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Zone backgrounds transparent when column has custom bg */
+.app[data-column-bg="true"] .main,
+.app[data-column-bg="true"] .zone-solid,
+.app[data-column-bg="true"] .zone-liquid,
+.app[data-column-bg="true"] .zone-vapour,
+.app[data-column-bg="true"] .solid-zone,
+.app[data-column-bg="true"] .liquid-zone,
+.app[data-column-bg="true"] .vapor-zone {
+  background: transparent;
 }
 
 .zone-wrapper {
@@ -174,36 +240,31 @@
 }
 
 /* ================================================
-   Draggable Separator
+   Draggable Separator (vapor-flow style)
    ================================================ */
 
 .draggable-separator {
   flex: 0 0 auto;
-  height: 8px;
-  background: var(--color-bg-tertiary);
+  height: 12px;
+  background: transparent;
   cursor: row-resize;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  position: relative;
+}
+
+.draggable-separator::before {
+  content: "";
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-border);
   transition: background 0.15s ease;
 }
 
-.draggable-separator:hover {
-  background: var(--color-bg);
-}
-
-.separator-grip {
-  width: 40px;
-  height: 3px;
+.draggable-separator:hover::before {
   background: var(--color-text-muted);
-  border-radius: 2px;
-  opacity: 0.4;
-}
-
-.draggable-separator:hover .separator-grip {
-  opacity: 0.7;
 }
 
 /* ================================================
@@ -257,7 +318,7 @@
 .solid-scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem 1rem 0.75rem;
 }
 
 .solid-view-toggle {
@@ -955,6 +1016,11 @@
   flex-wrap: wrap;
 }
 
+/* Presence bar transparent when column has custom bg */
+.app[data-column-bg="true"] .presence-bar {
+  background: transparent;
+}
+
 .presence-user {
   display: flex;
   align-items: center;
@@ -1033,4 +1099,40 @@
   border-radius: 2px;
   cursor: pointer;
   font-size: 0.75rem;
+}
+
+/* ================================================
+   Column Badge (vapor style)
+   ================================================ */
+
+.column-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-family: monospace;
+}
+
+/* ================================================
+   Animation utilities
+   ================================================ */
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

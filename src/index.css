@@ -1,113 +1,576 @@
-/* Theme variables */
-:root {
-  /* Light theme (default) */
-  --color-bg: #f5f5f5;
-  --color-bg-secondary: #ffffff;
-  --color-bg-tertiary: #e8e8e8;
-  --color-text: #1a1a1a;
-  --color-text-secondary: #666666;
-  --color-text-muted: #999999;
-  --color-border: #d0d0d0;
-  --color-border-light: #e0e0e0;
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================================
+   XSTREAM Design System - Data Attribute Control Layer
+   ================================================ */
+
+@layer base {
+  :root {
+    /* Base palette */
+    --radius: 0.5rem;
+    
+    /* Semantic tokens - will be overridden by data attributes */
+    --background: 0 0% 6%;
+    --foreground: 0 0% 93%;
+    
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 93%;
+    
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 93%;
+    
+    --primary: 38 92% 50%;
+    --primary-foreground: 0 0% 6%;
+    
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 80%;
+    
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+    
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 93%;
+    
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 0 0% 18%;
+    --input: 0 0% 14%;
+    --ring: 38 92% 50%;
+    
+    /* Zone colors */
+    --solid-bg: 0 0% 12%;
+    --solid-card: 0 0% 16%;
+    --solid-border: 0 0% 24%;
+    --solid-shadow: 0 8px 32px -8px hsla(0, 0%, 0%, 0.6);
+    
+    --liquid-bg: 0 0% 10%;
+    --liquid-card: 0 0% 100% / 0.06;
+    --liquid-border: 0 0% 100% / 0.1;
+    --liquid-blur: 12px;
+    
+    --vapour-bg: 0 0% 8%;
+    --vapour-text: 0 0% 60%;
+    --vapour-gradient: linear-gradient(180deg, hsla(0, 0%, 8%, 0) 0%, hsla(0, 0%, 8%, 0.95) 100%);
+    
+    /* Presence colors */
+    --presence-online: 142 76% 46%;
+    --presence-away: 38 92% 50%;
+    --presence-offline: 0 0% 40%;
+    
+    /* Face accent colors */
+    --face-character: 38 92% 50%;
+    --face-author: 215 70% 55%;
+    
+    /* Construction tool color */
+    --face-construction: 270 60% 55%;
+    --face-designer: 350 80% 60%;
+    
+    /* Animation durations */
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+    --duration-slow: 400ms;
+    
+    /* Sidebar - keeping for compatibility */
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 38 92% 50%;
+    --sidebar-primary-foreground: 0 0% 6%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 93%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 38 92% 50%;
+    
+    /* Legacy variable mapping for App.css compatibility */
+    --color-text: hsl(var(--foreground));
+    --color-text-secondary: hsl(var(--muted-foreground));
+    --color-text-muted: hsl(0 0% 55% / 0.8);
+    --color-bg: hsl(var(--background));
+    --color-bg-secondary: hsl(var(--card));
+    --color-bg-tertiary: hsl(var(--muted));
+    --color-border: hsl(var(--border));
+    --color-accent: hsl(var(--face-construction));
+    --color-liquid: #fbbf24;
+    --color-vapor: #a78bfa;
+    --color-solid: #4ade80;
+    --color-error: hsl(var(--destructive));
+    --color-commit: #22c55e;
+    --color-editing: #fb923c;
+  }
+
+  /* ================================================
+     THEME PRESETS via data-theme
+     ================================================ */
   
-  /* Text state colors */
-  --color-vapor: #8b5cf6;      /* Purple - presence/typing */
-  --color-liquid: #f59e0b;     /* Amber - submitted intentions */
-  --color-solid: #22c55e;      /* Green - committed results */
-  --color-editing: #f97316;    /* Orange - actively editing */
-  --color-error: #ef4444;      /* Red - errors */
+  [data-theme="dark"] {
+    --background: 240 6% 6%;
+    --foreground: 0 0% 93%;
+    --card: 240 5% 10%;
+    --card-foreground: 0 0% 93%;
+    --border: 240 4% 18%;
+    --muted: 240 5% 14%;
+    --muted-foreground: 0 0% 55%;
+    --solid-bg: 240 5% 11%;
+    --solid-card: 240 5% 15%;
+    --liquid-bg: 240 5% 9%;
+    --vapour-bg: 240 6% 7%;
+    
+    /* Dark theme legacy mappings */
+    --color-text: hsl(0 0% 93%);
+    --color-text-secondary: hsl(0 0% 70%);
+    --color-text-muted: hsl(0 0% 55% / 0.8);
+    --color-bg: hsl(240 6% 6%);
+    --color-bg-secondary: hsl(240 5% 10%);
+    --color-bg-tertiary: hsl(240 5% 14%);
+    --color-border: hsl(240 4% 22%);
+  }
+
+  [data-theme="light"] {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+    --border: 0 0% 85%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 35%;
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 12%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 20%;
+    --solid-bg: 0 0% 100%;
+    --solid-card: 0 0% 98%;
+    --solid-border: 0 0% 82%;
+    --liquid-bg: 0 0% 97%;
+    --liquid-card: 0 0% 100% / 0.9;
+    --liquid-border: 0 0% 0% / 0.1;
+    --vapour-bg: 0 0% 95%;
+    --vapour-text: 0 0% 35%;
+    
+    /* Light theme legacy mappings */
+    --color-text: hsl(0 0% 12%);
+    --color-text-secondary: hsl(0 0% 35%);
+    --color-text-muted: hsl(0 0% 45% / 0.8);
+    --color-bg: hsl(0 0% 96%);
+    --color-bg-secondary: hsl(0 0% 100%);
+    --color-bg-tertiary: hsl(0 0% 92%);
+    --color-border: hsl(0 0% 85%);
+  }
+
+  [data-theme="cyber"] {
+    --background: 220 20% 5%;
+    --foreground: 180 100% 90%;
+    --primary: 180 100% 50%;
+    --card: 220 18% 8%;
+    --border: 180 50% 20%;
+    --muted: 220 15% 12%;
+    --muted-foreground: 180 60% 50%;
+    --solid-bg: 220 18% 10%;
+    --solid-card: 220 15% 14%;
+    --liquid-bg: 220 18% 7%;
+    --liquid-card: 180 100% 50% / 0.05;
+    --liquid-border: 180 100% 50% / 0.15;
+    --vapour-bg: 220 20% 5%;
+    --vapour-text: 180 100% 40%;
+    --face-character: 180 100% 50%;
+    --face-author: 280 100% 60%;
+    --face-designer: 320 100% 60%;
+    
+    /* Cyber theme legacy mappings */
+    --color-text: hsl(180 100% 90%);
+    --color-text-secondary: hsl(180 60% 60%);
+    --color-text-muted: hsl(180 60% 50% / 0.8);
+    --color-bg: hsl(220 20% 5%);
+    --color-bg-secondary: hsl(220 18% 8%);
+    --color-bg-tertiary: hsl(220 15% 12%);
+    --color-border: hsl(180 50% 20%);
+    --color-liquid: hsl(180 100% 50%);
+    --color-vapor: hsl(280 100% 60%);
+  }
+
+  [data-theme="soft"] {
+    --background: 30 20% 96%;
+    --foreground: 30 10% 15%;
+    --primary: 30 60% 50%;
+    --card: 30 30% 98%;
+    --border: 30 15% 88%;
+    --muted: 30 20% 92%;
+    --muted-foreground: 30 8% 40%;
+    --solid-bg: 30 25% 97%;
+    --solid-card: 30 30% 100%;
+    --liquid-bg: 30 20% 95%;
+    --vapour-bg: 30 20% 93%;
+    
+    /* Soft theme legacy mappings */
+    --color-text: hsl(30 10% 15%);
+    --color-text-secondary: hsl(30 8% 40%);
+    --color-text-muted: hsl(30 8% 50% / 0.8);
+    --color-bg: hsl(30 20% 96%);
+    --color-bg-secondary: hsl(30 30% 98%);
+    --color-bg-tertiary: hsl(30 20% 92%);
+    --color-border: hsl(30 15% 88%);
+  }
+
+  /* ================================================
+     FACE MODES via data-face
+     ================================================ */
   
-  --color-commit: #16a34a;
-  --color-commit-hover: #15803d;
-  --color-badge-bg: #e0e0e0;
+  [data-face="character"] {
+    --ring: var(--face-character);
+    --column-accent: var(--face-character);
+    --icon-accent: var(--face-character);
+  }
+
+  [data-face="author"] {
+    --ring: var(--face-author);
+    --column-accent: var(--face-author);
+    --icon-accent: var(--face-author);
+  }
+
+  [data-face="designer"] {
+    --ring: var(--face-designer);
+    --column-accent: var(--face-designer);
+    --icon-accent: var(--face-designer);
+  }
+
+  /* Apply face accent to interactive elements within column - use !important to override utility classes */
+  [data-face="character"] .icon-accent,
+  [data-face="character"] .icon-accent svg {
+    color: hsl(var(--face-character)) !important;
+  }
   
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Dark theme */
-[data-theme="dark"] {
-  --color-bg: #1a1a1a;
-  --color-bg-secondary: #2a2a2a;
-  --color-bg-tertiary: #252525;
-  --color-text: #e0e0e0;
-  --color-text-secondary: #aaaaaa;
-  --color-text-muted: #666666;
-  --color-border: #3a3a3a;
-  --color-border-light: #4a4a4a;
-  --color-accent: #6eb5ff;
-  --color-accent-hover: #8ec5ff;
+  [data-face="author"] .icon-accent,
+  [data-face="author"] .icon-accent svg {
+    color: hsl(var(--face-author)) !important;
+  }
   
-  /* Text state colors (dark theme) */
-  --color-vapor: #a78bfa;      /* Lighter purple */
-  --color-liquid: #fbbf24;     /* Lighter amber */
-  --color-solid: #4ade80;      /* Lighter green */
-  --color-editing: #fb923c;    /* Lighter orange */
-  --color-error: #f87171;      /* Lighter red */
+  [data-face="designer"] .icon-accent,
+  [data-face="designer"] .icon-accent svg {
+    color: hsl(var(--face-designer)) !important;
+  }
+
+  [data-face] .border-accent {
+    border-color: hsl(var(--column-accent) / 0.3);
+  }
+
+  [data-face] .bg-accent-subtle {
+    background: hsl(var(--column-accent) / 0.1);
+  }
+
+  /* ================================================
+     VISIBILITY TOGGLES via data-show-*
+     ================================================ */
   
-  --color-commit: #4ade80;
-  --color-commit-hover: #6ee7a0;
-  --color-badge-bg: #4a4a4a;
+  [data-show-presence="false"] .presence-indicator {
+    display: none;
+  }
+
+  [data-show-vapour-others="false"] .vapour-entry:not(.vapour-self) {
+    display: none;
+  }
+
+  [data-show-directory="false"] .column-header-dir {
+    display: none;
+  }
+
+  /* ================================================
+     LAYOUT VARIANTS via data-layout
+     ================================================ */
+
+  .columns-container {
+    gap: 1px;
+    background: hsl(var(--border) / 0.5);
+  }
+
+  .columns-container > * {
+    background: hsl(var(--background));
+  }
+  
+  [data-layout="single"] .columns-container {
+    grid-template-columns: 1fr;
+    gap: 0;
+    background: transparent;
+  }
+
+  [data-layout="double"] .columns-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  [data-layout="triple"] .columns-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  [data-layout="auto"] .columns-container {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+
+  /* ================================================
+     BASE STYLES
+     ================================================ */
+  
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ================================================
+   COMPONENT UTILITIES
+   ================================================ */
+
+@layer components {
+  /* Column container with unified background support */
+  .xstream-column {
+    background: hsl(var(--background));
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* Optional per-column background that fades out (color only; content stays opaque) */
+  .xstream-column[data-column-bg="true"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--xstream-column-bg);
+    pointer-events: none;
+    z-index: 0;
+
+    /* Fade: solid at top → ~10% at mid → 0% at bottom */
+    mask-image: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    mask-repeat: no-repeat;
+    mask-size: 100% 100%;
+
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+  }
+
+  .xstream-column > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Zone base styles - transparent to show column background */
+  .zone-solid {
+    background: transparent;
+  }
+
+  .zone-liquid {
+    background: transparent;
+  }
+
+  .zone-vapour {
+    background: transparent;
+  }
+
+  /* Card variants by zone - these maintain their distinct appearance */
+  .card-solid {
+    background: hsl(var(--solid-card));
+    border: 1px solid hsl(var(--solid-border));
+    box-shadow: var(--solid-shadow);
+  }
+
+  .card-liquid {
+    background: hsl(var(--liquid-card));
+    border: 1px solid hsl(var(--liquid-border));
+    backdrop-filter: blur(var(--liquid-blur));
+    -webkit-backdrop-filter: blur(var(--liquid-blur));
+  }
+
+  .card-vapour {
+    background: transparent;
+    border: none;
+  }
+
+  /* Face accent background for buttons - explicit per face for reliability */
+  [data-face="character"] .bg-face-accent {
+    background: hsl(var(--face-character)) !important;
+  }
+  
+  [data-face="author"] .bg-face-accent {
+    background: hsl(var(--face-author)) !important;
+  }
+  
+  [data-face="designer"] .bg-face-accent {
+    background: hsl(var(--face-designer)) !important;
+  }
+
+  /* Face accent strip */
+  .face-accent-strip {
+    height: 2px;
+    background: hsl(var(--column-accent, var(--primary)));
+    opacity: 0.8;
+  }
+
+  /* Separator handle */
+  .separator-handle {
+    @apply relative cursor-row-resize select-none;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .separator-handle::before {
+    content: "";
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: hsl(var(--border));
+    transition: background var(--duration-fast);
+  }
+
+  .separator-handle:hover::before {
+    background: hsl(var(--muted-foreground));
+  }
+
+  /* Presence dot */
+  .presence-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: hsl(var(--presence-online));
+    box-shadow: 0 0 8px hsl(var(--presence-online) / 0.5);
+  }
+
+  .presence-dot.away {
+    background: hsl(var(--presence-away));
+    box-shadow: 0 0 8px hsl(var(--presence-away) / 0.5);
+  }
+
+  .presence-dot.offline {
+    background: hsl(var(--presence-offline));
+    box-shadow: none;
+  }
+
+  /* Vapour input immersed style */
+  .vapour-input-container {
+    background: transparent;
+    border: 1px solid hsl(var(--border) / 0.3);
+    border-radius: var(--radius);
+    transition: border-color var(--duration-fast), background var(--duration-fast);
+  }
+
+  .vapour-input-container:focus-within {
+    border-color: hsl(var(--primary) / 0.5);
+    background: hsl(var(--card) / 0.3);
+  }
+
+  /* Glass effect utility */
+  .glass {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  /* Floating button - uses construction color */
+  .floating-button {
+    @apply fixed z-50 rounded-full shadow-lg transition-all;
+    width: 44px;
+    height: 44px;
+    background: hsl(var(--face-construction));
+    color: hsl(0 0% 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+  }
+
+  .floating-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 24px -4px hsl(var(--face-construction) / 0.4);
+  }
+
+  /* Column header badge */
+  .column-badge {
+    font-size: 0.65rem;
+    font-family: ui-monospace, monospace;
+    padding: 0.15rem 0.4rem;
+    background: hsl(var(--muted));
+    border-radius: 3px;
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0.05em;
+  }
 }
 
-body {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--color-bg);
-  color: var(--color-text);
-}
+/* ================================================
+   ANIMATION KEYFRAMES
+   ================================================ */
 
-#root {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
+@layer utilities {
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 
-button {
-  cursor: pointer;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
-  background: var(--color-bg-tertiary);
-  color: var(--color-text);
-}
+  @keyframes slide-up {
+    from { 
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-button:hover:not(:disabled) {
-  background: var(--color-border);
-}
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+  @keyframes typing-dot {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
 
-textarea {
-  font-family: inherit;
-  font-size: inherit;
-  resize: vertical;
-}
+  .animate-fade-in {
+    animation: fade-in var(--duration-normal) ease-out;
+  }
 
-a {
-  color: var(--color-accent);
-  text-decoration: none;
-}
+  .animate-slide-up {
+    animation: slide-up var(--duration-normal) ease-out;
+  }
 
-a:hover {
-  text-decoration: underline;
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
 }

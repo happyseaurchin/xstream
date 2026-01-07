@@ -153,7 +153,7 @@ export function ConstructionButton() {
           )}
 
           <div className="construction-menu-footer">
-            <span className="version">Phase 0.9.3 | Testing commit flow</span>
+            <span className="version">Phase 0.11 | Zone UI Integration</span>
           </div>
         </div>
       )}
