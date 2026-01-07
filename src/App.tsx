@@ -876,7 +876,14 @@ function App() {
   }
 
   return (
-    <div className="app" data-theme={theme} data-face={face} data-layout="single">
+    <div 
+      className="app" 
+      data-theme={theme} 
+      data-face={face} 
+      data-layout="single"
+      data-column-bg={columnBackground ? "true" : "false"}
+      style={columnBgStyle}
+    >
       {/* Vapor-flow style header */}
       <ColumnHeader
         face={face}
@@ -936,8 +943,6 @@ function App() {
       <main 
         className="main" 
         ref={mainRef}
-        data-column-bg={columnBackground ? "true" : "false"}
-        style={columnBgStyle}
       >
         {visibility.showSolid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.solid}%` }}>
