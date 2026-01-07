@@ -1,5 +1,18 @@
 # CLAUDE.md
 
+## WORKING WITH DAVID
+
+David is a **vibe-coder** — an architect and designer, not a professional developer. This means:
+- Explain what you're doing and why, in plain language
+- Don't assume deep technical knowledge
+- Be patient and supportive
+- When things break, diagnose calmly rather than dumping error logs
+- Celebrate wins, however small
+
+David has 25+ years of theoretical work on coordination systems. He understands the *what* and *why* deeply — you're helping with the *how*.
+
+---
+
 ## SCOPE CONSTRAINTS (READ FIRST)
 
 ### ALLOWED TO MODIFY:
