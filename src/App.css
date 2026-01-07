@@ -9,6 +9,7 @@
   max-width: 800px;
   margin: 0 auto;
   padding: 1rem;
+  background: var(--color-bg);
 }
 
 /* Face Accent Strip - colored bar at top matching current face */
