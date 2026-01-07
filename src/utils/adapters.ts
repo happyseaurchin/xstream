@@ -12,7 +12,7 @@
 import type { SolidEntry } from '../hooks/useSolidSubscription'
 import type { LiquidEntry } from '../hooks/useLiquidSubscription'
 import type { VaporContent } from '../hooks/useFrameChannel'
-import type { ShelfEntry, Face } from '../types'
+import type { ShelfEntry } from '../types'
 import type { SolidBlock, LiquidCard, VapourEntry } from '../types/xstream'
 
 // ============================================================================
@@ -24,19 +24,13 @@ import type { SolidBlock, LiquidCard, VapourEntry } from '../types/xstream'
  * 
  * Source: useSolidSubscription → dbSolidEntries
  * Target: SolidZone → blocks prop
+ * 
+ * Note: vapor-flow style omits title for clean narrative presentation
  */
 export function adaptSolidEntry(entry: SolidEntry): SolidBlock {
-  // Extract a title from the narrative if possible
-  // For now, use face as title fallback
-  const faceLabels: Record<Face, string> = {
-    character: '🎭 Character',
-    author: '📖 Author', 
-    designer: '⚙️ Designer',
-  }
-  
   return {
     id: entry.id,
-    title: faceLabels[entry.face] || entry.face,
+    // No title - vapor-flow style shows clean narrative blocks
     content: entry.narrative || '(synthesizing...)',
     timestamp: new Date(entry.createdAt).getTime(),
   }
