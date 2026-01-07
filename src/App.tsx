@@ -829,6 +829,11 @@ function App() {
     applies_to: s.applies_to,
   }))
 
+  // Column background style (vapor-flow pattern with CSS variable)
+  const columnBgStyle: React.CSSProperties | undefined = columnBackground
+    ? { '--xstream-column-bg': columnBackground } as React.CSSProperties
+    : undefined
+
   // Show loading while checking auth
   if (auth.isLoading) {
     return (
@@ -904,7 +909,8 @@ function App() {
       <main 
         className="main" 
         ref={mainRef}
-        style={columnBackground ? { background: columnBackground } : undefined}
+        data-column-bg={columnBackground ? "true" : "false"}
+        style={columnBgStyle}
       >
         {visibility.showSolid && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.solid}%` }}>
