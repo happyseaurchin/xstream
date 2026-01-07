@@ -12,25 +12,11 @@
   background: var(--color-bg);
 }
 
-/* Face Accent Strip - colored bar at top matching current face */
+/* Face Accent Strip - exact match from vapor-flow index.css */
 .face-accent-strip {
-  height: 3px;
-  width: 100%;
-  flex-shrink: 0;
-  background: hsl(var(--face-character));
-  border-radius: 8px 8px 0 0;
-}
-
-[data-face="character"] .face-accent-strip {
-  background: hsl(var(--face-character));
-}
-
-[data-face="author"] .face-accent-strip {
-  background: hsl(var(--face-author));
-}
-
-[data-face="designer"] .face-accent-strip {
-  background: hsl(var(--face-designer));
+  height: 2px;
+  background: hsl(var(--column-accent, var(--primary)));
+  opacity: 0.8;
 }
 
 /* Loading Screen */
