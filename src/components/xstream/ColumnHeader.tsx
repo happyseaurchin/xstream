@@ -65,7 +65,7 @@ export function ColumnHeader({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" style={{ zIndex: 20 }}>
       {/* Face accent strip */}
       <div 
         className="face-accent-strip" 
