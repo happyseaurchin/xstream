@@ -202,6 +202,33 @@ function App() {
     }
   }, [auth.profile?.displayName])
 
+  // Reset all session state when user changes (login/logout/switch user)
+  const prevUserIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const currentUserId = auth.user?.id ?? null
+    const prevUserId = prevUserIdRef.current
+    
+    // Only reset if userId actually changed (not just on mount)
+    if (prevUserId !== null && prevUserId !== currentUserId) {
+      console.log('[App] User changed, resetting session state:', prevUserId, '→', currentUserId)
+      
+      // Reset all session-specific state
+      setFrameId(null)
+      setInput('')
+      setEntries([])
+      setFrameCharacters([])
+      setSelectedCharacterId(null)
+      setSoftResponse(null)
+      setLiquidHistoryIndex(0)
+      setFrameSkills([])
+      setShowDirectory(false)
+      setShowFilterDrawer(false)
+      setShowMeta(false)
+    }
+    
+    prevUserIdRef.current = currentUserId
+  }, [auth.user?.id])
+
   // Load characters when frame changes + realtime subscription
   useEffect(() => {
     if (!frameId || !supabase) {
