@@ -16,6 +16,7 @@ import { LiquidZone } from './components/xstream/LiquidZone'
 import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZone'
 import { ConstructionButton } from './components/xstream/ConstructionButton'
 import { ColumnHeader } from './components/xstream/ColumnHeader'
+import { DirectoryDrawer } from './components/xstream/DirectoryDrawer'
 import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 import type {
   Face,
@@ -140,6 +141,7 @@ function App() {
   // UI state
   const [showMeta, setShowMeta] = useState(false)
   const [showVisibilityPanel, setShowVisibilityPanel] = useState(false)
+  const [showDirectory, setShowDirectory] = useState(false)
   const [solidView, setSolidView] = useState<SolidView>('log')
   const [frameSkills, setFrameSkills] = useState<FrameSkill[]>([])
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
@@ -378,9 +380,12 @@ function App() {
     return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current) }
   }, [])
 
+  // Load skills when directory opens for designer face
   useEffect(() => {
-    if (solidView === 'dir' && face === 'designer') loadFrameSkills()
-  }, [solidView, frameId, face])
+    if (showDirectory && face === 'designer') {
+      loadFrameSkills()
+    }
+  }, [showDirectory, frameId, face])
 
   // API calls
   const loadFrameSkills = async () => {
@@ -468,7 +473,7 @@ function App() {
         if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
       }
 
-      if (createdSkill && solidView === 'dir') loadFrameSkills()
+      if (createdSkill && showDirectory && face === 'designer') loadFrameSkills()
       console.log('[App] generateResponse SUCCESS')
 
     } catch (error) {
@@ -557,7 +562,7 @@ function App() {
       timestamp: new Date().toISOString() 
     }
     replaceActiveEntry(newEntry, 'designer')
-    setSolidView('log')
+    setShowDirectory(false)
   }
 
   const handleDeleteContent = useCallback((contentId: string) => {
@@ -753,6 +758,22 @@ function App() {
     }
   }
 
+  // Directory toggle - close visibility panel if opening directory
+  const handleDirectoryToggle = useCallback(() => {
+    setShowDirectory(prev => {
+      if (!prev) setShowVisibilityPanel(false)
+      return !prev
+    })
+  }, [])
+
+  // Filter toggle - close directory if opening filter
+  const handleFilterToggle = useCallback(() => {
+    setShowVisibilityPanel(prev => {
+      if (!prev) setShowDirectory(false)
+      return !prev
+    })
+  }, [])
+
   // Placeholder for add column (not yet implemented)
   const handleAddColumn = useCallback(() => {
     console.log('[App] Add column requested (not yet implemented)')
@@ -763,6 +784,22 @@ function App() {
     if (!mainRef.current) return 200
     return Math.floor(mainRef.current.clientHeight * zoneProportions[zone] / 100)
   }
+
+  // Adapt content entries for directory
+  const directoryContentEntries = dbContentEntries.map(e => ({
+    id: e.id,
+    type: e.type,
+    name: e.name,
+    preview: e.content?.slice(0, 100),
+  }))
+
+  // Adapt skills for directory
+  const directorySkills = frameSkills.map(s => ({
+    id: s.id || crypto.randomUUID(),
+    name: s.name,
+    category: s.category,
+    applies_to: s.applies_to,
+  }))
 
   // Show loading while checking auth
   if (auth.isLoading) {
@@ -788,16 +825,38 @@ function App() {
         stateCode={currentFrame.xyz}
         presenceCount={presentUsers.length}
         isConnected={isConnected}
-        characters={frameCharacters}
-        selectedCharacterId={selectedCharacterId}
-        currentUserId={userId}
-        onCharacterSelect={handleCharacterSelect}
         frames={FRAMES.map(f => ({ id: f.id, name: f.name }))}
         selectedFrameId={frameId}
         onFrameSelect={setFrameId}
         onFaceChange={setFace}
-        onFilterToggle={() => setShowVisibilityPanel(!showVisibilityPanel)}
+        onDirectoryToggle={handleDirectoryToggle}
+        onFilterToggle={handleFilterToggle}
         onDetailsToggle={() => setShowMeta(!showMeta)}
+        isDirectoryOpen={showDirectory}
+        isFilterOpen={showVisibilityPanel}
+      />
+
+      {/* Directory drawer - face-specific content */}
+      <DirectoryDrawer
+        isOpen={showDirectory}
+        onClose={() => setShowDirectory(false)}
+        face={face}
+        characters={frameCharacters}
+        selectedCharacterId={selectedCharacterId}
+        currentUserId={userId}
+        onCharacterSelect={handleCharacterSelect}
+        contentEntries={directoryContentEntries}
+        onContentSelect={(entry) => {
+          handleCopyToVapor(entry.name)
+          setShowDirectory(false)
+        }}
+        onContentDelete={handleDeleteContent}
+        skills={directorySkills}
+        onSkillSelect={(skill) => {
+          const fullSkill = frameSkills.find(s => s.name === skill.name)
+          if (fullSkill) handleSkillClick(fullSkill)
+        }}
+        isLoading={isLoadingDirectory || isLoadingContent}
       />
 
       {showVisibilityPanel && (
