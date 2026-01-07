@@ -82,6 +82,25 @@
     --sidebar-accent-foreground: 0 0% 93%;
     --sidebar-border: 0 0% 18%;
     --sidebar-ring: 38 92% 50%;
+    
+    /* ================================================
+       LEGACY VARIABLE MAPPING (App.css compatibility)
+       Maps --color-* variables to design system tokens
+       ================================================ */
+    --color-text: hsl(var(--foreground));
+    --color-text-secondary: hsl(var(--muted-foreground));
+    --color-text-muted: hsla(0, 0%, 55%, 0.8);
+    --color-bg: hsl(var(--background));
+    --color-bg-secondary: hsl(var(--card));
+    --color-bg-tertiary: hsl(var(--muted));
+    --color-border: hsl(var(--border));
+    --color-accent: hsl(var(--face-construction));
+    --color-liquid: #fbbf24;
+    --color-vapor: #a78bfa;
+    --color-solid: #4ade80;
+    --color-error: hsl(var(--destructive));
+    --color-commit: #22c55e;
+    --color-editing: #fb923c;
   }
 
   /* ================================================
@@ -98,6 +117,15 @@
     --solid-card: 240 5% 15%;
     --liquid-bg: 240 5% 9%;
     --vapour-bg: 240 6% 7%;
+    
+    /* Dark theme legacy mappings */
+    --color-text: hsl(0 0% 93%);
+    --color-text-secondary: hsl(0 0% 70%);
+    --color-text-muted: hsla(0, 0%, 55%, 0.8);
+    --color-bg: hsl(240 6% 6%);
+    --color-bg-secondary: hsl(240 5% 10%);
+    --color-bg-tertiary: hsl(240 5% 14%);
+    --color-border: hsl(240 4% 22%);
   }
 
   [data-theme="light"] {
@@ -122,6 +150,15 @@
     --liquid-border: 0 0% 0% / 0.1;
     --vapour-bg: 0 0% 95%;
     --vapour-text: 0 0% 35%;
+    
+    /* Light theme legacy mappings */
+    --color-text: hsl(0 0% 12%);
+    --color-text-secondary: hsl(0 0% 35%);
+    --color-text-muted: hsla(0, 0%, 45%, 0.8);
+    --color-bg: hsl(0 0% 96%);
+    --color-bg-secondary: hsl(0 0% 100%);
+    --color-bg-tertiary: hsl(0 0% 92%);
+    --color-border: hsl(0 0% 85%);
   }
 
   [data-theme="cyber"] {
@@ -140,6 +177,17 @@
     --face-character: 180 100% 50%;
     --face-author: 280 100% 60%;
     --face-designer: 320 100% 60%;
+    
+    /* Cyber theme legacy mappings */
+    --color-text: hsl(180 100% 90%);
+    --color-text-secondary: hsl(180 60% 60%);
+    --color-text-muted: hsla(180, 60%, 50%, 0.8);
+    --color-bg: hsl(220 20% 5%);
+    --color-bg-secondary: hsl(220 18% 8%);
+    --color-bg-tertiary: hsl(220 15% 12%);
+    --color-border: hsl(180 50% 20%);
+    --color-liquid: hsl(180 100% 50%);
+    --color-vapor: hsl(280 100% 60%);
   }
 
   [data-theme="soft"] {
@@ -152,6 +200,15 @@
     --solid-card: 30 30% 100%;
     --liquid-bg: 30 20% 95%;
     --vapour-bg: 30 20% 93%;
+    
+    /* Soft theme legacy mappings */
+    --color-text: hsl(30 10% 15%);
+    --color-text-secondary: hsl(30 8% 40%);
+    --color-text-muted: hsla(30, 8%, 50%, 0.8);
+    --color-bg: hsl(30 20% 96%);
+    --color-bg-secondary: hsl(30 30% 98%);
+    --color-bg-tertiary: hsl(30 20% 92%);
+    --color-border: hsl(30 15% 88%);
   }
 
   /* ================================================
