@@ -11,6 +11,27 @@
   padding: 1rem;
 }
 
+/* Face Accent Strip - colored bar at top matching current face */
+.face-accent-strip {
+  height: 3px;
+  width: 100%;
+  flex-shrink: 0;
+  background: hsl(var(--face-character));
+  border-radius: 8px 8px 0 0;
+}
+
+[data-face="character"] .face-accent-strip {
+  background: hsl(var(--face-character));
+}
+
+[data-face="author"] .face-accent-strip {
+  background: hsl(var(--face-author));
+}
+
+[data-face="designer"] .face-accent-strip {
+  background: hsl(var(--face-designer));
+}
+
 /* Loading Screen */
 .app.loading-screen {
   align-items: center;
@@ -29,7 +50,6 @@
   align-items: center;
   padding: 0.5rem 0.75rem;
   background: var(--color-bg-secondary);
-  border-radius: 8px 8px 0 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -1033,4 +1053,31 @@
   border-radius: 2px;
   cursor: pointer;
   font-size: 0.75rem;
+}
+
+/* ================================================
+   Column Badge (vapor style)
+   ================================================ */
+
+.column-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-family: monospace;
+}
+
+/* ================================================
+   Animation utilities
+   ================================================ */
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
