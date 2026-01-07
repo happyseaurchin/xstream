@@ -8,6 +8,17 @@ interface ColumnHeaderProps {
   character?: string;
   stateCode: string;
   presenceCount: number;
+  isConnected?: boolean;
+  // Character selection (extended from vapor-flow)
+  characters?: Array<{ id: string; name: string; is_npc: boolean; inhabited_by: string | null }>;
+  selectedCharacterId?: string | null;
+  currentUserId?: string;
+  onCharacterSelect?: (id: string | null) => void;
+  // Frame selection (extended from vapor-flow)
+  frames?: Array<{ id: string | null; name: string }>;
+  selectedFrameId?: string | null;
+  onFrameSelect?: (id: string | null) => void;
+  // Actions
   onFaceChange: (face: Face) => void;
   onFilterToggle: () => void;
   onDetailsToggle: () => void;
@@ -19,11 +30,21 @@ export function ColumnHeader({
   character,
   stateCode,
   presenceCount,
+  isConnected = true,
+  characters = [],
+  selectedCharacterId,
+  currentUserId,
+  onCharacterSelect,
+  frames = [],
+  selectedFrameId,
+  onFrameSelect,
   onFaceChange,
   onFilterToggle,
   onDetailsToggle,
 }: ColumnHeaderProps) {
   const [showFaceMenu, setShowFaceMenu] = useState(false);
+  const [showCharacterMenu, setShowCharacterMenu] = useState(false);
+  const [showFrameMenu, setShowFrameMenu] = useState(false);
 
   const faceLabels: Record<Face, string> = {
     character: "Character",
@@ -50,17 +71,58 @@ export function ColumnHeader({
         {/* Left side */}
         <div className="flex items-center gap-3">
           {/* Character selector with avatar (only shown for character face) */}
-          {face === "character" && character && (
-            <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              <span 
-                className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
-                style={{ background: faceColorVars[face] }}
+          {face === "character" && characters.length > 0 && (
+            <div className="relative">
+              <button 
+                onClick={() => setShowCharacterMenu(!showCharacterMenu)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                {character.charAt(0).toUpperCase()}
-              </span>
-              <span className="font-medium">{character}</span>
-              <ChevronDown className="h-3 w-3" />
-            </button>
+                <span 
+                  className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
+                  style={{ background: faceColorVars[face] }}
+                >
+                  {character ? character.charAt(0).toUpperCase() : '?'}
+                </span>
+                <span className="font-medium">{character || 'Select...'}</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              
+              {showCharacterMenu && (
+                <div className="absolute top-full left-0 mt-1 py-1 bg-popover border border-border rounded-md shadow-lg z-20 min-w-[140px] animate-fade-in">
+                  <button
+                    onClick={() => {
+                      onCharacterSelect?.(null);
+                      setShowCharacterMenu(false);
+                    }}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${
+                      !selectedCharacterId ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    -- Select --
+                  </button>
+                  {characters.map((c) => {
+                    const isInhabited = c.inhabited_by !== null && c.inhabited_by !== currentUserId;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          if (!isInhabited) {
+                            onCharacterSelect?.(c.id);
+                            setShowCharacterMenu(false);
+                          }
+                        }}
+                        disabled={isInhabited}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${
+                          selectedCharacterId === c.id ? "text-foreground" : "text-muted-foreground"
+                        } ${isInhabited ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        {c.name} {c.is_npc ? '(NPC)' : ''} {c.inhabited_by === currentUserId ? '✓' : isInhabited ? '⊘' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
           
           {/* Face selector */}
@@ -107,11 +169,13 @@ export function ColumnHeader({
           
           {/* Presence indicator */}
           <div className="presence-indicator flex items-center gap-1.5">
-            <span className="presence-dot" />
-            <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-              <Users className="h-3 w-3" />
-              +{presenceCount}
-            </span>
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-muted-foreground animate-pulse'}`} />
+            {presenceCount > 0 && (
+              <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                <Users className="h-3 w-3" />
+                +{presenceCount}
+              </span>
+            )}
           </div>
         </div>
         
@@ -120,7 +184,7 @@ export function ColumnHeader({
           <span className="column-badge">{stateCode}</span>
           <button
             onClick={onDetailsToggle}
-            className="p-1 rounded hover:bg-accent/50 icon-accent hover:text-foreground transition-colors"
+            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
             title="Details"
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
@@ -131,16 +195,41 @@ export function ColumnHeader({
         <div className="flex items-center gap-2">
           <button
             onClick={onFilterToggle}
-            className="p-1 rounded hover:bg-accent/50 icon-accent hover:text-foreground transition-colors"
+            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
             title="Filters"
           >
             <Settings className="h-3.5 w-3.5" />
           </button>
           
-          <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <span>{frame}</span>
-            <ChevronDown className="h-3 w-3" />
-          </button>
+          {/* Frame selector */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowFrameMenu(!showFrameMenu)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span>{frame}</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            
+            {showFrameMenu && frames.length > 0 && (
+              <div className="absolute top-full right-0 mt-1 py-1 bg-popover border border-border rounded-md shadow-lg z-20 min-w-[160px] animate-fade-in">
+                {frames.map((f) => (
+                  <button
+                    key={f.id || 'none'}
+                    onClick={() => {
+                      onFrameSelect?.(f.id);
+                      setShowFrameMenu(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors ${
+                      selectedFrameId === f.id ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
