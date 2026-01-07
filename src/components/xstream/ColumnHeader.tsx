@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, MoreHorizontal, ChevronDown, Users } from "lucide-react";
+import { Settings, MoreHorizontal, ChevronDown, Users, FolderOpen } from "lucide-react";
 import { Face } from "@/types/xstream";
 
 interface ColumnHeaderProps {
@@ -20,8 +20,12 @@ interface ColumnHeaderProps {
   onFrameSelect?: (id: string | null) => void;
   // Actions
   onFaceChange: (face: Face) => void;
+  onDirectoryToggle: () => void;
   onFilterToggle: () => void;
   onDetailsToggle: () => void;
+  // Active states
+  isDirectoryOpen?: boolean;
+  isFilterOpen?: boolean;
 }
 
 export function ColumnHeader({
@@ -39,11 +43,13 @@ export function ColumnHeader({
   selectedFrameId,
   onFrameSelect,
   onFaceChange,
+  onDirectoryToggle,
   onFilterToggle,
   onDetailsToggle,
+  isDirectoryOpen = false,
+  isFilterOpen = false,
 }: ColumnHeaderProps) {
   const [showFaceMenu, setShowFaceMenu] = useState(false);
-  const [showCharacterMenu, setShowCharacterMenu] = useState(false);
   const [showFrameMenu, setShowFrameMenu] = useState(false);
 
   const faceLabels: Record<Face, string> = {
@@ -70,59 +76,14 @@ export function ColumnHeader({
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
         {/* Left side */}
         <div className="flex items-center gap-3">
-          {/* Character selector with avatar (only shown for character face) */}
-          {face === "character" && characters.length > 0 && (
-            <div className="relative">
-              <button 
-                onClick={() => setShowCharacterMenu(!showCharacterMenu)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <span 
-                  className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
-                  style={{ background: faceColorVars[face] }}
-                >
-                  {character ? character.charAt(0).toUpperCase() : '?'}
-                </span>
-                <span className="font-medium">{character || 'Select...'}</span>
-                <ChevronDown className="h-3 w-3" />
-              </button>
-              
-              {showCharacterMenu && (
-                <div className="absolute top-full left-0 mt-1 py-1 bg-popover border border-border rounded-md shadow-lg z-20 min-w-[140px] animate-fade-in">
-                  <button
-                    onClick={() => {
-                      onCharacterSelect?.(null);
-                      setShowCharacterMenu(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${
-                      !selectedCharacterId ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                  >
-                    -- Select --
-                  </button>
-                  {characters.map((c) => {
-                    const isInhabited = c.inhabited_by !== null && c.inhabited_by !== currentUserId;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          if (!isInhabited) {
-                            onCharacterSelect?.(c.id);
-                            setShowCharacterMenu(false);
-                          }
-                        }}
-                        disabled={isInhabited}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${
-                          selectedCharacterId === c.id ? "text-foreground" : "text-muted-foreground"
-                        } ${isInhabited ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        {c.name} {c.is_npc ? '(NPC)' : ''} {c.inhabited_by === currentUserId ? '✓' : isInhabited ? '⊘' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+          {/* Character avatar (only shown for character face when character selected) */}
+          {face === "character" && character && (
+            <span 
+              className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
+              style={{ background: faceColorVars[face] }}
+            >
+              {character.charAt(0).toUpperCase()}
+            </span>
           )}
           
           {/* Face selector */}
@@ -193,9 +154,27 @@ export function ColumnHeader({
         
         {/* Right side */}
         <div className="flex items-center gap-2">
+          {/* Directory toggle */}
+          <button
+            onClick={onDirectoryToggle}
+            className={`p-1 rounded transition-colors ${
+              isDirectoryOpen 
+                ? "bg-accent text-accent-foreground" 
+                : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+            }`}
+            title="Directory"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+          </button>
+          
+          {/* Filter toggle */}
           <button
             onClick={onFilterToggle}
-            className="p-1 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+            className={`p-1 rounded transition-colors ${
+              isFilterOpen 
+                ? "bg-accent text-accent-foreground" 
+                : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+            }`}
             title="Filters"
           >
             <Settings className="h-3.5 w-3.5" />
