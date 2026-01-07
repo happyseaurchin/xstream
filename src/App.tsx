@@ -6,7 +6,6 @@ import { useSolidSubscription } from './hooks/useSolidSubscription'
 import { useContentSubscription } from './hooks/useContentSubscription'
 import {
   AuthPage,
-  ConstructionButton,
   PresenceBar,
   VisibilityPanel,
   DraggableSeparator,
@@ -15,6 +14,7 @@ import {
 import { SolidZone } from './components/xstream/SolidZone'
 import { LiquidZone } from './components/xstream/LiquidZone'
 import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZone'
+import { ConstructionButton } from './components/xstream/ConstructionButton'
 import { adaptSolidEntries, combineLiquidCards, adaptVaporContents } from './utils/adapters'
 import type {
   Face,
@@ -28,6 +28,7 @@ import type {
   SoftLLMResponse,
   ZoneProportions,
 } from './types'
+import type { Theme } from './types/xstream'
 import { parseInputTypography, parseArtifactFromText } from './utils/parsing'
 import { supabase } from './lib/supabase'
 import './App.css'
@@ -50,6 +51,7 @@ interface FrameCharacter {
 const DEFAULT_PROPORTIONS: ZoneProportions = { solid: 40, liquid: 30, vapour: 30 }
 const MIN_ZONE_HEIGHT = 60 // pixels
 const ZONE_STORAGE_KEY = 'xstream-zone-proportions'
+const THEME_STORAGE_KEY = 'xstream-theme'
 
 // Load zone proportions from localStorage
 function loadZoneProportions(): ZoneProportions {
@@ -76,6 +78,27 @@ function saveZoneProportions(proportions: ZoneProportions): void {
   }
 }
 
+// Theme persistence
+function loadTheme(): Theme {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    if (stored && ['dark', 'light', 'cyber', 'soft'].includes(stored)) {
+      return stored as Theme
+    }
+  } catch (e) {
+    console.warn('[Theme] Failed to load:', e)
+  }
+  return 'dark'
+}
+
+function saveTheme(theme: Theme): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme)
+  } catch (e) {
+    console.warn('[Theme] Failed to save:', e)
+  }
+}
+
 // Available frames
 const FRAMES: Frame[] = [
   { id: null, name: 'None (platform defaults)', xyz: 'X0Y0Z0' },
@@ -95,6 +118,9 @@ function App() {
   const [frameId, setFrameId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [entries, setEntries] = useState<ShelfEntry[]>([])
+  
+  // Theme state (for vapor ConstructionButton)
+  const [theme, setTheme] = useState<Theme>(loadTheme)
   
   // Character selection state (Phase 0.9.3)
   const [frameCharacters, setFrameCharacters] = useState<FrameCharacter[]>([])
@@ -130,6 +156,12 @@ function App() {
 
   const debounceTimerRef = useRef<number | null>(null)
   const vaporPanelRef = useRef<VapourZoneHandle>(null)
+
+  // Theme change handler
+  const handleThemeChange = useCallback((newTheme: Theme) => {
+    setTheme(newTheme)
+    saveTheme(newTheme)
+  }, [])
 
   // Sync userName with profile
   useEffect(() => {
@@ -720,6 +752,11 @@ function App() {
     }
   }
 
+  // Placeholder for add column (not yet implemented)
+  const handleAddColumn = useCallback(() => {
+    console.log('[App] Add column requested (not yet implemented)')
+  }, [])
+
   // Compute zone heights
   const getZoneHeight = (zone: 'solid' | 'liquid' | 'vapour') => {
     if (!mainRef.current) return 200
@@ -741,7 +778,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-theme={theme} data-layout="single">
       <header className="header">
         <div className="selectors">
           <select value={face} onChange={(e) => setFace(e.target.value as Face)} className="face-selector">
@@ -845,7 +882,12 @@ function App() {
         )}
       </main>
 
-      <ConstructionButton />
+      <ConstructionButton
+        onAddColumn={handleAddColumn}
+        onThemeChange={handleThemeChange}
+        onLogout={() => auth.signOut()}
+        currentTheme={theme}
+      />
     </div>
   )
 }
