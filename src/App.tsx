@@ -12,7 +12,7 @@ import {
 // New zone components
 import { SolidZone } from './components/xstream/SolidZone'
 import { LiquidZone } from './components/xstream/LiquidZone'
-import { VapourZone, type VapourZoneHandle } from './components/xstream/VapourZone'
+import { VapourZone } from './components/xstream/VapourZone'
 import { ConstructionButton } from './components/xstream/ConstructionButton'
 import { ColumnHeader } from './components/xstream/ColumnHeader'
 import { DirectoryDrawer } from './components/xstream/DirectoryDrawer'
@@ -180,7 +180,6 @@ function App() {
   })
 
   const debounceTimerRef = useRef<number | null>(null)
-  const vaporPanelRef = useRef<VapourZoneHandle>(null)
 
   // Theme change handler
   const handleThemeChange = useCallback((newTheme: Theme) => {
@@ -650,7 +649,6 @@ function App() {
 
   const handleCopyToVapor = useCallback((text: string) => {
     setInput(text)
-    setTimeout(() => vaporPanelRef.current?.focus(), 10)
   }, [])
 
   const handleQuery = async () => {
@@ -665,8 +663,7 @@ function App() {
     const currentFrameId = frameId
     
     setIsQuerying(true)
-    setTimeout(() => vaporPanelRef.current?.focus(), 10)
-    
+
     try {
       await executeQuery(textToSend, currentFace, currentFrameId)
     } catch (error) {
@@ -680,7 +677,6 @@ function App() {
 
   const handleDismissSoftResponse = () => {
     setSoftResponse(null)
-    setTimeout(() => vaporPanelRef.current?.focus(), 10)
   }
 
   const handleSubmitDirect = (text: string) => {
@@ -829,11 +825,6 @@ function App() {
     })
   }, [])
 
-  // Placeholder for add column (not yet implemented)
-  const handleAddColumn = useCallback(() => {
-    console.log('[App] Add column requested (not yet implemented)')
-  }, [])
-
   // Compute zone heights
   const getZoneHeight = (zone: 'solid' | 'liquid' | 'vapour') => {
     if (!mainRef.current) return 200
@@ -977,27 +968,24 @@ function App() {
         {visibility.showVapor && (
           <div className="zone-wrapper" style={{ flex: `0 0 ${zoneProportions.vapour}%` }}>
             <VapourZone
-              ref={vaporPanelRef}
               entries={adaptVaporContents(othersVapor)}
-              value={input}
-              onChange={setInput}
-              onQuery={handleQuery}
-              onSubmit={handleSubmitDirect}
-              onCommit={handleCommitDirect}
               softResponse={softResponse}
               onDismissSoftResponse={handleDismissSoftResponse}
-              isQuerying={isQuerying}
-              placeholder={`As ${selectedCharacter?.name || userName}...`}
             />
           </div>
         )}
       </main>
 
       <ConstructionButton
-        onAddColumn={handleAddColumn}
         onThemeChange={handleThemeChange}
         onLogout={() => auth.signOut()}
         currentTheme={theme}
+        value={input}
+        onChange={setInput}
+        onQuery={handleQuery}
+        onSubmit={handleSubmitDirect}
+        isQuerying={isQuerying}
+        placeholder={`As ${selectedCharacter?.name || userName}...`}
       />
     </div>
   )

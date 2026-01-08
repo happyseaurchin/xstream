@@ -60,6 +60,8 @@ const getInitialState = (): AppState => ({
 
 export function XStreamApp() {
   const [state, setState] = useState<AppState>(getInitialState);
+  const [input, setInput] = useState("");
+  const [isQuerying, setIsQuerying] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, state.theme);
@@ -98,26 +100,6 @@ export function XStreamApp() {
     }));
   }, []);
 
-  const handleAddColumn = useCallback(() => {
-    const faces: Face[] = ["character", "author", "designer"];
-    const newFace = faces[state.columns.length % faces.length];
-    const newColumn = createSampleColumn(`col-${Date.now()}`, newFace);
-    
-    setState((prev) => {
-      const newColumns = [...prev.columns, newColumn];
-      const layoutMap: Record<number, Layout> = {
-        1: "single",
-        2: "double",
-        3: "triple",
-      };
-      return {
-        ...prev,
-        columns: newColumns,
-        layout: layoutMap[newColumns.length] || "auto",
-      };
-    });
-  }, [state.columns.length]);
-
   const handleThemeChange = useCallback((theme: Theme) => {
     setState((prev) => ({ ...prev, theme }));
   }, []);
@@ -142,6 +124,43 @@ export function XStreamApp() {
   const handleLogout = useCallback(() => {
     console.log("Logout clicked");
   }, []);
+
+  // Input handlers for ConstructionButton
+  const handleQuery = useCallback((text: string) => {
+    console.log("[XStreamApp] Query:", text);
+    setIsQuerying(true);
+    // Simulate query delay
+    setTimeout(() => {
+      setIsQuerying(false);
+    }, 1000);
+  }, []);
+
+  const handleSubmit = useCallback((text: string) => {
+    console.log("[XStreamApp] Submit to liquid:", text);
+    // Add to first column's liquid
+    if (state.columns.length > 0) {
+      setState((prev) => ({
+        ...prev,
+        columns: prev.columns.map((col, index) =>
+          index === 0
+            ? {
+                ...col,
+                liquidCards: [
+                  ...col.liquidCards,
+                  {
+                    id: `liquid-${Date.now()}`,
+                    userId: "self",
+                    userName: "You",
+                    content: text,
+                    timestamp: Date.now(),
+                  },
+                ],
+              }
+            : col
+        ),
+      }));
+    }
+  }, [state.columns.length]);
 
   return (
     <div
@@ -172,10 +191,15 @@ export function XStreamApp() {
 
       {/* Floating construction button */}
       <ConstructionButton
-        onAddColumn={handleAddColumn}
         onThemeChange={handleThemeChange}
         onLogout={handleLogout}
         currentTheme={state.theme}
+        value={input}
+        onChange={setInput}
+        onQuery={handleQuery}
+        onSubmit={handleSubmit}
+        isQuerying={isQuerying}
+        placeholder="Type your thought..."
       />
     </div>
   );
