@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Hash,
+  Plus,
   User,
   LogOut,
   Palette,
@@ -45,8 +46,8 @@ export function ConstructionButton({
   placeholder = "Type your thought...",
   columnId,
 }: ConstructionButtonProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);       // Settings menu open
+  const [isExpanded, setIsExpanded] = useState(false); // Input panel open
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -65,22 +66,22 @@ export function ConstructionButton({
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(position));
   }, [position]);
 
-  // Focus input when expanded
+  // Focus textarea when expanded
   useEffect(() => {
-    if (isExpanded) {
-      setTimeout(() => inputRef.current?.focus(), 50);
+    if (isExpanded && !isOpen) {
+      setTimeout(() => textareaRef.current?.focus(), 50);
     }
-  }, [isExpanded]);
+  }, [isExpanded, isOpen]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button") ||
-        (e.target as HTMLElement).closest("input")) return;
+        (e.target as HTMLElement).closest("textarea")) return;
     e.preventDefault();
     setIsDragging(true);
     dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
@@ -121,38 +122,55 @@ export function ConstructionButton({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      if (e.shiftKey) {
+      if (e.metaKey || e.ctrlKey) {
+        // Cmd/Ctrl+Enter → Query Soft-LLM
+        e.preventDefault();
+        handleQuery();
+      } else if (e.shiftKey) {
         // Shift+Enter → Submit to Liquid
         e.preventDefault();
         handleSubmit();
-      } else {
-        // Enter → Query Soft-LLM
-        e.preventDefault();
-        handleQuery();
       }
+      // Plain Enter → newline (default textarea behavior)
     } else if (e.key === "Escape") {
       setIsExpanded(false);
+      setIsOpen(false);
     }
   };
 
   const handleClear = () => {
     onChange("");
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   const handleMainButtonClick = () => {
     if (isDragging) return;
 
     if (isOpen) {
+      // Menu is open → close it, go back to input
       setIsOpen(false);
     } else if (isExpanded) {
-      // If input is expanded, clicking main button opens menu
+      // Input is open → open menu
       setIsOpen(true);
     } else {
-      // If collapsed, expand input
+      // Everything closed → open input
       setIsExpanded(true);
     }
   };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
 
   const themes: { value: Theme; label: string }[] = [
     { value: "dark", label: "Dark" },
@@ -160,6 +178,13 @@ export function ConstructionButton({
     { value: "cyber", label: "Cyber" },
     { value: "soft", label: "Soft" },
   ];
+
+  // Icon logic: # (closed) → + (input open) → X (menu open)
+  const getIcon = () => {
+    if (isOpen) return <X className="h-5 w-5" />;
+    if (isExpanded) return <Plus className="h-5 w-5" />;
+    return <Hash className="h-5 w-5" />;
+  };
 
   return (
     <div
@@ -212,6 +237,7 @@ export function ConstructionButton({
                 onClick={() => {
                   onLogout();
                   setIsOpen(false);
+                  setIsExpanded(false);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
               >
@@ -234,17 +260,17 @@ export function ConstructionButton({
         <div className="absolute bottom-14 right-0 w-80 glass rounded-lg overflow-hidden shadow-lg animate-slide-up">
           <div className="p-3">
             {/* Input row */}
-            <div className="flex items-center gap-2 bg-background/50 rounded-lg p-2">
-              {/* Query button (Enter) */}
+            <div className="flex items-start gap-2 bg-background/50 rounded-lg p-2">
+              {/* Query button (Cmd+Enter) */}
               <button
                 onClick={handleQuery}
                 disabled={isQuerying || !value.trim()}
-                className={`shrink-0 h-8 w-8 rounded-md flex items-center justify-center transition-colors ${
+                className={`shrink-0 h-8 w-8 rounded-md flex items-center justify-center transition-colors mt-0.5 ${
                   isQuerying
                     ? 'bg-accent-subtle text-accent animate-pulse cursor-wait'
                     : 'bg-accent-subtle icon-accent hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed'
                 }`}
-                title="Query Soft-LLM (Enter)"
+                title="Query Soft-LLM (⌘↵)"
               >
                 {isQuerying ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -253,21 +279,21 @@ export function ConstructionButton({
                 )}
               </button>
 
-              {/* Input field */}
+              {/* Textarea field */}
               <div className="relative flex-1">
-                <input
-                  ref={inputRef}
-                  type="text"
+                <textarea
+                  ref={textareaRef}
                   value={value}
                   onChange={(e) => onChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={placeholder}
-                  className="w-full bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground/50 pr-6"
+                  rows={2}
+                  className="w-full bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground/50 resize-none pr-6"
                 />
                 {value && (
                   <button
                     onClick={handleClear}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                    className="absolute right-0 top-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -278,8 +304,8 @@ export function ConstructionButton({
               <button
                 onClick={handleSubmit}
                 disabled={!value.trim()}
-                className="shrink-0 h-8 w-8 rounded-md flex items-center justify-center bg-face-accent text-white disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-                title="Submit to Liquid (Shift+Enter)"
+                className="shrink-0 h-8 w-8 rounded-md flex items-center justify-center bg-face-accent text-white disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-opacity mt-0.5"
+                title="Submit to Liquid (⇧↵)"
               >
                 <ArrowRight className="h-4 w-4" />
               </button>
@@ -309,7 +335,7 @@ export function ConstructionButton({
 
               {/* Keyboard hints */}
               <div className="flex gap-2 text-[10px] text-muted-foreground/40">
-                <span>↵ query</span>
+                <span>⌘↵ query</span>
                 <span>⇧↵ submit</span>
               </div>
             </div>
@@ -324,14 +350,10 @@ export function ConstructionButton({
         </div>
         <button
           onClick={handleMainButtonClick}
-          className={`floating-button ${isOpen ? "rotate-45" : ""} transition-transform duration-200`}
+          className="floating-button transition-transform duration-200"
           style={{ position: "relative" }}
         >
-          {isOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Hash className="h-5 w-5" />
-          )}
+          {getIcon()}
         </button>
       </div>
     </div>
