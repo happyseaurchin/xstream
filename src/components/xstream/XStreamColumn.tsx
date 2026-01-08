@@ -103,11 +103,9 @@ export function XStreamColumn({
       {/* Separator */}
       <ZoneSeparator onDrag={handleLiquidSeparatorDrag} />
       
-      {/* Vapour Zone - fills remaining space */}
+      {/* Vapour Zone - fills remaining space (display only) */}
       <VapourZone
         entries={filteredVapourEntries}
-        onSubmit={handleSubmit}
-        onLLMActivate={() => console.log("LLM activated")}
       />
     </div>
   );
