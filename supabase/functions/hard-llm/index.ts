@@ -81,15 +81,15 @@ interface ProximityUpdate {
   distant: string[];
 }
 
+/**
+ * Phase 0.12: Simplified operational frame
+ * Stores only coordinates - Soft/Medium unpacks via skills and tabulation
+ */
 interface OperationalFrame {
   character_id: string;
   frame_id: string;
-  character_name: string;
-  character_description: string | null;
-  coordinates: { spatial: string; temporal: string };
-  close_characters: { id: string; name: string; description: string | null; spatial: string }[];
-  nearby_character_ids: string[];
-  relevant_content: ContentEntry[];
+  character_coordinates: { spatial: string; temporal: string };
+  relevant_coordinates: string[];  // Overlapping coordinates from proximity
   aperture: { floor: number; ceiling: number };
   compiled_at: string;
 }
@@ -316,17 +316,27 @@ You are the coordination layer for a narrative system. You determine where chara
   parts.push(`\n## Task
 Using the skills above:
 1. Determine if any coordinates changed (use hard-movement skill)
-2. Calculate proximity for all characters (use hard-proximity skill)  
-3. Assemble operational frames for requested characters (use hard-frame-assembly skill)
-4. Extract semantic-numbers from narrative if present (use hard-semantic-extraction skill)\n`);
-  
+2. Calculate proximity for all characters (use hard-proximity skill)
+3. Find overlapping coordinates for operational frames (prefix matching)
+4. Extract semantic-numbers from narrative if present (use hard-semantic-extraction skill)
+
+IMPORTANT: For operational_frames, output ONLY coordinates. Do NOT resolve names or descriptions.
+Find relevant_coordinates by prefix overlap with character's spatial/temporal coordinates.\n`);
+
   parts.push(`## Output Format
 Respond with ONLY valid JSON:
 {
   "thinking_summary": "Brief summary",
   "coordinate_updates": [{ "character_id": "uuid", "spatial": "coord", "temporal": "coord", "reasoning": "why" }],
   "proximity_updates": [{ "character_id": "uuid", "close": [], "nearby": [], "distant": [] }],
-  "operational_frames": [],
+  "operational_frames": [{
+    "character_id": "uuid",
+    "frame_id": "uuid",
+    "character_coordinates": { "spatial": "13.4", "temporal": "348." },
+    "relevant_coordinates": ["13.", "13.4", "13.2"],
+    "aperture": { "floor": -1, "ceiling": 1 },
+    "compiled_at": "iso-timestamp"
+  }],
   "semantic_numbers_extracted": []
 }`);
   
@@ -518,6 +528,10 @@ async function applyProximityUpdates(supabase: any, updates: ProximityUpdate[]):
   }
 }
 
+/**
+ * Phase 0.12: Cache operational frames with coordinates only
+ * Soft/Medium will unpack via skills + cosmology tabulation
+ */
 async function cacheOperationalFrames(supabase: any, frames: OperationalFrame[]): Promise<void> {
   for (const frame of frames) {
     const { error } = await supabase
@@ -526,20 +540,17 @@ async function cacheOperationalFrames(supabase: any, frames: OperationalFrame[])
         character_id: frame.character_id,
         frame_id: frame.frame_id,
         context_content: {
-          character_name: frame.character_name,
-          character_description: frame.character_description,
-          coordinates: frame.coordinates,
-          close_characters: frame.close_characters,
-          nearby_character_ids: frame.nearby_character_ids,
-          relevant_content: frame.relevant_content,
+          character_coordinates: frame.character_coordinates,
+          relevant_coordinates: frame.relevant_coordinates,
         },
         aperture_floor: frame.aperture.floor,
         aperture_ceiling: frame.aperture.ceiling,
         compiled_at: frame.compiled_at,
         expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       }, { onConflict: 'character_id' });
-    
+
     if (error) console.error('Error caching operational frame:', error);
+    else console.log(`[Hard-LLM] Cached frame for ${frame.character_id.slice(0, 8)}: ${frame.relevant_coordinates.length} relevant coords`);
   }
 }
 
