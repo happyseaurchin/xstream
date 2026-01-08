@@ -1,18 +1,45 @@
 /**
- * Phase 0.7 + 0.8 + 0.9.3: Context Gathering
- * Now looks up character names from liquid.character_id
+ * Phase 0.7 + 0.8 + 0.9.3 + 0.12: Context Gathering
+ * 0.12: Coordinate-based filtering via character_context
  */
 
 import type { SynthesisContext, LiquidEntry, ContentEntry, SolidEntry, SkillSet, CharacterInfo } from './types.ts';
 import { loadSkillsForSynthesis } from './skills.ts';
 
+/**
+ * Phase 0.12: Check if two coordinates have prefix overlap
+ * e.g., "13.4" overlaps with "13." and "1." but not "2." or "14."
+ */
+function coordinatesOverlap(coordA: string, coordB: string): boolean {
+  if (!coordA || !coordB) return false;
+  const a = coordA.includes('.') ? coordA : coordA + '.';
+  const b = coordB.includes('.') ? coordB : coordB + '.';
+  return a.startsWith(b) || b.startsWith(a);
+}
+
+/**
+ * Phase 0.12: Filter content by relevant coordinates
+ */
+function filterContentByCoordinates(
+  content: ContentEntry[],
+  relevantCoords: string[]
+): ContentEntry[] {
+  if (!relevantCoords || relevantCoords.length === 0) return content;
+
+  return content.filter(c => {
+    const spatial = (c as any).spatial;
+    if (!spatial) return true; // No coordinate = always relevant
+    return relevantCoords.some(coord => coordinatesOverlap(spatial, coord));
+  });
+}
+
 export async function gatherContext(supabase: any, triggeringLiquidId: string): Promise<SynthesisContext> {
   const { data: trigger, error: triggerError } = await supabase.from('liquid').select('*').eq('id', triggeringLiquidId).single();
   if (triggerError || !trigger) throw new Error(`Triggering liquid entry not found: ${triggeringLiquidId}`);
-  
+
   const frameId = trigger.frame_id;
   if (!frameId) throw new Error('Liquid entry has no frame_id');
-  
+
   // Phase 0.8: Include cosmology_id for Hard-LLM
   const { data: frame, error: frameError } = await supabase
     .from('frames')
@@ -20,12 +47,31 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
     .eq('id', frameId)
     .single();
   if (frameError || !frame) throw new Error(`Frame not found: ${frameId}`);
-  
+
   const { data: allLiquid } = await supabase.from('liquid').select('*').eq('frame_id', frameId).order('created_at', { ascending: true });
   const otherLiquid = (allLiquid || []).filter((entry: LiquidEntry) => entry.user_id !== trigger.user_id);
-  
-  const { data: worldContent } = await supabase.from('content').select('*').eq('frame_id', frameId).eq('active', true).order('created_at', { ascending: true });
-  
+
+  // Phase 0.12: Load character_context for coordinate-based filtering
+  let relevantCoordinates: string[] = [];
+  if (trigger.character_id) {
+    const { data: charContext } = await supabase
+      .from('character_context')
+      .select('context_content')
+      .eq('character_id', trigger.character_id)
+      .eq('frame_id', frameId)
+      .single();
+
+    if (charContext?.context_content?.relevant_coordinates) {
+      relevantCoordinates = charContext.context_content.relevant_coordinates;
+      console.log('[Gather] Using relevant_coordinates:', relevantCoordinates);
+    }
+  }
+
+  // Load all content, then filter by coordinates
+  const { data: allContent } = await supabase.from('content').select('*').eq('frame_id', frameId).eq('active', true).order('created_at', { ascending: true });
+  const worldContent = filterContentByCoordinates(allContent || [], relevantCoordinates);
+  console.log(`[Gather] Content filtered: ${(allContent || []).length} → ${worldContent.length}`);
+
   const { data: recentSolid } = await supabase.from('solid').select('*').eq('frame_id', frameId).order('created_at', { descending: true }).limit(5);
   const chronologicalSolid = (recentSolid || []).reverse();
   
