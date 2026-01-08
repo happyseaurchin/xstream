@@ -137,14 +137,32 @@ filterContentByCoordinates() uses relevant_coordinates
 
 **Conclusion:** Skill system works for its current categories. Adding more skill categories would require writing apply functions. No code changes made.
 
-### Set 5: Faces Binding
+### Set 5: Faces Binding (Done - Working as Designed)
 
-**Current:** Face determines which liquid to synthesize, but routing is similar.
+**Goal:** Same triad, different domain per face.
 
-**Needed:** Different aperture per face:
-- Player: character coordinates → nearby characters/content
-- Author: content coordinates → related content/regions
-- Designer: skill coordinates → related skills/packages
+**Finding: Face routing already works.**
+
+| Component | Player/Character | Author | Designer |
+|-----------|-----------------|--------|----------|
+| **Compile function** | `compile-player.ts` | `compile-author.ts` | `compile-designer.ts` |
+| **System prompt** | Narrative synthesis (30/70 rule) | World-building synthesis | Skill parsing |
+| **Output routing** | `solid.narrative` | `content` table + `solid` audit | `skills` table + `solid` audit |
+| **Token default** | 512 | 512 | 2048 |
+| **Filters liquid by** | `character` face | `author` face | Trigger only |
+
+**Route functions in `route.ts`:**
+- `routePlayerResult()` → `solid` table with `narrative`
+- `routeAuthorResult()` → `content` table + `solid.content_data`
+- `routeDesignerResult()` → `skills` table + `solid.skill_data`
+
+**What's NOT yet implemented:**
+- Different aperture skills per face (currently uses same skill lookup)
+- Hard-LLM coordinate calculation per face (only works for player/character)
+- Author coordinates → content-space proximity
+- Designer coordinates → skill-space proximity
+
+**Conclusion:** Face routing works for current needs. Author and Designer faces synthesize and route correctly. The coordinate-based aperture differences described in the original plan require Hard-LLM to understand multiple coordinate spaces (character-space vs content-space vs skill-space). This is future work — the current system routes by face, and skills can customize behavior per face.
 
 ---
 
@@ -172,8 +190,10 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 
 1. **Coordinate filtering works:** Character at "13.4" sees content at "13." and "13.2", not content at "2." ✓ (Set 2)
 2. **Proximity updates:** Hard-LLM calculates who's close/nearby/distant ✓ (existing)
-3. **Async solid:** Placeholder appears instantly, fills in background (Set 2 remaining)
+3. **Async solid:** Placeholder appears instantly, fills in background ✓ (already implemented in route.ts)
 4. **Liquid visibility:** Only see liquid from proximate characters ✓ (Set 3)
+5. **Skills compile into prompts:** Format, constraint, aperture apply to Medium-LLM ✓ (Set 4)
+6. **Face routing:** Each face has its own compile function and output destination ✓ (Set 5)
 
 ---
 
@@ -215,4 +235,13 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 - Skills DO work for `format`, `constraint`, `aperture` (Medium-LLM)
 - Skills DO work for `hard` category (Hard-LLM)
 - Tabulation comes from cosmology, not skills - already in Hard-LLM prompt
+- No code changes needed - system works as designed
+
+### Set 5 (Faces Binding) - Investigation Only
+- Face routing DOES work (`route.ts`, compile functions per face)
+- Each face has its own system prompt and output destination
+- Player/Character → `solid.narrative`
+- Author → `content` table + `solid.content_data`
+- Designer → `skills` table + `solid.skill_data`
+- Skills apply to all faces (loaded by `applies_to` filter)
 - No code changes needed - system works as designed
