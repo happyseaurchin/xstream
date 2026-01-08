@@ -119,15 +119,26 @@ filterContentByCoordinates() uses relevant_coordinates
 
 ### Set 4: Skills Binding
 
-**Status:** Skills load and apply, but categories may need refinement.
+**Goal:** Skills compile into LLM prompts and affect behavior.
 
-**Key insight from Set 2:** Skills should include coordinate unpacking. A "tabulation" skill would let the LLM decode "13.4" → "keep → kitchen → fireplace" using the cosmology's mapping.
+**Current state:**
+- `skills` table exists with `category`, `applies_to`, `content` fields
+- `loadSkillsForSynthesis()` in `skills.ts` queries by face and package
+- Skills are passed to prompt compilation but may not be fully utilized
 
-**Potential skill categories:**
-- `aperture`: what coordinates to load
-- `tabulation`: how to decode coordinates to semantics
-- `format`: output structure
-- `gathering`: how to assemble context
+**What I plan to do:**
+
+1. **Verify skill loading works** - Check what skills exist in DB, trace through code
+2. **Ensure skills reach the prompt** - Verify `compile-player.ts` uses loaded skills
+3. **Add tabulation skill** - A skill that includes cosmology tabulation for coordinate unpacking
+4. **Test skill categories:**
+   - `format`: modifies output structure
+   - `aperture`: affects what Hard-LLM loads
+   - `gathering`: affects how Medium assembles context
+
+**Key question:** Do skills currently DO anything, or are they loaded but ignored?
+
+**Test:** Create a custom format skill → verify Medium output changes accordingly.
 
 ### Set 5: Faces Binding
 
@@ -169,14 +180,28 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 
 ---
 
+## Sprint Strategy
+
+**Approach:** Complete all Sets (2-5) in one pass, even if incomplete. Then test end-to-end.
+
+**If it doesn't work:**
+- Document what failed and why
+- Branch from original main
+- Replay working parts, try different approaches for failures
+- Each branch = one exploration path
+
+**Why this works:** We learn by coding. The first pass reveals the shape of the problem. Subsequent passes refine with that knowledge.
+
+---
+
 ## Notes for Next Session
 
 - Check if `hard-movement` and `hard-proximity` skills exist in DB
 - Verify coordinate format in existing data
 - Consider: should Hard run on a schedule for active characters? (proactive frame compilation)
 - The `frames` → `sessions` rename is deferrable but clarifies mental model
-- **Set 4 (Skills):** Review skill categories, consider "tabulation" skill for coordinate unpacking
-- **Set 5 (Faces):** Different aperture per face (player/author/designer)
+
+---
 
 ## Summary of Changes (This Session)
 
@@ -188,3 +213,9 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 - `generate-v2/synthesis/gather.ts`: Filters liquid by `character_proximity`
 - `hooks/useLiquidSubscription.ts`: Loads proximity, filters `liquidEntries`
 - `App.tsx`: Passes `characterId` to liquid subscription
+
+### Set 4 (Skills Binding) - Planned
+- Verify skills load and reach prompts
+- Check skill categories are used
+- Add tabulation skill for coordinate unpacking
+- Test that skills affect LLM output
