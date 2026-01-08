@@ -100,18 +100,22 @@ filterContentByCoordinates() uses relevant_coordinates
 
 **Test:** Commit action → placeholder appears instantly → narrative fills in 1-2 seconds.
 
-### Set 3: Context Binding
+### Set 3: Context Binding (Done)
 
 **Goal:** Proximity drives visibility.
 
-**Current state:** Proximity calculated by Hard-LLM, stored in `character_proximity` table. But `gather.ts` doesn't use it — it loads ALL liquid for the frame.
+**Done:**
+1. `gather.ts` loads `character_proximity` for triggering character
+2. Filters liquid by proximity: close/nearby = visible, distant = hidden
+3. `useLiquidSubscription` accepts `characterId` and loads proximity
+4. Frontend filters `liquidEntries` by proximity before display
 
-**Changes needed:**
-1. `gather.ts` reads `character_proximity` for triggering character
-2. Filter liquid/vapor by proximity (close = full, nearby = summary, distant = none)
-3. Remove frame_id as primary grouping — proximity IS the grouping
+**The graceful fallback:** If no proximity data exists, all liquid is shown. This means:
+- First synthesis: no filtering (proximity not computed yet)
+- After Hard-LLM runs: proximity populates
+- Subsequent views: filtered by proximity
 
-**The shift:** From "players in same session see each other" to "characters with overlapping coordinates see each other."
+**The shift realized:** "Characters with overlapping coordinates see each other" — proximity IS the grouping, frame_id is just session scaffolding.
 
 ### Set 4: Skills Binding
 
@@ -158,10 +162,10 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 
 ## Test Criteria
 
-1. **Coordinate filtering works:** Character at "13.4" sees content at "13." and "13.2", not content at "2."
-2. **Proximity updates:** Hard-LLM calculates who's close/nearby/distant
-3. **Async solid:** Placeholder appears instantly, fills in background
-4. **Liquid visibility:** Only see liquid from proximate characters
+1. **Coordinate filtering works:** Character at "13.4" sees content at "13." and "13.2", not content at "2." ✓ (Set 2)
+2. **Proximity updates:** Hard-LLM calculates who's close/nearby/distant ✓ (existing)
+3. **Async solid:** Placeholder appears instantly, fills in background (Set 2 remaining)
+4. **Liquid visibility:** Only see liquid from proximate characters ✓ (Set 3)
 
 ---
 
@@ -171,3 +175,16 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 - Verify coordinate format in existing data
 - Consider: should Hard run on a schedule for active characters? (proactive frame compilation)
 - The `frames` → `sessions` rename is deferrable but clarifies mental model
+- **Set 4 (Skills):** Review skill categories, consider "tabulation" skill for coordinate unpacking
+- **Set 5 (Faces):** Different aperture per face (player/author/designer)
+
+## Summary of Changes (This Session)
+
+### Set 2 (Triad Binding)
+- `hard-llm/index.ts`: Simplified `OperationalFrame` to coordinates only
+- `generate-v2/synthesis/gather.ts`: Filters content by `relevant_coordinates`
+
+### Set 3 (Context Binding)
+- `generate-v2/synthesis/gather.ts`: Filters liquid by `character_proximity`
+- `hooks/useLiquidSubscription.ts`: Loads proximity, filters `liquidEntries`
+- `App.tsx`: Passes `characterId` to liquid subscription
