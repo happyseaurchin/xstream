@@ -148,8 +148,9 @@ export function ConstructionButton({
     if (isDragging) return;
 
     if (isOpen) {
-      // Menu is open → close it, go back to input
+      // Menu is open → close everything
       setIsOpen(false);
+      setIsExpanded(false);
     } else if (isExpanded) {
       // Input is open → open menu
       setIsOpen(true);
