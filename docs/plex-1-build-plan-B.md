@@ -117,28 +117,25 @@ filterContentByCoordinates() uses relevant_coordinates
 
 **The shift realized:** "Characters with overlapping coordinates see each other" — proximity IS the grouping, frame_id is just session scaffolding.
 
-### Set 4: Skills Binding
+### Set 4: Skills Binding (Done - No Changes Needed)
 
 **Goal:** Skills compile into LLM prompts and affect behavior.
 
-**Current state:**
-- `skills` table exists with `category`, `applies_to`, `content` fields
-- `loadSkillsForSynthesis()` in `skills.ts` queries by face and package
-- Skills are passed to prompt compilation but may not be fully utilized
+**Finding: Skills already work.**
 
-**What I plan to do:**
+| Layer | Skills Used |
+|-------|-------------|
+| **Medium-LLM** | `format` → appended to system prompt. `constraint` → appended to system prompt. `aperture` → modifies max tokens. |
+| **Hard-LLM** | All `hard` category skills included in prompt. |
 
-1. **Verify skill loading works** - Check what skills exist in DB, trace through code
-2. **Ensure skills reach the prompt** - Verify `compile-player.ts` uses loaded skills
-3. **Add tabulation skill** - A skill that includes cosmology tabulation for coordinate unpacking
-4. **Test skill categories:**
-   - `format`: modifies output structure
-   - `aperture`: affects what Hard-LLM loads
-   - `gathering`: affects how Medium assembles context
+**Categories NOT applied:**
+- `gathering`, `weighting`, `routing`, `parsing`, `display` - defined but no apply functions
 
-**Key question:** Do skills currently DO anything, or are they loaded but ignored?
+**Tabulation:** Comes from cosmology, not skills. Hard-LLM includes `spatial_tabulation` and `temporal_tabulation` directly in its prompt via `formatTabulation()`.
 
-**Test:** Create a custom format skill → verify Medium output changes accordingly.
+**Does Medium-LLM need tabulation?** No. Hard-LLM does the coordinate work (proximity, filtering). Medium-LLM receives already-filtered content with human-readable descriptions.
+
+**Conclusion:** Skill system works for its current categories. Adding more skill categories would require writing apply functions. No code changes made.
 
 ### Set 5: Faces Binding
 
@@ -214,8 +211,8 @@ The "frame" isn't a pre-resolved bundle of content. It's a set of coordinates th
 - `hooks/useLiquidSubscription.ts`: Loads proximity, filters `liquidEntries`
 - `App.tsx`: Passes `characterId` to liquid subscription
 
-### Set 4 (Skills Binding) - Planned
-- Verify skills load and reach prompts
-- Check skill categories are used
-- Add tabulation skill for coordinate unpacking
-- Test that skills affect LLM output
+### Set 4 (Skills Binding) - Investigation Only
+- Skills DO work for `format`, `constraint`, `aperture` (Medium-LLM)
+- Skills DO work for `hard` category (Hard-LLM)
+- Tabulation comes from cosmology, not skills - already in Hard-LLM prompt
+- No code changes needed - system works as designed
