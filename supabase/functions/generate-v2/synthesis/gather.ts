@@ -49,7 +49,35 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   if (frameError || !frame) throw new Error(`Frame not found: ${frameId}`);
 
   const { data: allLiquid } = await supabase.from('liquid').select('*').eq('frame_id', frameId).order('created_at', { ascending: true });
-  const otherLiquid = (allLiquid || []).filter((entry: LiquidEntry) => entry.user_id !== trigger.user_id);
+
+  // Phase 0.12 Set 3: Load proximity to filter liquid by who's close/nearby
+  let proximateCharacterIds: Set<string> = new Set();
+  if (trigger.character_id) {
+    const { data: proximity } = await supabase
+      .from('character_proximity')
+      .select('close, nearby')
+      .eq('character_id', trigger.character_id)
+      .single();
+
+    if (proximity) {
+      // Close characters: full visibility. Nearby: also visible.
+      for (const id of proximity.close || []) proximateCharacterIds.add(id);
+      for (const id of proximity.nearby || []) proximateCharacterIds.add(id);
+      console.log('[Gather] Proximate characters:', proximateCharacterIds.size);
+    }
+  }
+
+  // Filter liquid: own entries + entries from proximate characters
+  const visibleLiquid = (allLiquid || []).filter((entry: LiquidEntry) => {
+    if (entry.user_id === trigger.user_id) return true; // Always see own
+    const entryCharId = (entry as any).character_id;
+    if (!entryCharId) return true; // No character = legacy, show it
+    if (proximateCharacterIds.size === 0) return true; // No proximity data = show all
+    return proximateCharacterIds.has(entryCharId);
+  });
+  console.log(`[Gather] Liquid filtered by proximity: ${(allLiquid || []).length} → ${visibleLiquid.length}`);
+
+  const otherLiquid = visibleLiquid.filter((entry: LiquidEntry) => entry.user_id !== trigger.user_id);
 
   // Phase 0.12: Load character_context for coordinate-based filtering
   let relevantCoordinates: string[] = [];
@@ -78,8 +106,8 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   // Load skills for this face and frame
   const skills = await loadSkillsForSynthesis(supabase, trigger.face, frameId, trigger.user_id);
   
-  // Phase 0.9.3: Collect character_ids from liquid entries and look up names
-  const characterIds = [...new Set((allLiquid || [])
+  // Phase 0.9.3: Collect character_ids from visible liquid entries and look up names
+  const characterIds = [...new Set(visibleLiquid
     .filter((e: any) => e.character_id)
     .map((e: any) => e.character_id))];
   
@@ -106,7 +134,7 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   }
   
   // Also check for characters via inhabited_by (fallback)
-  const participantUserIds = [...new Set((allLiquid || []).map((e: LiquidEntry) => e.user_id))];
+  const participantUserIds = [...new Set(visibleLiquid.map((e: LiquidEntry) => e.user_id))];
   if (participantUserIds.length > 0 && frame.cosmology_id) {
     const { data: inhabitedChars } = await supabase
       .from('characters')
@@ -127,9 +155,10 @@ export async function gatherContext(supabase: any, triggeringLiquidId: string): 
   }
   
   // Attach character name lookup to context for use in formatting
+  // Phase 0.12 Set 3: allLiquid is now visibleLiquid (proximity-filtered)
   const contextWithLookup: SynthesisContext & { characterNameMap?: Map<string, string> } = {
     trigger: { entry: trigger, userId: trigger.user_id, userName: trigger.user_name },
-    allLiquid: allLiquid || [],
+    allLiquid: visibleLiquid,
     otherLiquid,
     worldContent: worldContent || [],
     recentSolid: chronologicalSolid,
