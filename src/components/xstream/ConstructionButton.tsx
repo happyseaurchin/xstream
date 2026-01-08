@@ -38,6 +38,7 @@ const STORAGE_KEY = "xstream-construction-btn-pos";
 export function ConstructionButton({
   onThemeChange,
   onLogout,
+  currentTheme,
   onQuery,
   onSubmit,
   value,
