@@ -312,12 +312,13 @@ function App() {
     error: channelError 
   } = useFrameChannel({ frameId, userId, userName, face })
 
+  // Phase 0.12 Set 3: Pass characterId for proximity-based filtering
   const {
     liquidEntries: dbLiquidEntries,
     upsertLiquid,
     commitLiquid,
     deleteLiquid,
-  } = useLiquidSubscription({ frameId, userId })
+  } = useLiquidSubscription({ frameId, userId, characterId: selectedCharacterId })
 
   // Phase 0.10.3.3: When placeholder solid appears (synthesis starting), clear local liquid for that face
   // This callback is triggered by realtime subscription when solid with narrative=null is inserted

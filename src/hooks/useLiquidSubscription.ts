@@ -22,6 +22,7 @@ export interface LiquidEntry {
 export interface UseLiquidSubscriptionOptions {
   frameId: string | null
   userId: string
+  characterId?: string | null  // Phase 0.12 Set 3: For proximity-based filtering
 }
 
 export interface UseLiquidSubscriptionReturn {
@@ -56,8 +57,10 @@ export interface UseLiquidSubscriptionReturn {
 export function useLiquidSubscription({
   frameId,
   userId,
+  characterId,
 }: UseLiquidSubscriptionOptions): UseLiquidSubscriptionReturn {
   const [liquidEntries, setLiquidEntries] = useState<LiquidEntry[]>([])
+  const [proximateCharacterIds, setProximateCharacterIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -105,6 +108,37 @@ export function useLiquidSubscription({
 
     loadLiquid()
   }, [frameId])
+
+  // Phase 0.12 Set 3: Load proximity for character-based filtering
+  useEffect(() => {
+    if (!characterId || !supabase) {
+      setProximateCharacterIds(new Set())
+      return
+    }
+
+    const loadProximity = async () => {
+      try {
+        const { data, error: err } = await supabase!
+          .from('character_proximity')
+          .select('close, nearby')
+          .eq('character_id', characterId)
+          .single()
+
+        if (err && err.code !== 'PGRST116') throw err  // PGRST116 = no rows
+
+        const ids = new Set<string>()
+        for (const id of data?.close || []) ids.add(id)
+        for (const id of data?.nearby || []) ids.add(id)
+        setProximateCharacterIds(ids)
+        console.log('[Liquid] Loaded proximity:', ids.size, 'characters')
+      } catch (err) {
+        console.error('[Liquid] Proximity load error:', err)
+        // Don't set error - proximity is optional enhancement
+      }
+    }
+
+    loadProximity()
+  }, [characterId])
 
   // Subscribe to liquid table changes
   useEffect(() => {
@@ -281,8 +315,17 @@ export function useLiquidSubscription({
     }
   }, [frameId, userId])
 
+  // Phase 0.12 Set 3: Filter liquid by proximity
+  // Own entries always visible, others filtered by proximity
+  const visibleLiquidEntries = liquidEntries.filter(entry => {
+    if (entry.userId === userId) return true  // Own entries always visible
+    if (!entry.characterId) return true  // No character = legacy, show it
+    if (proximateCharacterIds.size === 0) return true  // No proximity data = show all
+    return proximateCharacterIds.has(entry.characterId)
+  })
+
   return {
-    liquidEntries,
+    liquidEntries: visibleLiquidEntries,
     upsertLiquid,
     commitLiquid,
     markCommitted,
