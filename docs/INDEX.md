@@ -7,11 +7,21 @@
 
 ---
 
+## Overview (which gets updated as we code)
+
+<!-- The definitive docs for whole project -->
+
+- `unified-loop-architecture.md` - what we are building in a nutshell
+
+
+---
+
 ## Active (Current Phase)
 
 <!-- The authoritative docs for current development -->
 
-- `plex-1-specification.md` - Current build specification (Phase 0.12 / Spine-2)
+- `plex-1-build-plan-B.md` - Current build specification (Phase 0.12 / Spine-2)
+
 
 ---
 
@@ -20,7 +30,8 @@
 <!-- Foundational concepts that remain accurate -->
 
 - `pscale-spine.md` - Core coordinate system (P-Scale -10 to +15)
-- `frame-lamina-aperture.md` - Frame/lamina/aperture concepts
+- `pscale-coordinates-implementation.md` - pragmatic use of P-scale system
+- `plex-1-specification.md` - Original overview (and has out-dated coding elements, eg frames, but great for overview)
 - `phase-0.8.5-multi-hard.md` - Multi-player Hard-LLM coordination
 - `hard-llm-coordinate-extraction-skills.md` - How Hard-LLM extracts coordinates
 - `agent-context-architecture.md` - Agent context structure
@@ -35,6 +46,7 @@
 - `phase-0.8-architecture.md` - Coordinate model & proximity (core concepts valid)
 - `phase-0.9-specification.md` - Some UI patterns may still apply
 - `phase-0.10-specification.md` - Superseded by plex-1, but has implementation details
+- `frame-lamina-aperture.md` - old Frame/lamina/aperture concepts
 
 ---
 
@@ -60,7 +72,6 @@
 <!-- Setup guides and tooling -->
 
 - `n8n-setup.md` - n8n workflow setup
-- `phase-2-skills.md` - Future skills planning
 
 ---
 
