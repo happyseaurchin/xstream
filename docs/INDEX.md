@@ -20,7 +20,8 @@
 
 <!-- The authoritative docs for current development -->
 
-- `plex-1-build-plan-B.md` - Current build specification (Phase 0.12 / Spine-2)
+- `state-of-play-2026-01-09.md` - **START HERE** - Current status, what works, what's scaffolding, next steps
+- `plex-1-build-plan-B.md` - Build specification (Phase 0.12 / Spine-2)
 
 
 ---
@@ -72,6 +73,7 @@
 <!-- Setup guides and tooling -->
 
 - `n8n-setup.md` - n8n workflow setup
+- `supabase-query-method.md` - Curl fallback for DB queries (when Docker unavailable)
 
 ---
 
