@@ -100,7 +100,11 @@ supabase/
     └── generate-v2/   # Soft/Medium LLM
 specs/             # Technical Design Specs (temporary)
 docs/              # Architecture documentation
+docs/INDEX.md      # READ THIS FIRST - documentation status
 ```
+
+### Documentation
+**Always read `docs/INDEX.md` first** before diving into other docs. It tracks which documents are current, reference, or archived.
 
 ---
 
