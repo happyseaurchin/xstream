@@ -35,7 +35,7 @@ Human reads: "the fireplace in the kitchen of the keep"
 ### Spatial Coordinate Examples
 
 ```
-"1."      = {keep} — at building level, no room specified
+"10."      = {keep} — at building level, no room specified
 "13."     = {keep}{kitchen} — in the kitchen, no furniture focus
 "13.4"    = {keep}{kitchen}.{fireplace} — at the fireplace
 "13.42"   = {keep}{kitchen}.{fireplace}{mantle} — on the mantle
@@ -45,8 +45,8 @@ Human reads: "the fireplace in the kitchen of the keep"
 ### Temporal Coordinate Examples
 
 ```
-"3."      = {day-3} — on the third day, no finer detail
-"34."     = {day-3}{hour-4} — third day, fourth hour
+"300."      = {day-3} — on the third day, no finer detail
+"340."     = {day-3}{hour-4} — third day, fourth hour
 "348."    = {day-3}{hour-4}{block-8} — specific 5-10 min block
 "348.1"   = {day-3}{hour-4}{block-8}.{minute-1} — first minute of that block
 ```
@@ -54,8 +54,8 @@ Human reads: "the fireplace in the kitchen of the keep"
 ### Identity Coordinate Examples (deferred to 0.8.5)
 
 ```
-"5."      = {tamor-tribe} — tribal identity only
-"54."     = {tamor-tribe}{brothers-family} — family within tribe
+"500."      = {tamor-tribe} — tribal identity only
+"540."     = {tamor-tribe}{brothers-family} — family within tribe
 "543."    = {tamor-tribe}{brothers-family}{third-brother} — specific individual
 "543.2"   = {tamor-tribe}{brothers-family}{third-brother}.{focused-state} — psychological state
 ```
