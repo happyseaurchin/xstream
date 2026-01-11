@@ -12,6 +12,8 @@
 
 - `unified-loop.md` - The single loop architecture (vapor → liquid → solid)
 - `data-governance.md` - Hard-edge architecture: everything is text at coordinates
+- `pscale-spine.md` - Coordinate system: three dimensions (T, S, I), place value = semantic scale
+- `pscale-implementation.md` - Coordinate mechanics: strings, proximity, aperture queries
 - `pscale-functions.md` - The three functions: determinancy cloud, purpose tree, narrative aperture
 
 ---
@@ -24,12 +26,10 @@
 
 ---
 
-## Reference (Core Concepts)
+## Reference
 
-<!-- Foundational concepts -->
+<!-- Supporting concepts -->
 
-- `pscale-spine.md` - P-Scale coordinate system (-10 to +16), three dimensions (T, S, I)
-- `pscale-implementation.md` - Coordinate mechanics: strings, proximity, aperture, tabulation
 - `pscale-aperture-notation.md` - X/X-/X+/X~ attention modes from any position
 - `multiplayer-coordination.md` - Window timing, entity states, determinancy flow
 - `agent-architecture.md` - Three faces, LLM stacks, context flow vs skill modification
