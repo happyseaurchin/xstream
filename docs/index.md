@@ -23,7 +23,7 @@
 
 <!-- Authoritative docs for current development -->
 
-*Add build plan when implementation begins*
+- `plex-1-challenge.md` - The challenge: build the minimal working system
 
 ---
 
