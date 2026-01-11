@@ -44,6 +44,7 @@
 - `experiments/pscale-coordinate-findings.md` - Core discovery: place value = semantic scale, three perspectives emerge
 - `experiments/pscale-aperture-experiments.md` - X/X-/X+/X~ notation, all three dimensions tested
 - `experiments/implementation-learnings.md` - JSX prototype findings, i:0 confusion, open questions
+- `experiments/coordinate-sign-exploration.md` - ± sign semantics: relativistic frames, membrane model, open questions
 
 ---
 
