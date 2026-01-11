@@ -15,6 +15,7 @@
 - `pscale-spine.md` - Coordinate system: three dimensions (T, S, I), place value = semantic scale
 - `pscale-implementation.md` - Coordinate mechanics: strings, proximity, aperture queries
 - `pscale-functions.md` - The three functions: determinancy cloud, purpose tree, narrative aperture
+- `usecases.md` - Three faces (player, author, designer) proving the loop handles all domains
 
 ---
 
