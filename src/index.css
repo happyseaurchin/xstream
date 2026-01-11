@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Default dark theme */
+    --background: 240 6% 6%;
+    --foreground: 0 0% 93%;
+    --card: 240 5% 10%;
+    --card-foreground: 0 0% 93%;
+    --popover: 240 5% 10%;
+    --popover-foreground: 0 0% 93%;
+    --primary: 38 92% 50%;
+    --primary-foreground: 0 0% 6%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 80%;
+    --muted: 240 5% 14%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 93%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 4% 18%;
+    --input: 0 0% 14%;
+    --ring: 38 92% 50%;
+
+    /* Zone colors */
+    --solid-bg: 240 5% 11%;
+    --solid-card: 240 5% 15%;
+    --solid-border: 0 0% 24%;
+    --solid-shadow: 0 8px 32px -8px hsla(0, 0%, 0%, 0.6);
+    --liquid-bg: 240 5% 9%;
+    --liquid-card: 0 0% 100% / 0.06;
+    --liquid-border: 0 0% 100% / 0.1;
+    --liquid-blur: 12px;
+    --vapour-bg: 240 6% 7%;
+    --vapour-text: 0 0% 60%;
+
+    /* Face colors */
+    --face-character: 38 92% 50%;
+    --face-author: 215 70% 55%;
+    --face-designer: 350 80% 60%;
+    --column-accent: var(--face-character);
+
+    /* Animation */
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+  }
+
+  [data-theme="light"] {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+    --border: 0 0% 85%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 35%;
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 12%;
+    --solid-bg: 0 0% 100%;
+    --solid-card: 0 0% 98%;
+    --solid-border: 0 0% 82%;
+    --liquid-bg: 0 0% 97%;
+    --liquid-card: 0 0% 100% / 0.9;
+    --liquid-border: 0 0% 0% / 0.1;
+    --vapour-bg: 0 0% 95%;
+    --vapour-text: 0 0% 35%;
+  }
+
+  [data-theme="cyber"] {
+    --background: 220 20% 5%;
+    --foreground: 180 100% 90%;
+    --primary: 180 100% 50%;
+    --card: 220 18% 8%;
+    --border: 180 50% 20%;
+    --muted: 220 15% 12%;
+    --muted-foreground: 180 60% 50%;
+    --solid-bg: 220 18% 10%;
+    --solid-card: 220 15% 14%;
+    --liquid-bg: 220 18% 7%;
+    --liquid-card: 180 100% 50% / 0.05;
+    --liquid-border: 180 100% 50% / 0.15;
+    --vapour-bg: 220 20% 5%;
+    --vapour-text: 180 100% 40%;
+    --face-character: 180 100% 50%;
+    --face-author: 280 100% 60%;
+    --face-designer: 320 100% 60%;
+  }
+
+  [data-face="character"] {
+    --column-accent: var(--face-character);
+  }
+  [data-face="author"] {
+    --column-accent: var(--face-author);
+  }
+  [data-face="designer"] {
+    --column-accent: var(--face-designer);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer components {
+  .zone-solid {
+    background: transparent;
+  }
+  .zone-liquid {
+    background: transparent;
+  }
+  .zone-vapour {
+    background: transparent;
+  }
+
+  .card-solid {
+    background: hsl(var(--solid-card));
+    border: 1px solid hsl(var(--solid-border));
+    box-shadow: var(--solid-shadow);
+  }
+
+  .card-liquid {
+    background: hsl(var(--liquid-card));
+    border: 1px solid hsl(var(--liquid-border));
+    backdrop-filter: blur(var(--liquid-blur));
+  }
+
+  .vapour-input-container {
+    background: transparent;
+    border: 1px solid hsl(var(--border) / 0.3);
+    border-radius: var(--radius);
+    transition: border-color var(--duration-fast), background var(--duration-fast);
+  }
+  .vapour-input-container:focus-within {
+    border-color: hsl(var(--primary) / 0.5);
+    background: hsl(var(--card) / 0.3);
+  }
+
+  .bg-face-accent {
+    background: hsl(var(--column-accent)) !important;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in var(--duration-normal) ease-out;
+  }
+  .animate-slide-up {
+    animation: slide-up var(--duration-normal) ease-out;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
