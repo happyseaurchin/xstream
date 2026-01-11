@@ -12,6 +12,7 @@
 
 - `unified-loop.md` - The single loop architecture (vapor → liquid → solid)
 - `data-governance.md` - Hard-edge architecture: everything is text at coordinates
+- `pscale-functions.md` - The three functions: determinancy cloud, purpose tree, narrative aperture
 
 ---
 
