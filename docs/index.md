@@ -25,10 +25,10 @@
 
 ## Reference (Core Concepts)
 
-<!-- Foundational concepts - to be added -->
+<!-- Foundational concepts -->
 
-- `pscale.md` - P-Scale coordinate system (-10 to +15) *[pending]*
-- `pscale-implementation.md` - Pragmatic use of P-scale *[pending]*
+- `pscale-spine.md` - P-Scale coordinate system (-10 to +16), three dimensions (T, S, I)
+- `pscale-implementation.md` - Coordinate mechanics: strings, proximity, aperture, tabulation
 
 ---
 
