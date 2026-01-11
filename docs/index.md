@@ -45,6 +45,7 @@
 - `experiments/pscale-aperture-experiments.md` - X/X-/X+/X~ notation, all three dimensions tested
 - `experiments/implementation-learnings.md` - JSX prototype findings, i:0 confusion, open questions
 - `experiments/coordinate-sign-exploration.md` - ± sign semantics: relativistic frames, membrane model, open questions
+- `experiments/pscale-encoding-speculation.md` - Encoding everything (content, memory, code) in pscale coordinates
 
 ---
 
