@@ -36,7 +36,8 @@
 
 <!-- Findings from operationalizing the architecture -->
 
-*Add experimental findings when provided*
+- `experiments/pscale-coordinate-findings.md` - Core discovery: place value = semantic scale, three perspectives emerge
+- `experiments/pscale-aperture-experiments.md` - X/X-/X+/X~ notation, all three dimensions tested
 
 ---
 
