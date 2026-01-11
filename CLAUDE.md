@@ -13,10 +13,39 @@ Minimal implementation of the unified loop for collaborative narrative.
 ## Architecture
 
 ```
-vapor → [soft-LLM] → liquid → [medium-LLM] → solid
+vapor → [soft-LLM] → liquid → [medium-LLM] → solid → [hard-LLM] → archive
 ```
 
-Three zones, one loop. Everything flows through this path.
+Three tiers, one loop. Everything flows through this path.
+
+## Pscale (Critical)
+
+**Pscale = power of 10 of the rightmost significant digit.**
+
+```
+300   → pscale 2  (10²)
+321   → pscale 0  (10⁰)
+0.3   → pscale -1 (10⁻¹)
+0.03  → pscale -2 (10⁻²)
+```
+
+**Semantic-numbers**: Coordinates where place value = semantic scale.
+- `321` means: context 3, area 2, specific 1
+- Lower pscale = finer detail, higher pscale = broader scope
+
+**Three dimensions**: T (temporal), S (spatial), I (identity)
+- Each uses the same place-value logic
+- Content exists at coordinates `{t, s, i}`
+
+**Tabulation**: Semantic-numbers decompress to semantic-vectors (text chunks).
+- `321` → retrieves text at that coordinate
+- Aperture queries gather proximate content for LLM context
+
+**Direction matters**:
+- Positive integers (321): right-to-left, rightmost = finest detail
+- Sub-unity (0.123): left-to-right, leftmost = broadest category
+
+Read `docs/pscale-spine.md` and `docs/pscale-implementation.md` for full details.
 
 ## Stack
 
