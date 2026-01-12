@@ -24,7 +24,7 @@
 <!-- Authoritative docs for current development -->
 
 - `plex-1-challenge.md` - The challenge: build the minimal working system
-- `new-build-transition-notes.md` - transition notes from modified vapor UI, original xstream build, and initialising
+- `new-build-transition-notes.md` - transition notes from modified vapor UI in spine-2, main xstream build, and initialising
 
 ---
 
