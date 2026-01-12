@@ -1,5 +1,21 @@
+/**
+ * LiquidZone - Display for submitted content awaiting synthesis
+ *
+ * PLEX 1 NOTE:
+ * This component shows content with shelf:'liquid' at proximate coordinates.
+ * The LiquidCard type may not fit pscale-only architecture.
+ *
+ * Consider:
+ * - Query by coordinate proximity, not by type
+ * - Cards are just text at coordinates with shelf:'liquid'
+ * - "Self" vs "other" determined by identity coordinate proximity
+ *
+ * If this doesn't fit pscale design, rebuild from scratch using
+ * coordinate queries. Port only if compatible.
+ */
+
 import { Circle, CircleDot } from "lucide-react";
-import type { LiquidCard as LiquidCardType } from "@/types";
+import type { LiquidCard as LiquidCardType } from "../types";
 
 interface LiquidCardProps {
   card: LiquidCardType;

@@ -1,4 +1,21 @@
-import type { SolidBlock } from "@/types";
+/**
+ * SolidZone - Display for committed/validated content
+ *
+ * PLEX 1 NOTE:
+ * This shows content with shelf:'solid' (post-Medium synthesis).
+ * After Hard-LLM validation, content moves to archive (pscale coordinates).
+ *
+ * Consider:
+ * - Solid is pre-archive — content awaiting Hard validation
+ * - Archive is the true coordinate-located content
+ * - This zone might show solid OR archived content depending on context
+ *
+ * The SolidBlock type may not fit pscale architecture.
+ * If rebuilding: query by coordinate proximity + shelf state.
+ * Port only if compatible with pscale-only design.
+ */
+
+import type { SolidBlock } from "../types";
 
 interface SolidZoneProps {
   blocks: SolidBlock[];

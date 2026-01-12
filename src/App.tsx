@@ -1,29 +1,42 @@
-import { useState } from 'react'
-import { VapourZone } from '@/components/VapourZone'
-import { LiquidZone } from '@/components/LiquidZone'
-import { SolidZone } from '@/components/SolidZone'
-import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Face } from '@/types'
+/**
+ * App.tsx - Main orchestrator for xstream fresh-build
+ *
+ * PLEX 1 NOTE:
+ * This demo wiring shows the UI working. For plex 1, replace with:
+ * - Supabase realtime subscriptions for content at coordinates
+ * - Edge functions for soft/medium/hard LLM calls
+ * - Coordinate-based queries instead of type-based state
+ */
 
-// Demo data
+import { useState } from 'react'
+import { VapourZone } from './components/VapourZone'
+import { LiquidZone } from './components/LiquidZone'
+import { SolidZone } from './components/SolidZone'
+import { ConstructionButton } from './components/ConstructionButton'
+import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Face, Theme } from './types'
+
+// Demo data - empty to start
 const DEMO_VAPOUR: VapourEntry[] = []
 const DEMO_LIQUID: LiquidCard[] = []
 const DEMO_SOLID: SolidBlock[] = []
 
 export default function App() {
   const [face] = useState<Face>('character')
+  const [theme, setTheme] = useState<Theme>('dark')
   const [vapourEntries] = useState<VapourEntry[]>(DEMO_VAPOUR)
   const [liquidCards, setLiquidCards] = useState<LiquidCard[]>(DEMO_LIQUID)
   const [solidBlocks, setSolidBlocks] = useState<SolidBlock[]>(DEMO_SOLID)
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   const [isQuerying, setIsQuerying] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
+  const [inputValue, setInputValue] = useState('')
 
   const currentUserId = 'self'
 
-  // Handlers - these will be wired to Supabase later
+  // Handlers - these will be wired to edge functions
   const handleQuery = async (text: string) => {
     setIsQuerying(true)
-    // TODO: Call soft-LLM
+    // TODO: Call soft-LLM edge function
     setTimeout(() => {
       setSoftResponse({
         id: Date.now().toString(),
@@ -46,13 +59,14 @@ export default function App() {
     }
     setLiquidCards(prev => [newCard, ...prev])
     setSoftResponse(null)
+    setInputValue('')
   }
 
   const handleCommit = async (cardId: string) => {
     setIsCommitting(true)
     const card = liquidCards.find(c => c.id === cardId)
     if (card) {
-      // TODO: Call medium-LLM for synthesis
+      // TODO: Call medium-LLM edge function for synthesis
       setTimeout(() => {
         const newBlock: SolidBlock = {
           id: Date.now().toString(),
@@ -67,18 +81,22 @@ export default function App() {
   }
 
   const handleCopyToVapor = (text: string) => {
-    // This would set the vapor input value
-    console.log('Copy to vapor:', text)
+    setInputValue(text)
   }
 
   const handleDismissSoftResponse = () => {
     setSoftResponse(null)
   }
 
+  const handleLogout = () => {
+    // TODO: Wire to useAuth().signOut()
+    console.log('Logout')
+  }
+
   return (
     <div
-      className="h-screen w-full flex flex-col overflow-hidden"
-      data-theme="dark"
+      className="h-screen w-full flex flex-col overflow-hidden bg-background text-foreground"
+      data-theme={theme}
       data-face={face}
     >
       {/* Header */}
@@ -109,16 +127,25 @@ export default function App() {
         {/* Separator */}
         <div className="h-px bg-border/50" />
 
-        {/* Vapour Zone */}
+        {/* Vapour Zone - display only, input via ConstructionButton */}
         <VapourZone
           entries={vapourEntries}
-          onQuery={handleQuery}
-          onSubmit={handleSubmit}
           softResponse={softResponse}
           onDismissSoftResponse={handleDismissSoftResponse}
-          isQuerying={isQuerying}
         />
       </main>
+
+      {/* Construction Button - floating input */}
+      <ConstructionButton
+        onThemeChange={setTheme}
+        onLogout={handleLogout}
+        currentTheme={theme}
+        onQuery={handleQuery}
+        onSubmit={handleSubmit}
+        value={inputValue}
+        onChange={setInputValue}
+        isQuerying={isQuerying}
+      />
     </div>
   )
 }
