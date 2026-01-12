@@ -10,16 +10,19 @@ You are one of potentially many attempts at this. Each attempt teaches something
 
 Build a working system where:
 
-**Target A — Fantasy Play:**
+**Target E — Fantasy Play:**
 Five players in a tavern. They type intentions. They see each other's proposals. The loop synthesizes them into narrative. Real-time, multiplayer, emergent.
 
-**Target B — Real Registration:**
+**Target F — Real Registration:**
 Five users register. Their profiles are characters in a "reflected" world. They invite each other. The invitation is content at coordinates, not a platform operation.
 
-**The Ambitious Target:**
-Both A and B are the same system. Same loop, same table, same edge functions. The difference is coordinate position and which skills load.
+**Target G — Real Registration:**
+The website builds itself from a kernel because the code itself is folded into the pscale structure at 0.xx.
 
-If you achieve only Target A, that's valuable. If you achieve both, the architecture is proven.
+**The Ambitious Target:**
+E, F and G are the same system. Same loop, same table, same edge functions. The difference is coordinate position and which skills load.
+
+If you achieve only Target E, F or G, that's valuable. If you achieve two of them or all three, the architecture is proven.
 
 ---
 
