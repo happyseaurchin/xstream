@@ -35,6 +35,7 @@
 - `pscale-aperture-notation.md` - X/X-/X+/X~ attention modes from any position
 - `multiplayer-coordination.md` - Window timing, entity states, determinancy flow
 - `agent-architecture.md` - Three faces, LLM stacks, context flow vs skill modification
+- `docs/pscale-semantic-coordinate-whitepaper.md` - Overview of complete pscale implementation including code
 
 ---
 
