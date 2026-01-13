@@ -20,7 +20,7 @@ import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Theme } from
 
 export default function App() {
   const auth = useAuth()
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>('light')
   const [vapourEntries] = useState<VapourEntry[]>([])
   const [liquidCards, setLiquidCards] = useState<LiquidCard[]>([])
   const [solidBlocks, setSolidBlocks] = useState<SolidBlock[]>([])
