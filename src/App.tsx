@@ -8,32 +8,43 @@
  * - Coordinate-based queries instead of type-based state
  */
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { useAuth } from './hooks/useAuth'
+import { AuthPage } from './components/AuthPage'
 import { VapourZone } from './components/VapourZone'
 import { LiquidZone } from './components/LiquidZone'
 import { SolidZone } from './components/SolidZone'
+import { ZoneSeparator } from './components/ZoneSeparator'
 import { ConstructionButton } from './components/ConstructionButton'
-import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Face, Theme } from './types'
-
-// Demo data - empty to start
-const DEMO_VAPOUR: VapourEntry[] = []
-const DEMO_LIQUID: LiquidCard[] = []
-const DEMO_SOLID: SolidBlock[] = []
+import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Theme } from './types'
 
 export default function App() {
-  const [face] = useState<Face>('character')
+  const auth = useAuth()
   const [theme, setTheme] = useState<Theme>('dark')
-  const [vapourEntries] = useState<VapourEntry[]>(DEMO_VAPOUR)
-  const [liquidCards, setLiquidCards] = useState<LiquidCard[]>(DEMO_LIQUID)
-  const [solidBlocks, setSolidBlocks] = useState<SolidBlock[]>(DEMO_SOLID)
+  const [vapourEntries] = useState<VapourEntry[]>([])
+  const [liquidCards, setLiquidCards] = useState<LiquidCard[]>([])
+  const [solidBlocks, setSolidBlocks] = useState<SolidBlock[]>([])
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   const [isQuerying, setIsQuerying] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
   const [inputValue, setInputValue] = useState('')
 
-  const currentUserId = 'self'
+  // Zone heights
+  const [solidHeight, setSolidHeight] = useState(180)
+  const [liquidHeight, setLiquidHeight] = useState(200)
 
-  // Handlers - these will be wired to edge functions
+  const handleSolidSeparatorDrag = useCallback((delta: number) => {
+    setSolidHeight((h) => Math.max(80, Math.min(400, h + delta)))
+    setLiquidHeight((h) => Math.max(100, h - delta))
+  }, [])
+
+  const handleLiquidSeparatorDrag = useCallback((delta: number) => {
+    setLiquidHeight((h) => Math.max(100, Math.min(500, h + delta)))
+  }, [])
+
+  const currentUserId = auth.user?.id || 'self'
+
+  // Query handler - calls soft-LLM
   const handleQuery = async (text: string) => {
     setIsQuerying(true)
     // TODO: Call soft-LLM edge function
@@ -41,19 +52,20 @@ export default function App() {
       setSoftResponse({
         id: Date.now().toString(),
         originalInput: text,
-        text: `This is a demo response to: "${text}"`,
+        text: `Demo response to: "${text}"`,
         softType: 'info',
-        face,
+        face: 'character',
       })
       setIsQuerying(false)
     }, 500)
   }
 
+  // Submit handler - adds to liquid
   const handleSubmit = (text: string) => {
     const newCard: LiquidCard = {
       id: Date.now().toString(),
       userId: currentUserId,
-      userName: 'You',
+      userName: auth.profile?.displayName || 'You',
       content: text,
       timestamp: Date.now(),
     }
@@ -62,6 +74,7 @@ export default function App() {
     setInputValue('')
   }
 
+  // Commit handler - moves liquid to solid
   const handleCommit = async (cardId: string) => {
     setIsCommitting(true)
     const card = liquidCards.find(c => c.id === cardId)
@@ -89,45 +102,73 @@ export default function App() {
   }
 
   const handleLogout = () => {
-    // TODO: Wire to useAuth().signOut()
-    console.log('Logout')
+    auth.signOut()
+  }
+
+  // Show loading state
+  if (auth.isLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-background text-foreground" data-theme={theme}>
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
+
+  // Show auth page if not logged in
+  if (!auth.user) {
+    return (
+      <div data-theme={theme}>
+        <AuthPage auth={auth} />
+      </div>
+    )
   }
 
   return (
     <div
       className="h-screen w-full flex flex-col overflow-hidden bg-background text-foreground"
       data-theme={theme}
-      data-face={face}
     >
-      {/* Header */}
-      <header className="shrink-0 h-12 border-b border-border flex items-center px-4">
+      {/* Simple header */}
+      <header className="shrink-0 h-10 border-b border-border/50 flex items-center px-4 bg-card/30">
         <h1 className="text-sm font-medium text-foreground/80">xstream</h1>
-        <div className="ml-auto text-xs text-muted-foreground">
-          fresh-build
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            {auth.profile?.displayName || auth.user.email}
+          </span>
+          <button
+            onClick={handleLogout}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Logout
+          </button>
         </div>
       </header>
 
       {/* Main content - three zones */}
       <main className="flex-1 flex flex-col min-h-0">
         {/* Solid Zone */}
-        <SolidZone blocks={solidBlocks} />
+        <div style={{ height: solidHeight, minHeight: 80 }}>
+          <SolidZone blocks={solidBlocks} />
+        </div>
 
-        {/* Separator */}
-        <div className="h-px bg-border/50" />
+        {/* Draggable Separator */}
+        <ZoneSeparator onDrag={handleSolidSeparatorDrag} />
 
         {/* Liquid Zone */}
-        <LiquidZone
-          cards={liquidCards}
-          currentUserId={currentUserId}
-          isLoading={isCommitting}
-          onCommit={handleCommit}
-          onCopyToVapor={handleCopyToVapor}
-        />
+        <div style={{ height: liquidHeight, minHeight: 100 }}>
+          <LiquidZone
+            cards={liquidCards}
+            currentUserId={currentUserId}
+            isLoading={isCommitting}
+            onCommit={handleCommit}
+            onCopyToVapor={handleCopyToVapor}
+          />
+        </div>
 
-        {/* Separator */}
-        <div className="h-px bg-border/50" />
+        {/* Draggable Separator */}
+        <ZoneSeparator onDrag={handleLiquidSeparatorDrag} />
 
-        {/* Vapour Zone - display only, input via ConstructionButton */}
+        {/* Vapour Zone - fills remaining space */}
         <VapourZone
           entries={vapourEntries}
           softResponse={softResponse}
