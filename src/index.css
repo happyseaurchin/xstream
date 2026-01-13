@@ -163,6 +163,39 @@
   .bg-face-accent {
     background: hsl(var(--column-accent)) !important;
   }
+
+  /* Separator handle for zone resizing */
+  .separator-handle {
+    @apply relative cursor-row-resize select-none;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .separator-handle::before {
+    content: "";
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: hsl(var(--border));
+    transition: background var(--duration-fast);
+  }
+
+  .separator-handle:hover::before {
+    background: hsl(var(--muted-foreground));
+  }
+
+  /* Floating button for construction */
+  .floating-button {
+    @apply h-12 w-12 rounded-full flex items-center justify-center shadow-lg;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .floating-button:hover {
+    opacity: 0.9;
+  }
 }
 
 @layer utilities {
