@@ -1,83 +1,112 @@
 /**
- * App.tsx - Main orchestrator for xstream fresh-build
+ * App.tsx - Main orchestrator for xstream plex 1
  *
- * PLEX 1 NOTE:
- * This demo wiring shows the UI working. For plex 1, replace with:
- * - Supabase realtime subscriptions for content at coordinates
- * - Edge functions for soft/medium/hard LLM calls
- * - Coordinate-based queries instead of type-based state
+ * Uses coordinate-based content system:
+ * - useContent hook for real-time subscriptions
+ * - Content at t/s/i coordinates with shelf states
+ * - Skills loaded from 0.x coordinates
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { VapourZone } from './components/VapourZone'
 import { LiquidZone } from './components/LiquidZone'
 import { SolidZone } from './components/SolidZone'
 import { ConstructionButton } from './components/ConstructionButton'
+import { useAuth } from './hooks/useAuth'
+import { useContent } from './hooks/useContent'
 import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Face, Theme } from './types'
 
-// Demo data - empty to start
-const DEMO_VAPOUR: VapourEntry[] = []
-const DEMO_LIQUID: LiquidCard[] = []
-const DEMO_SOLID: SolidBlock[] = []
+// Entry point coordinates (the tavern)
+const ENTRY_COORDINATES = { t: '1.', s: '1.', i: '1.' }
 
 export default function App() {
+  const { user, signOut } = useAuth()
   const [face] = useState<Face>('character')
   const [theme, setTheme] = useState<Theme>('dark')
-  const [vapourEntries] = useState<VapourEntry[]>(DEMO_VAPOUR)
-  const [liquidCards, setLiquidCards] = useState<LiquidCard[]>(DEMO_LIQUID)
-  const [solidBlocks, setSolidBlocks] = useState<SolidBlock[]>(DEMO_SOLID)
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   const [isQuerying, setIsQuerying] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
   const [inputValue, setInputValue] = useState('')
 
-  const currentUserId = 'self'
+  // Player coordinates - for now, everyone starts at the tavern
+  const [coordinates] = useState(ENTRY_COORDINATES)
 
-  // Handlers - these will be wired to edge functions
+  // Real-time content at these coordinates
+  const { content, insert, updateShelf } = useContent({
+    coordinates,
+    shelves: ['vapor', 'liquid', 'solid'],
+    userId: user?.id
+  })
+
+  // Transform content to UI types (bridge to existing components)
+  const vapourEntries = useMemo<VapourEntry[]>(() =>
+    content
+      .filter(c => c.shelf === 'vapor')
+      .map(c => ({
+        id: c.id,
+        text: c.text,
+        userId: c.created_by || 'unknown',
+        userName: c.isSelf ? 'You' : 'Other',
+        isSelf: c.isSelf || false,
+        timestamp: new Date(c.created_at).getTime()
+      }))
+  , [content])
+
+  const liquidCards = useMemo<LiquidCard[]>(() =>
+    content
+      .filter(c => c.shelf === 'liquid')
+      .map(c => ({
+        id: c.id,
+        userId: c.created_by || 'unknown',
+        userName: c.isSelf ? 'You' : 'Other',
+        content: c.text,
+        timestamp: new Date(c.created_at).getTime()
+      }))
+  , [content])
+
+  const solidBlocks = useMemo<SolidBlock[]>(() =>
+    content
+      .filter(c => c.shelf === 'solid' && !c.s.startsWith('0.'))  // Exclude skills
+      .map(c => ({
+        id: c.id,
+        content: c.text,
+        timestamp: new Date(c.created_at).getTime()
+      }))
+  , [content])
+
+  const currentUserId = user?.id || 'anonymous'
+
+  // Query soft-LLM (TODO: wire to edge function)
   const handleQuery = async (text: string) => {
     setIsQuerying(true)
-    // TODO: Call soft-LLM edge function
+    // TODO: Call soft-LLM edge function that loads skill from 0.31
     setTimeout(() => {
       setSoftResponse({
         id: Date.now().toString(),
         originalInput: text,
-        text: `This is a demo response to: "${text}"`,
-        softType: 'info',
+        text: `[Soft-LLM placeholder] Refining: "${text}"`,
+        softType: 'refine',
         face,
       })
       setIsQuerying(false)
     }, 500)
   }
 
-  const handleSubmit = (text: string) => {
-    const newCard: LiquidCard = {
-      id: Date.now().toString(),
-      userId: currentUserId,
-      userName: 'You',
-      content: text,
-      timestamp: Date.now(),
-    }
-    setLiquidCards(prev => [newCard, ...prev])
+  // Submit to liquid - inserts content at coordinates
+  const handleSubmit = async (text: string) => {
     setSoftResponse(null)
     setInputValue('')
+    // Insert as liquid at current coordinates
+    await insert(text, 'liquid')
   }
 
+  // Commit liquid to solid (TODO: wire to medium-LLM)
   const handleCommit = async (cardId: string) => {
     setIsCommitting(true)
-    const card = liquidCards.find(c => c.id === cardId)
-    if (card) {
-      // TODO: Call medium-LLM edge function for synthesis
-      setTimeout(() => {
-        const newBlock: SolidBlock = {
-          id: Date.now().toString(),
-          content: card.content,
-          timestamp: Date.now(),
-        }
-        setSolidBlocks(prev => [newBlock, ...prev])
-        setLiquidCards(prev => prev.filter(c => c.id !== cardId))
-        setIsCommitting(false)
-      }, 500)
-    }
+    // For now, just update shelf state
+    // TODO: Call medium-LLM edge function that loads skill from 0.32
+    await updateShelf(cardId, 'solid')
+    setIsCommitting(false)
   }
 
   const handleCopyToVapor = (text: string) => {
@@ -88,9 +117,8 @@ export default function App() {
     setSoftResponse(null)
   }
 
-  const handleLogout = () => {
-    // TODO: Wire to useAuth().signOut()
-    console.log('Logout')
+  const handleLogout = async () => {
+    await signOut()
   }
 
   return (
