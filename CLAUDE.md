@@ -1,14 +1,39 @@
 # Claude Code Instructions
 
+## START HERE
+
+**Branch:** `fresh-build`
+**GitHub:** https://github.com/happyseaurchin/xstream/tree/fresh-build
+
+### First Steps for Any Session
+1. Confirm you're on `fresh-build` branch: `git branch --show-current`
+2. Read `docs/index.md` — it organizes all documentation
+3. Read `docs/plex-1-challenge.md` — the challenge you're attempting
+
+### The Challenge (Summary)
+Build a working system with ONE table, THREE edge functions:
+- **Target E**: Five players in a tavern, typing intentions → narrative synthesis
+- **Target F**: Registration creates profile-characters through the loop
+- **Target G**: Code itself lives at pscale 0.xx coordinates
+
+Same loop, same table. Coordinate position determines behavior.
+
+### Key Constraint
+No frames table. No users table beyond auth. No cosmologies table. No categories.
+Everything is content at coordinates `{t, s, i}` in shelf states (vapor/liquid/solid).
+
+---
+
 ## Project: xstream (fresh-build)
 
 Minimal implementation of the unified loop for collaborative narrative.
 
 ## Documentation
 
-- Read `docs/index.md` first - it organizes all documentation
-- Core concept: `docs/unified-loop.md` (when created)
-- Coordinate system: `docs/pscale.md` (when created)
+- **Read `docs/index.md` first** - it organizes all documentation
+- **Read `docs/plex-1-challenge.md`** - the challenge and attempts log
+- Core concept: `docs/unified-loop.md`
+- Coordinate system: `docs/pscale-spine.md`, `docs/pscale-implementation.md`
 
 ## Architecture
 
@@ -87,3 +112,20 @@ npm run preview  # Preview production build
 2. Add real-time subscriptions
 3. Connect LLM edge functions
 4. Implement coordinate filtering
+
+---
+
+## Attempts Log Reference
+
+See `docs/plex-1-challenge.md` for the attempts log. Record your approach, what worked, what didn't — help the next instance.
+
+---
+
+## Supabase Project
+
+- **Project ID:** `piqxyfmzzywxzqkzmpmm`
+- **URL:** `https://piqxyfmzzywxzqkzmpmm.supabase.co`
+
+## Vercel
+
+- **Team ID:** `team_iTERHQuAAemSTP39REAvULJr`
