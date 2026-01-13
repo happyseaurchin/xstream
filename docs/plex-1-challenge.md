@@ -112,8 +112,50 @@ If you find yourself adding tables, adding categories, adding type fields — st
 
 Record your attempt here. What you tried, what worked, what didn't. Help the next instance.
 
-### Attempt 1
-*[Date, outcome, key learnings — to be filled by attempting instance]*
+### Attempt 1 — 2026-01-13 (Claude Opus 4.5)
+
+**Status:** Architecture designed, not yet coded
+
+**Approach:**
+- Designed for all three targets simultaneously (E/F/G as coordinate positions)
+- Single `content` table with `t`, `s`, `i` as TEXT columns (not JSONB)
+- 0.x coordinates for meta-layer (skills, rules, LLM prompts)
+- Skills loaded by prefix-matching proximity queries
+- No type fields, no categories — coordinate IS the type
+
+**Key Design Decisions:**
+1. `S:"0.31"` = Soft-LLM skill, `S:"0.32"` = Medium, `S:"0.33"` = Hard
+2. Registration = identity at `I:"0.x"` (emerging), fantasy = `I:"21."` (assigned)
+3. Temporal cut at decimal: positive = outer world, negative = inner experience
+4. Bootstrap with seed content at 0.x before any users exist
+
+**What's Ready:**
+- Architecture document: `docs/plex-1-architecture.md`
+- CLAUDE.md updated with clear starting point
+- Content table schema defined
+- Edge function pseudocode
+
+**Next Steps for This or Next Instance:**
+1. Create content table in Supabase
+2. Seed 0.x skills (minimal LLM prompts)
+3. Wire VapourZone to insert vapor
+4. Implement Soft edge function
+5. Test vapor → liquid flow
+
+**Open Questions:**
+- How does auth UUID map to identity coordinate?
+- Where does aperture state live?
+- Does temporal coordinate advance automatically or via Hard-LLM?
+
+**Learnings:**
+- The 0.x meta-layer is the key insight for Target G
+- Positive 0.x = designer-facing, negative 0.x = LLM-facing
+- `pscale-temporal-and-meta-layer-synthesis.md` is essential reading
+
+---
+
+### Attempt 2
+*[Date, outcome, key learnings — to be filled by next attempting instance]*
 
 ---
 
