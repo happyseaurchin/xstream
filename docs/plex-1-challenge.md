@@ -118,43 +118,67 @@ Record your attempt here. What you tried, what worked, what didn't. Help the nex
 
 ### Attempt 1 — 2026-01-13 (Claude Opus 4.5)
 
-**Status:** Architecture designed, not yet coded
+**Status:** Aborted — coordinate-storage built, but coordinate-computing not implemented
 
-**Approach:**
-- Designed for all three targets simultaneously (E/F/G as coordinate positions)
-- Single `content` table with `t`, `s`, `i` as TEXT columns (not JSONB)
-- 0.x coordinates for meta-layer (skills, rules, LLM prompts)
-- Skills loaded by prefix-matching proximity queries
-- No type fields, no categories — coordinate IS the type
+**What Was Built:**
+- `supabase/migrations/001_content_table.sql` — Single content table with t, s, i as TEXT
+- `supabase/migrations/002_seed_skills.sql` — Skills seeded at 0.31, 0.32, 0.33
+- `src/lib/pscale.ts` — Coordinate utilities (proximity, prefix matching)
+- `src/hooks/useContent.ts` — Real-time subscriptions for content
+- `src/App.tsx` — Wired to useContent hook
+- `supabase/functions/soft-llm/index.ts` — Edge function deployed
+- `src/components/AuthScreen.tsx` — Login/signup component
+- Working auth flow, real-time content sync, insert to database
 
-**Key Design Decisions:**
-1. `S:"0.31"` = Soft-LLM skill, `S:"0.32"` = Medium, `S:"0.33"` = Hard
-2. Registration = identity at `I:"0.x"` (emerging), fantasy = `I:"21."` (assigned)
-3. Temporal cut at decimal: positive = outer world, negative = inner experience
-4. Bootstrap with seed content at 0.x before any users exist
+**What Works:**
+- User can register, login, logout
+- User can submit text → appears in liquid zone
+- Real-time sync between browsers (content appears for all users)
+- Theme switching (light/dark/cyber)
 
-**What's Ready:**
-- Architecture document: `docs/plex-1-architecture.md`
-- CLAUDE.md updated with clear starting point
-- Content table schema defined
-- Edge function pseudocode
+**What Doesn't Work:**
+- Soft-LLM button shows placeholder, doesn't call edge function
+- Commit button does nothing (medium-LLM not implemented)
+- No temporal cut — everything is coordinate storage, not coordinate computing
 
-**Next Steps for This or Next Instance:**
-1. Create content table in Supabase
-2. Seed 0.x skills (minimal LLM prompts)
-3. Wire VapourZone to insert vapor
-4. Implement Soft edge function
-5. Test vapor → liquid flow
+**Critical Insight — Coordinate Storage vs Coordinate Computing:**
 
-**Open Questions:**
-- How does auth UUID map to identity coordinate?
-- Where does aperture state live?
-- Does temporal coordinate advance automatically or via Hard-LLM?
+Built: A system that stores content at coordinates and queries by spatial prefix.
+
+Missing: A system where coordinates DO work — where:
+- Aperture is computed, not hardcoded prefix matching
+- Temporal sign flip IS the commit (not a shelf column change)
+- Determinancy values (0-1) propagate through coordinate proximity
+- The temporal cut enforces BEFORE/AFTER as the operating knife edge
+
+**The Shelf-as-Temporal-Sign Reframe:**
+
+Late in the attempt, discussion clarified that shelf shouldn't be a column:
+- `-T` = projected (vapor/liquid, with pscale precision distinguishing them)
+- `+T` = settled (solid)
+- Commit = temporal sign flip, not shelf update
+
+This eliminates the shelf column entirely but wasn't implemented.
+
+**Documentation Gap Found:**
+
+`docs/pscale-temporal-and-meta-layer-synthesis.md` exists and has critical specs (X/X-/X+/X~ modes, temporal cut, 0.x meta-layer) but isn't referenced in CLAUDE.md. Future attempts should:
+1. Add reference to this doc in CLAUDE.md
+2. Include aperture modes directly in CLAUDE.md for guaranteed visibility
 
 **Learnings:**
+- Supabase MCP needs `SUPABASE_ACCESS_TOKEN` from management API, not project key
+- `supabase db reset --linked` is the cleanest way to apply fresh migrations
 - The 0.x meta-layer is the key insight for Target G
-- Positive 0.x = designer-facing, negative 0.x = LLM-facing
-- `pscale-temporal-and-meta-layer-synthesis.md` is essential reading
+- Temporal X~ ≠ Spatial X~ — temporal means BEFORE/AFTER, not lateral siblings
+- Shelf state may be temporal sign, not a separate column
+- Building coordinate-storage is easy; coordinate-computing is the real challenge
+
+**For Next Attempt:**
+1. Read `docs/pscale-temporal-and-meta-layer-synthesis.md` first
+2. Consider shelf as temporal sign (-T/+T) not a column
+3. Start with one temporal transition (commit as sign flip) before building full UI
+4. The minimum demonstration of coordinate-computing: Hard-LLM deciding when NOW advances
 
 ---
 
