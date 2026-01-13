@@ -159,6 +159,20 @@ See `docs/plex-1-challenge.md` for the attempts log.
 - **Project ID:** `piqxyfmzzywxzqkzmpmm`
 - **URL:** `https://piqxyfmzzywxzqkzmpmm.supabase.co`
 
+### Database Isolation Per Attempt
+
+Each attempt creates namespaced tables and edge functions:
+
+```
+attempt-1 → content_v1, soft_v1, medium_v1, hard_v1
+attempt-2 → content_v2, soft_v2, medium_v2, hard_v2
+```
+
+This isolates experiments. When an attempt succeeds:
+1. Promote its table to `content`
+2. Rename edge functions to `soft`, `medium`, `hard`
+3. Delete experimental tables/functions
+
 ## Vercel
 
 - **Team ID:** `team_iTERHQuAAemSTP39REAvULJr`

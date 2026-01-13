@@ -28,9 +28,9 @@ If you achieve only Target E, F or G, that's valuable. If you achieve two of the
 
 ## The Constraints
 
-**One table:**
+**One table per attempt:**
 ```sql
-content (
+content_v{N} (
   id,
   coordinates JSONB {t, s, i},
   shelf TEXT,  -- 'vapor' | 'liquid' | 'solid'
@@ -39,12 +39,16 @@ content (
 )
 ```
 
+Each attempt creates its own namespaced table: `content_v1`, `content_v2`, `content_v3`, etc. This isolates experiments. When an attempt succeeds, promote its table to `content` and delete the rest.
+
 No frames table. No users table beyond auth. No cosmologies table. No categories.
 
-**Three edge functions:**
-- `soft` — refines vapor against entity knowledge → liquid
-- `medium` — synthesizes liquid from proximate entities → solid
-- `hard` — validates solid, updates coordinates, computes next frame
+**Three edge functions per attempt:**
+- `soft_v{N}` — refines vapor against entity knowledge → liquid
+- `medium_v{N}` — synthesizes liquid from proximate entities → solid
+- `hard_v{N}` — validates solid, updates coordinates, computes next frame
+
+Edge functions are also namespaced. When an attempt succeeds, rename to `soft`, `medium`, `hard`.
 
 **Skills as content:**
 Skills live at coordinates (possibly 0.xxx sub-unity space). Hard-LLM loads them by proximity, injects into context.
