@@ -2,13 +2,35 @@
 
 ## START HERE
 
-**Branch:** `fresh-build`
+**Branch:** `fresh-build` (STARTING POINT — do not code here)
 **GitHub:** https://github.com/happyseaurchin/xstream/tree/fresh-build
 
+### Branching Strategy
+
+```
+fresh-build (STARTING POINT)
+    │
+    ├── attempt-1  ← First coding attempt
+    ├── attempt-2  ← Second coding attempt
+    ├── attempt-3  ← ...etc
+    └── (future attempts branch from fresh-build)
+```
+
+**Rules:**
+1. `fresh-build` stays clean — only documentation updates
+2. Each attempt creates its own branch: `git checkout -b attempt-N`
+3. After an attempt, update `docs/plex-1-challenge.md` on `fresh-build` with learnings
+4. Future sessions start from `fresh-build`, read the attempts log, then create new branch
+
 ### First Steps for Any Session
-1. Confirm you're on `fresh-build` branch: `git branch --show-current`
-2. Read `docs/index.md` — it organizes all documentation
-3. Read `docs/plex-1-challenge.md` — the challenge you're attempting
+
+1. **Confirm branch:** `git branch --show-current`
+2. **If on `fresh-build`:** Read docs, then `git checkout -b attempt-N` before coding
+3. **Read `docs/plex-1-challenge.md`** — the challenge AND previous attempts
+4. **Read `docs/index.md`** — organizes all documentation
+5. **Check previous attempt branches** if you want to see their code:
+   - `git branch -a | grep attempt`
+   - `git log attempt-N --oneline -10`
 
 ### The Challenge (Summary)
 Build a working system with ONE table, THREE edge functions:
@@ -117,7 +139,18 @@ npm run preview  # Preview production build
 
 ## Attempts Log Reference
 
-See `docs/plex-1-challenge.md` for the attempts log. Record your approach, what worked, what didn't — help the next instance.
+See `docs/plex-1-challenge.md` for the attempts log.
+
+**After your attempt:**
+1. Switch back to fresh-build: `git checkout fresh-build`
+2. Update `docs/plex-1-challenge.md` with your learnings
+3. Commit and push to fresh-build
+4. Your attempt branch remains accessible for future sessions to inspect
+
+**Previous Attempts:**
+| Branch | Status | Key Learning |
+|--------|--------|--------------|
+| `attempt-1` | Architecture only | 0.x meta-layer, unified E/F/G design |
 
 ---
 
