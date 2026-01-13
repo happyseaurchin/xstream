@@ -16,6 +16,7 @@
 - `pscale-implementation.md` - Coordinate mechanics: strings, proximity, aperture queries
 - `pscale-functions.md` - The three functions: determinancy cloud, purpose tree, narrative aperture
 - `usecases.md` - Three faces (player, author, designer) proving the loop handles all domains
+- `docs/pscale-temporal-and-meta-layer-synthesis.md` - correct synthesis of pscale coordinates and functions including 0.x coding
 
 ---
 
