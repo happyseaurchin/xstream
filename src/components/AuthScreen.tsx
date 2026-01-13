@@ -42,27 +42,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'signup' && (
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">
-                Display Name
-              </label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your character name"
-                className="w-full px-3 py-2 bg-card border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          )}
-
           <div>
             <label className="block text-sm text-muted-foreground mb-1">
-              Email
+              Email {mode === 'login' && <span className="text-muted-foreground/50">(to log in)</span>}
             </label>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -70,6 +57,26 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
               className="w-full px-3 py-2 bg-card border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+
+          {mode === 'signup' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">
+                Your Name in the Tavern
+              </label>
+              <input
+                type="text"
+                name="nickname"
+                autoComplete="off"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="What should others call you?"
+                className="w-full px-3 py-2 bg-card border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                This is your character name in the game, not your real name.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">

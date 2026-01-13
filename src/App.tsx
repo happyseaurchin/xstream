@@ -23,7 +23,7 @@ const ENTRY_COORDINATES = { t: '1.', s: '1.', i: '1.' }
 export default function App() {
   const { user, signOut, isLoading: authLoading } = useAuth()
   const [face] = useState<Face>('character')
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>('light')
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
   const [isQuerying, setIsQuerying] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
