@@ -12,6 +12,7 @@ import { VapourZone } from './components/VapourZone'
 import { LiquidZone } from './components/LiquidZone'
 import { SolidZone } from './components/SolidZone'
 import { ConstructionButton } from './components/ConstructionButton'
+import { AuthScreen } from './components/AuthScreen'
 import { useAuth } from './hooks/useAuth'
 import { useContent } from './hooks/useContent'
 import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Face, Theme } from './types'
@@ -20,7 +21,7 @@ import type { VapourEntry, LiquidCard, SolidBlock, SoftLLMResponse, Face, Theme 
 const ENTRY_COORDINATES = { t: '1.', s: '1.', i: '1.' }
 
 export default function App() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, isLoading: authLoading } = useAuth()
   const [face] = useState<Face>('character')
   const [theme, setTheme] = useState<Theme>('dark')
   const [softResponse, setSoftResponse] = useState<SoftLLMResponse | null>(null)
@@ -94,16 +95,6 @@ export default function App() {
 
   // Submit to liquid - inserts content at coordinates
   const handleSubmit = async (text: string) => {
-    if (!user) {
-      setSoftResponse({
-        id: Date.now().toString(),
-        originalInput: text,
-        text: 'You need to log in to submit content. Click the + button and go to Settings > Logout to access the login screen.',
-        softType: 'info',
-        face,
-      })
-      return
-    }
     setSoftResponse(null)
     setInputValue('')
     // Insert as liquid at current coordinates
@@ -138,6 +129,24 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut()
+  }
+
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" data-theme={theme}>
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
+
+  // Show auth screen if not logged in
+  if (!user) {
+    return (
+      <div data-theme={theme}>
+        <AuthScreen />
+      </div>
+    )
   }
 
   return (
