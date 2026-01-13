@@ -57,7 +57,7 @@ export function useContent({
         // Query by spatial prefix (main proximity dimension)
         const sPattern = prefixPattern(coordinates.s)
 
-        const { data, error: fetchError } = await supabase
+        const { data, error: fetchError } = await supabase!
           .from('content')
           .select('*')
           .in('shelf', shelves)
@@ -125,7 +125,7 @@ export function useContent({
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase!.removeChannel(channel)
     }
   }, [coordinates, userId])
 
