@@ -115,7 +115,8 @@ export function ConstructionButton({
     if (value.trim()) {
       onSubmit(value.trim());
       onChange("");
-      setIsExpanded(false);
+      // Keep panel open for continuous input
+      textareaRef.current?.focus();
     }
   };
 
