@@ -5,6 +5,29 @@
 **Branch:** `fresh-build` (STARTING POINT — do not code here)
 **GitHub:** https://github.com/happyseaurchin/xstream/tree/fresh-build
 
+---
+
+### ⚠️ DATABASE ISOLATION — READ THIS FIRST ⚠️
+
+**CRITICAL:** Experiments use a SEPARATE Supabase branch database. DO NOT touch the main database.
+
+| Environment | Project ID | URL | Purpose |
+|-------------|------------|-----|---------|
+| **MAIN (PRODUCTION)** | `piqxyfmzzywxzqkzmpmm` | `https://piqxyfmzzywxzqkzmpmm.supabase.co` | **DO NOT USE FOR EXPERIMENTS** |
+| **EXPERIMENTS** | `imdxkjagahfgssedfuaq` | `https://imdxkjagahfgssedfuaq.supabase.co` | All attempt-N branches use THIS |
+
+**Experiment Anon Key:**
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZHhramFnYWhmZ3NzZWRmdWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNDYwNTYsImV4cCI6MjA4MzkyMjA1Nn0.rsli7WAbWUgefFxNDSwK_vnianJetl2mjTs5D_J14xo
+```
+
+**Before running ANY migration or DB operation:**
+1. Verify you're linked to the experiment branch: `supabase link --project-ref imdxkjagahfgssedfuaq`
+2. NEVER run `supabase db push` or migrations against `piqxyfmzzywxzqkzmpmm`
+3. The experiment DB starts empty — create your schema fresh
+
+---
+
 ### Branching Strategy
 
 ```
@@ -154,25 +177,32 @@ See `docs/plex-1-challenge.md` for the attempts log.
 
 ---
 
-## Supabase Project
+## Supabase — Detailed Reference
 
-- **Project ID:** `piqxyfmzzywxzqkzmpmm`
-- **URL:** `https://piqxyfmzzywxzqkzmpmm.supabase.co`
+See the **DATABASE ISOLATION** section at the top for credentials.
 
-### Database Isolation Per Attempt
-
-Each attempt creates namespaced tables and edge functions:
-
-```
-attempt-1 → content_v1, soft_v1, medium_v1, hard_v1
-attempt-2 → content_v2, soft_v2, medium_v2, hard_v2
+**Linking to experiment database:**
+```bash
+supabase link --project-ref imdxkjagahfgssedfuaq
 ```
 
-This isolates experiments. When an attempt succeeds:
-1. Promote its table to `content`
-2. Rename edge functions to `soft`, `medium`, `hard`
-3. Delete experimental tables/functions
+**Pushing migrations:**
+```bash
+supabase db push  # Only after linking to experiment project!
+```
+
+**Deploying edge functions:**
+```bash
+supabase functions deploy <function-name> --project-ref imdxkjagahfgssedfuaq
+```
+
+**If an attempt succeeds and should go to production:**
+1. Test thoroughly on experiment branch
+2. Merge Supabase branch via dashboard (applies migrations to main)
+3. Or manually recreate schema on main
 
 ## Vercel
 
 - **Team ID:** `team_iTERHQuAAemSTP39REAvULJr`
+- Preview deployments auto-create for each git branch push
+- Set environment variables per branch in Vercel dashboard if needed
