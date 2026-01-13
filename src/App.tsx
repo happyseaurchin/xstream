@@ -94,10 +94,29 @@ export default function App() {
 
   // Submit to liquid - inserts content at coordinates
   const handleSubmit = async (text: string) => {
+    if (!user) {
+      setSoftResponse({
+        id: Date.now().toString(),
+        originalInput: text,
+        text: 'You need to log in to submit content. Click the + button and go to Settings > Logout to access the login screen.',
+        softType: 'info',
+        face,
+      })
+      return
+    }
     setSoftResponse(null)
     setInputValue('')
     // Insert as liquid at current coordinates
-    await insert(text, 'liquid')
+    const result = await insert(text, 'liquid')
+    if (!result) {
+      setSoftResponse({
+        id: Date.now().toString(),
+        originalInput: text,
+        text: 'Failed to submit. Please try again.',
+        softType: 'info',
+        face,
+      })
+    }
   }
 
   // Commit liquid to solid (TODO: wire to medium-LLM)
@@ -128,10 +147,19 @@ export default function App() {
       data-face={face}
     >
       {/* Header */}
-      <header className="shrink-0 h-12 border-b border-border flex items-center px-4">
+      <header className="shrink-0 h-12 border-b border-border flex items-center px-4 gap-4">
         <h1 className="text-sm font-medium text-foreground/80">xstream</h1>
-        <div className="ml-auto text-xs text-muted-foreground">
-          fresh-build
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">@</span>
+          <span className="text-foreground/70">The Tavern</span>
+          <span className="text-muted-foreground/50">({coordinates.s})</span>
+        </div>
+        <div className="ml-auto flex items-center gap-3 text-xs">
+          {user ? (
+            <span className="text-foreground/70">{user.email}</span>
+          ) : (
+            <span className="text-amber-500">Not logged in</span>
+          )}
         </div>
       </header>
 

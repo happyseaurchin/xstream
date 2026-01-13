@@ -18,7 +18,7 @@
     --secondary: 0 0% 14%;
     --secondary-foreground: 0 0% 80%;
     --muted: 240 5% 14%;
-    --muted-foreground: 0 0% 55%;
+    --muted-foreground: 0 0% 70%;
     --accent: 0 0% 18%;
     --accent-foreground: 0 0% 93%;
     --destructive: 0 72% 51%;
@@ -37,7 +37,7 @@
     --liquid-border: 0 0% 100% / 0.1;
     --liquid-blur: 12px;
     --vapour-bg: 240 6% 7%;
-    --vapour-text: 0 0% 60%;
+    --vapour-text: 0 0% 75%;
 
     /* Face colors */
     --face-character: 38 92% 50%;
@@ -79,14 +79,14 @@
     --card: 220 18% 8%;
     --border: 180 50% 20%;
     --muted: 220 15% 12%;
-    --muted-foreground: 180 60% 50%;
+    --muted-foreground: 180 80% 65%;
     --solid-bg: 220 18% 10%;
     --solid-card: 220 15% 14%;
     --liquid-bg: 220 18% 7%;
     --liquid-card: 180 100% 50% / 0.05;
     --liquid-border: 180 100% 50% / 0.15;
     --vapour-bg: 220 20% 5%;
-    --vapour-text: 180 100% 40%;
+    --vapour-text: 180 100% 60%;
     --face-character: 180 100% 50%;
     --face-author: 280 100% 60%;
     --face-designer: 320 100% 60%;
