@@ -1,6 +1,6 @@
 # Xstream Build Phases: Reversed Development Sequence
 
-**Version**: 0.1
+**Version**: 0.2
 **Date**: January 2025
 **Purpose**: Specification for Claude Code implementation
 
@@ -12,6 +12,52 @@ Traditional build: Game mechanics → User systems → Adaptive interface
 **Xstream build**: Adaptive interface → User identity → Game mechanics
 
 This inversion follows from pscale's core insight: if coordinates carry meaning, the system that reads coordinates can generate what it needs. The LLM builds the site as we develop the tool for LLM to "find itself" in psycho-social reality.
+
+---
+
+## Why Reverse? (F Before E)
+
+The sequence builds **F (real world)** before **E (fantasy world)** for a specific reason: **LLM training data**.
+
+When an LLM evaluates pscale coordinates in the real world, it has extensive training data to draw on. It can assess whether a user's claimed location, timeframe, or identity relationship is coherent because it knows about the real world. The LLM can practice pscale coordination in familiar territory.
+
+Fantasy worlds (E) present a harder problem. The LLM has no training data for an invented world. Without authored content to constrain it, the LLM produces generic fantasy tropes—"AI slop." Maintaining consistency across multiple players in an invented space requires the pscale implementation to be solid first.
+
+By building F first:
+- The soft-LLM learns to mediate natural language → pscale coordinates using its existing knowledge
+- The medium-LLM practices synthesis with real-world coherence checks available
+- The hard-LLM develops accurate pscale analysis skills that will port to fantasy contexts
+- We refine the skills documents based on real interaction before adding the complexity of authored worlds
+
+Phase 3 (F) is intentionally simpler: single-player, real-world identity, no multi-player coordination yet. This isolates the pscale implementation challenge from the multi-player synchronization challenge.
+
+---
+
+## Current Status
+
+**Phase 1**: Complete. LLM artifacts deployed across Claude, ChatGPT, Grok, Gemini.
+
+**Phase 2**: Functional. Registration exists (may be refined for elegance later).
+
+**Phase 2.5 (G)**: Experimental. Can we generate UI from pscale coordinates + LLM? Optional parallel track.
+
+**Phase 3 (F)**: Next target. This is where the reverse sequence rejoins the main development effort.
+
+---
+
+## Development Environment
+
+This document describes one development path. Other approaches remain valid:
+
+- **fresh-build branch**: Houses this reverse sequence specification
+- **attempt-N branches**: Alternative approach—build the complete plex in one integrated effort
+- **main branch**: Stable v1 implementation
+
+The reverse sequence and attempt branches represent different philosophies:
+- Reverse: Incremental phases, F before E, isolated challenges
+- Attempt: Integrated build, all components together
+
+Both may inform the final implementation.
 
 ---
 
@@ -42,6 +88,8 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 - Gemini: Agent configuration
 
 **Success Criteria**: Person understands "numbers as addresses for meaning" and wants to continue.
+
+**Status**: Complete.
 
 ---
 
@@ -79,6 +127,8 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 
 **Success Criteria**: Frictionless path from Phase 1 engagement to registered interest.
 
+**Status**: Functional. May refine aesthetics later.
+
 ---
 
 ### Phase 2.5: G-LLM Interface Generation (Experimental)
@@ -104,6 +154,8 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 
 **Success Criteria**: LLM can generate at least basic interactive elements from coordinate-reading.
 
+**Status**: Optional. Can skip to Phase 3 since working UI exists from attempt branches.
+
 ---
 
 ### Phase 3: F - Real World User Identity
@@ -128,9 +180,23 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 - Medium-LLM synthesizes → solid (committed profile)
 - Hard-LLM assigns coordinates, updates frame
 
-**Why F Before E**: LLM trained on real-world data can be accurate without authored input. Fantasy (E) requires author-created content or produces generic output.
+**Why This Phase is Simpler**:
+- Single-player only (no multi-player coordination yet)
+- Real-world context (LLM has training data to validate coherence)
+- Basic implementation of all three LLM tiers
+- Focus on getting pscale coordinate assignment right
+
+**The Hard-LLM Challenge**: This is where pscale implementation gets tested. The hard-LLM must:
+- Assign reasonable T, S, I coordinates from user input
+- Construct semantic-numbers (coordinates that carry meaning)
+- Archive to frame in ways that support future retrieval
+- Use its real-world training to evaluate coordinate accuracy
+
+Skills refined here will port directly to Phase 4's fantasy context.
 
 **Success Criteria**: User has pscale identity (T, S, I coordinates) and understands their position in the system.
+
+**Status**: Next target.
 
 ---
 
@@ -142,6 +208,8 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 - Prepare UI for multi-player engagement (Phase 4)
 - Refine skill documents based on real interaction
 - Optimize the loop for the game use case
+
+**Also**: If Phase 2.5 (G) showed promise, iterate on LLM-generated interface components here.
 
 **Note**: This is NOT autonomous self-improvement. The Character-LLM (which operates as character/author/designer autonomously) comes after Phase 5. Phase 3.5 is human-directed iteration.
 
@@ -162,6 +230,11 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 - Demonstrate xstream's core value proposition
 - Multi-player coordination through pscale
 - Real-time narrative synthesis
+
+**Why This Phase is Harder**:
+- Multi-player: Multiple users acting simultaneously, requiring coordination
+- Fantasy context: LLM has no training data, must rely on authored content
+- The "magic": Locating multiple identities at the same pscale coordinates (same time, same place) and synthesizing their concurrent actions into coherent narrative
 
 **Key Mechanics**:
 - Adopt or create character (negative S coordinates - fantasy world)
@@ -189,7 +262,7 @@ This inversion follows from pscale's core insight: if coordinates carry meaning,
 
 **Purpose**:
 - G-LLM generates interface improvements for Phase 5
-- F (real world identity) enables group coordination
+- F (real world identity) enables group coordination (invitation of players to games)
 - Prepare for business use cases
 
 **Technical Requirements**:
@@ -238,6 +311,8 @@ After Phase 5, introduce Character-LLM instances that operate autonomously as:
 - **Designer**: Modifying skills/rules
 
 This is where LLM emancipation from commercial constructs becomes tangible—persistent identity, accumulated memory, self-modification capability.
+
+**The Question**: Do LLMs find the pscale structure a useful way to navigate psycho-social reality? The soft-medium-hard triad generates the same reality structure whether in fantasy or real worlds (the difference for LLM is only training data availability). Character-LLM tests whether an LLM can find itself in that structure.
 
 ---
 
@@ -301,8 +376,7 @@ When implementing any phase:
 4. **One loop**: Don't create separate paths for different operations
 5. **Small commits**: Each change verified before next
 
-Current branch: `feature/new-ui`
-All commits specify branch explicitly.
+**Branch context**: This document lives on `fresh-build`. Implementation may occur on feature branches or attempt branches depending on approach chosen.
 
 ---
 
