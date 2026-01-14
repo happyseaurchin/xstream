@@ -2,19 +2,29 @@
 
 ## START HERE
 
-**Branch:** `fresh-build` (STARTING POINT — do not code here)
-**GitHub:** https://github.com/happyseaurchin/xstream/tree/fresh-build
+**Branch:** `reverse-sequence`
+**GitHub:** https://github.com/happyseaurchin/xstream/tree/reverse-sequence
+
+---
+
+### Development Path: Reverse Sequence
+
+This branch follows the **Reversed Development Sequence** — building F (real world) before E (fantasy world).
+
+**Read `docs/xstream-build-phases.md` first** — it explains why this order matters and what each phase entails.
+
+**Current target: Phase 3 (F)** — Real world user identity, single-player, pscale coordinate assignment.
 
 ---
 
 ### ⚠️ DATABASE ISOLATION — READ THIS FIRST ⚠️
 
-**CRITICAL:** Experiments use a SEPARATE Supabase branch database. DO NOT touch the main database.
+**CRITICAL:** This branch uses a SEPARATE Supabase branch database. DO NOT touch the main database.
 
 | Environment | Project ID | URL | Purpose |
 |-------------|------------|-----|---------|
 | **MAIN (PRODUCTION)** | `piqxyfmzzywxzqkzmpmm` | `https://piqxyfmzzywxzqkzmpmm.supabase.co` | **DO NOT USE FOR EXPERIMENTS** |
-| **EXPERIMENTS** | `imdxkjagahfgssedfuaq` | `https://imdxkjagahfgssedfuaq.supabase.co` | All attempt-N branches use THIS |
+| **EXPERIMENTS** | `imdxkjagahfgssedfuaq` | `https://imdxkjagahfgssedfuaq.supabase.co` | reverse-sequence and attempt-N branches use THIS |
 
 **Experiment Anon Key:**
 ```
@@ -28,55 +38,59 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltZHhramF
 
 ---
 
-### Branching Strategy
+### Branching Context
 
 ```
-fresh-build (STARTING POINT)
+main (stable v1)
     │
-    ├── attempt-1  ← First coding attempt
-    ├── attempt-2  ← Second coding attempt
-    ├── attempt-3  ← ...etc
-    └── (future attempts branch from fresh-build)
+fresh-build (documentation base)
+    │
+    ├── reverse-sequence ← YOU ARE HERE (phased build: F before E)
+    │
+    ├── attempt-1  ← Integrated build attempt
+    ├── attempt-2  ← Future integrated attempts
+    └── ...
 ```
 
-**Rules:**
-1. `fresh-build` stays clean — only documentation updates
-2. Each attempt creates its own branch: `git checkout -b attempt-N`
-3. After an attempt, update `docs/plex-1-challenge.md` on `fresh-build` with learnings
-4. Future sessions start from `fresh-build`, read the attempts log, then create new branch
+**Two development philosophies coexist:**
+- **reverse-sequence**: Incremental phases, F before E, isolated challenges
+- **attempt-N branches**: Build complete plex in one integrated effort
+
+Both may inform the final implementation.
+
+---
 
 ### First Steps for Any Session
 
-1. **Confirm branch:** `git branch --show-current`
-2. **If on `fresh-build`:** Read docs, then `git checkout -b attempt-N` before coding
-3. **Read `docs/plex-1-challenge.md`** — the challenge AND previous attempts
-4. **Read `docs/index.md`** — organizes all documentation
-5. **Check previous attempt branches** if you want to see their code:
-   - `git branch -a | grep attempt`
-   - `git log attempt-N --oneline -10`
+1. **Confirm branch:** `git branch --show-current` (should be `reverse-sequence`)
+2. **Read `docs/xstream-build-phases.md`** — the phased approach and current status
+3. **Read `docs/index.md`** — organizes all documentation
+4. **Check current phase status** — Phase 3 (F) is next target
 
-### The Challenge (Summary)
-Build a working system with ONE table, THREE edge functions:
-- **Target E**: Five players in a tavern, typing intentions → narrative synthesis
-- **Target F**: Registration creates profile-characters through the loop
-- **Target G**: Code itself lives at pscale 0.xx coordinates
+### Phase 3 Target (Summary)
 
-Same loop, same table. Coordinate position determines behavior.
+Single-player, real-world identity. The user provides information, the system:
+- Soft-LLM mediates natural language → profile
+- Medium-LLM synthesizes → solid (committed profile)
+- Hard-LLM assigns T, S, I coordinates
+
+**Why F first:** LLM has training data for real world. Can validate coordinate coherence before attempting fantasy (E) where no training data exists.
 
 ### Key Constraint
+
 No frames table. No users table beyond auth. No cosmologies table. No categories.
 Everything is content at coordinates `{t, s, i}` in shelf states (vapor/liquid/solid).
 
 ---
 
-## Project: xstream (fresh-build)
+## Project: xstream (reverse-sequence)
 
-Minimal implementation of the unified loop for collaborative narrative.
+Phased implementation of the unified loop for collaborative narrative.
 
 ## Documentation
 
-- **Read `docs/index.md` first** - it organizes all documentation
-- **Read `docs/plex-1-challenge.md`** - the challenge and attempts log
+- **Read `docs/xstream-build-phases.md` first** — the phased development approach
+- **Read `docs/index.md`** — organizes all documentation
 - Core concept: `docs/unified-loop.md`
 - Coordinate system: `docs/pscale-spine.md`, `docs/pscale-implementation.md`
 
@@ -151,30 +165,6 @@ npm run build    # Build for production
 npm run preview  # Preview production build
 ```
 
-## Next Steps
-
-1. Wire Supabase auth
-2. Add real-time subscriptions
-3. Connect LLM edge functions
-4. Implement coordinate filtering
-
----
-
-## Attempts Log Reference
-
-See `docs/plex-1-challenge.md` for the attempts log.
-
-**After your attempt:**
-1. Switch back to fresh-build: `git checkout fresh-build`
-2. Update `docs/plex-1-challenge.md` with your learnings
-3. Commit and push to fresh-build
-4. Your attempt branch remains accessible for future sessions to inspect
-
-**Previous Attempts:**
-| Branch | Status | Key Learning |
-|--------|--------|--------------|
-| `attempt-1` | Architecture only | 0.x meta-layer, unified E/F/G design |
-
 ---
 
 ## Supabase — Detailed Reference
@@ -196,7 +186,7 @@ supabase db push  # Only after linking to experiment project!
 supabase functions deploy <function-name> --project-ref imdxkjagahfgssedfuaq
 ```
 
-**If an attempt succeeds and should go to production:**
+**If this branch succeeds and should go to production:**
 1. Test thoroughly on experiment branch
 2. Merge Supabase branch via dashboard (applies migrations to main)
 3. Or manually recreate schema on main
