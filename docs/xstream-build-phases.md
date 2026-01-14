@@ -1,7 +1,8 @@
 # Xstream Build Phases: Reversed Development Sequence
 
-**Version**: 0.2
+**Version**: 0.3
 **Date**: January 2025
+**Branch**: `reverse-sequence`
 **Purpose**: Specification for Claude Code implementation
 
 ---
@@ -47,9 +48,10 @@ Phase 3 (F) is intentionally simpler: single-player, real-world identity, no mul
 
 ## Development Environment
 
-This document describes one development path. Other approaches remain valid:
+This document lives on `reverse-sequence` branch. Other development paths remain valid:
 
-- **fresh-build branch**: Houses this reverse sequence specification
+- **reverse-sequence branch**: Phased build following this specification (F before E)
+- **fresh-build branch**: Documentation base, starting point for attempt branches
 - **attempt-N branches**: Alternative approach—build the complete plex in one integrated effort
 - **main branch**: Stable v1 implementation
 
@@ -370,13 +372,14 @@ This JSON is the person's thread from first LLM encounter through to full partic
 
 When implementing any phase:
 
-1. **Check scope**: All work in `happyseaurchin/xstream` repo, `xstream` Supabase project
+1. **Check scope**: All work in `happyseaurchin/xstream` repo, experiment Supabase project
 2. **Read dimensional inventory**: Understand pscale before coding
 3. **Skills over code**: Prefer markdown skill documents over TypeScript logic
 4. **One loop**: Don't create separate paths for different operations
 5. **Small commits**: Each change verified before next
 
-**Branch context**: This document lives on `fresh-build`. Implementation may occur on feature branches or attempt branches depending on approach chosen.
+**Branch**: `reverse-sequence`
+**Supabase**: Use experiment project `imdxkjagahfgssedfuaq` (see CLAUDE.md for details)
 
 ---
 
