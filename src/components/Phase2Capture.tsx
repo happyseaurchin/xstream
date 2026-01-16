@@ -301,6 +301,17 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
 
         <div className="phase2-footer">
           <p>You'll be notified when Phase 3 is ready.</p>
+          <button
+            className="phase2-logout"
+            onClick={async () => {
+              if (supabase) {
+                await supabase.auth.signOut()
+                window.location.reload()
+              }
+            }}
+          >
+            Sign out
+          </button>
         </div>
       </div>
     </div>

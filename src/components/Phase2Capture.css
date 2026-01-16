@@ -299,6 +299,23 @@
   margin: 0;
 }
 
+.phase2-logout {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: var(--text-secondary, #666);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phase2-logout:hover {
+  color: var(--text-primary, #fff);
+  border-color: var(--text-secondary, #666);
+}
+
 /* LLM Button (for Grok modal trigger) */
 .llm-link.llm-button {
   background: var(--bg-tertiary, #252525);
