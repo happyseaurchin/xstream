@@ -7,6 +7,7 @@ export interface UserProfile {
   displayName: string
   defaultFace: 'character' | 'author' | 'designer'
   preferences: Record<string, unknown>
+  onboardingPhase: number
 }
 
 export interface UseAuthReturn {
@@ -58,6 +59,7 @@ export function useAuth(): UseAuthReturn {
         displayName: data.display_name,
         defaultFace: data.default_face,
         preferences: data.preferences,
+        onboardingPhase: data.onboarding_phase ?? 1,
       } as UserProfile
     } catch (err) {
       console.error('[Auth] Profile load exception:', err)

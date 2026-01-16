@@ -1,0 +1,315 @@
+.phase2-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary, #0a0a0a);
+  padding: 2rem;
+}
+
+.phase2-container {
+  max-width: 600px;
+  width: 100%;
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 12px;
+  padding: 2.5rem;
+  border: 1px solid var(--border-color, #333);
+}
+
+.phase2-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.phase2-header h1 {
+  font-size: 2rem;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  color: var(--text-primary, #fff);
+  margin: 0 0 0.5rem 0;
+}
+
+.phase2-subtitle {
+  color: var(--text-secondary, #888);
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Phase Timeline */
+.phase-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 2rem;
+  padding: 1rem 0;
+}
+
+.phase-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.phase-marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.phase-item.completed .phase-marker {
+  background: var(--accent-color, #4ade80);
+  color: #000;
+}
+
+.phase-item.current .phase-marker {
+  background: var(--accent-color, #60a5fa);
+  color: #000;
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.4);
+}
+
+.phase-item.future .phase-marker {
+  background: var(--bg-tertiary, #2a2a2a);
+  color: var(--text-secondary, #666);
+  border: 1px solid var(--border-color, #444);
+}
+
+.phase-label {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #888);
+  white-space: nowrap;
+}
+
+.phase-badge {
+  position: absolute;
+  top: -24px;
+  font-size: 0.65rem;
+  background: var(--accent-color, #60a5fa);
+  color: #000;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.phase-connector {
+  width: 40px;
+  height: 2px;
+  background: var(--border-color, #444);
+  margin: 0 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Content */
+.phase2-content {
+  margin-bottom: 1.5rem;
+}
+
+.phase2-description {
+  color: var(--text-secondary, #aaa);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+/* LLM Links */
+.llm-links {
+  margin-bottom: 1.5rem;
+}
+
+.llm-links h3 {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary, #888);
+  margin-bottom: 0.75rem;
+}
+
+.llm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.llm-link {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary, #252525);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.llm-link:hover {
+  background: var(--bg-hover, #303030);
+  border-color: var(--accent-color, #60a5fa);
+}
+
+.llm-name {
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+}
+
+.llm-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  margin-top: 0.25rem;
+}
+
+/* JSON Input */
+.json-input-section {
+  margin-bottom: 1rem;
+}
+
+.json-input-section label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #888);
+  margin-bottom: 0.5rem;
+}
+
+.json-input-section textarea {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-tertiary, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  color: var(--text-primary, #fff);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.json-input-section textarea:focus {
+  outline: none;
+  border-color: var(--accent-color, #60a5fa);
+}
+
+.json-input-section textarea::placeholder {
+  color: var(--text-secondary, #555);
+}
+
+/* Playtester Option */
+.playtester-option {
+  margin-bottom: 1.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #aaa);
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-color, #60a5fa);
+}
+
+/* Error */
+.phase2-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+/* Submit Button */
+.phase2-submit {
+  width: 100%;
+  padding: 0.875rem;
+  background: var(--accent-color, #60a5fa);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phase2-submit:hover:not(:disabled) {
+  background: var(--accent-hover, #3b82f6);
+}
+
+.phase2-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Admin Section */
+.admin-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color, #333);
+}
+
+.admin-notice {
+  font-size: 0.8rem;
+  color: var(--accent-color, #fbbf24);
+  margin-bottom: 0.75rem;
+}
+
+.admin-bypass {
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  color: var(--accent-color, #fbbf24);
+  border: 1px solid var(--accent-color, #fbbf24);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-bypass:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.admin-bypass:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.phase2-footer {
+  text-align: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #333);
+}
+
+.phase2-footer p {
+  color: var(--text-secondary, #666);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .phase2-container {
+    padding: 1.5rem;
+  }
+
+  .llm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .phase-timeline {
+    transform: scale(0.9);
+  }
+}

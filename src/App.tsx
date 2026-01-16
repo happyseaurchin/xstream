@@ -8,6 +8,7 @@ import {
   AuthPage,
   PresenceBar,
   DraggableSeparator,
+  Phase2Capture,
 } from './components'
 // New zone components
 import { SolidZone } from './components/xstream/SolidZone'
@@ -40,6 +41,9 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 const EDIT_DEBOUNCE_MS = 500
+
+// Admin whitelist - these emails bypass Phase 2 and get full access
+const ADMIN_EMAILS = ['david@ecosquared.co.uk']
 
 // Character type for selector (dropdown)
 interface FrameCharacter {
@@ -864,6 +868,30 @@ function App() {
   // Show auth page if not logged in
   if (!auth.user) {
     return <AuthPage auth={auth} />
+  }
+
+  // Check if user is admin (bypass all gates)
+  const isAdmin = ADMIN_EMAILS.includes(auth.user.email || '')
+
+  // Check onboarding phase from profile
+  // Phase 1 = just registered, Phase 2 = completed phase 2, Phase 3+ = full access
+  // Admin users or users with phase >= 3 get full access
+  // Note: onboarding_phase may not exist yet in profile - default to phase 1
+  const onboardingPhase = (auth.profile as any)?.onboardingPhase ?? 1
+  const needsPhase2 = !isAdmin && onboardingPhase < 2
+
+  // Show Phase 2 capture page if user hasn't completed it (and not admin)
+  if (needsPhase2) {
+    return (
+      <Phase2Capture
+        userEmail={auth.user.email || ''}
+        userId={auth.user.id}
+        onComplete={() => {
+          // Reload profile to get updated onboarding_phase
+          window.location.reload()
+        }}
+      />
+    )
   }
 
   return (
