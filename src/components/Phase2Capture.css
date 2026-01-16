@@ -316,6 +316,17 @@
   border-color: var(--text-secondary, #666);
 }
 
+/* User email display */
+.phase2-user {
+  color: var(--text-secondary, #888);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.phase2-user strong {
+  color: var(--text-primary, #fff);
+}
+
 /* LLM Button (for Grok modal trigger) */
 .llm-link.llm-button {
   background: var(--bg-tertiary, #252525);

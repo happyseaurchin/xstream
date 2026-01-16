@@ -76,11 +76,6 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
   }
 
   const handleSubmit = async () => {
-    if (!jsonInput.trim() && !wantsPlaytester) {
-      setError('Please paste your LLM invitation JSON or sign up as a playtester')
-      return
-    }
-
     setIsSubmitting(true)
     setError(null)
 
@@ -181,9 +176,11 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
 
         {/* Main Content */}
         <div className="phase2-content">
+          <p className="phase2-user">Signed in as <strong>{userEmail}</strong></p>
+
           <p className="phase2-description">
             While we prepare Phase 3, you can explore the concept with your favourite LLM.
-            Paste the invitation JSON from your conversation below.
+            Paste the invitation JSON from your conversation below (optional).
           </p>
 
           {/* LLM Links */}

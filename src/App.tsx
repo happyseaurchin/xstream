@@ -870,6 +870,15 @@ function App() {
     return <AuthPageOTP onSuccess={() => window.location.reload()} />
   }
 
+  // Wait for profile to load before showing Phase 2 check (prevents flash)
+  if (!auth.profile) {
+    return (
+      <div className="app loading-screen">
+        <div className="loading-text">Loading profile...</div>
+      </div>
+    )
+  }
+
   // Check if user is admin (bypass all gates)
   const isAdmin = ADMIN_EMAILS.includes(auth.user.email || '')
 
