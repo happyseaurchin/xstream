@@ -299,6 +299,118 @@
   margin: 0;
 }
 
+/* LLM Button (for Grok modal trigger) */
+.llm-link.llm-button {
+  background: var(--bg-tertiary, #252525);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+/* Grok Modal */
+.grok-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.grok-modal {
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.grok-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem;
+}
+
+.grok-modal-close:hover {
+  color: var(--text-primary, #fff);
+}
+
+.grok-modal h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  color: var(--text-primary, #fff);
+}
+
+.grok-intro {
+  color: var(--text-secondary, #aaa);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.grok-intro a {
+  color: var(--accent-color, #60a5fa);
+}
+
+.grok-instructions-box {
+  background: var(--bg-tertiary, #111);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.grok-instructions-box:hover {
+  border-color: var(--accent-color, #60a5fa);
+}
+
+.grok-instructions-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #ccc);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  line-height: 1.5;
+}
+
+.grok-copy-btn {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--accent-color, #60a5fa);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.grok-copy-btn:hover {
+  background: var(--accent-hover, #3b82f6);
+}
+
 /* Responsive */
 @media (max-width: 480px) {
   .phase2-container {
@@ -311,5 +423,9 @@
 
   .phase-timeline {
     transform: scale(0.9);
+  }
+
+  .grok-modal {
+    padding: 1rem;
   }
 }
