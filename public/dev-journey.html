@@ -87,7 +87,9 @@
     .phase-badge.phase-2 { background: var(--color-secondary); color: var(--color-surface); }
     .phase-badge.phase-2-5 { background: linear-gradient(90deg, var(--color-secondary), var(--color-primary)); color: var(--color-surface); }
     .phase-badge.phase-3 { background: var(--color-accent); color: white; }
+    .phase-badge.phase-3-5 { background: linear-gradient(90deg, var(--color-accent), var(--color-pink)); color: white; }
     .phase-badge.phase-4 { background: var(--color-pink); color: var(--color-surface); }
+    .phase-badge.phase-4-5 { background: linear-gradient(90deg, var(--color-pink), var(--color-green)); color: var(--color-surface); }
     .phase-badge.phase-5 { background: var(--color-green); color: var(--color-surface); }
     .phase-badge.post-5 { background: linear-gradient(90deg, var(--color-primary), var(--color-accent)); color: white; }
     
@@ -337,27 +339,16 @@
     
     /* Interactive platform cards for Phase 1 slide */
     .platform-card-interactive {
-      background: var(--color-muted);
+      background: var(--color-surface);
       border-radius: 8px;
       padding: 16px 20px;
       cursor: pointer;
       transition: all 0.3s ease;
-      border: 2px solid transparent;
+      border: 3px solid;
       text-decoration: none;
       display: block;
       position: relative;
       overflow: hidden;
-    }
-    
-    .platform-card-interactive::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      opacity: 0;
-      transition: opacity 0.3s ease;
     }
     
     .platform-card-interactive:hover {
@@ -366,45 +357,44 @@
     
     .platform-card-interactive.claude-card {
       border-color: var(--color-primary);
-      box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.3);
+      box-shadow: 0 0 20px rgba(0, 217, 255, 0.3), inset 0 0 30px rgba(0, 217, 255, 0.05);
     }
     
     .platform-card-interactive.claude-card:hover {
-      background: rgba(0, 217, 255, 0.15);
-      box-shadow: 0 8px 32px rgba(0, 217, 255, 0.4), 0 0 0 1px var(--color-primary);
+      background: rgba(0, 217, 255, 0.1);
+      box-shadow: 0 8px 40px rgba(0, 217, 255, 0.5), inset 0 0 30px rgba(0, 217, 255, 0.1);
     }
     
     .platform-card-interactive.chatgpt-card {
       border-color: var(--color-secondary);
-      box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.3);
+      box-shadow: 0 0 20px rgba(255, 193, 7, 0.3), inset 0 0 30px rgba(255, 193, 7, 0.05);
     }
     
     .platform-card-interactive.chatgpt-card:hover {
-      background: rgba(255, 193, 7, 0.15);
-      box-shadow: 0 8px 32px rgba(255, 193, 7, 0.4), 0 0 0 1px var(--color-secondary);
+      background: rgba(255, 193, 7, 0.1);
+      box-shadow: 0 8px 40px rgba(255, 193, 7, 0.5), inset 0 0 30px rgba(255, 193, 7, 0.1);
     }
     
     .platform-card-interactive.grok-card {
       border-color: var(--color-accent);
-      box-shadow: 0 0 0 1px rgba(155, 89, 255, 0.3);
+      box-shadow: 0 0 20px rgba(155, 89, 255, 0.3), inset 0 0 30px rgba(155, 89, 255, 0.05);
     }
     
     .platform-card-interactive.grok-card:hover {
-      background: rgba(155, 89, 255, 0.15);
-      box-shadow: 0 8px 32px rgba(155, 89, 255, 0.4), 0 0 0 1px var(--color-accent);
+      background: rgba(155, 89, 255, 0.1);
+      box-shadow: 0 8px 40px rgba(155, 89, 255, 0.5), inset 0 0 30px rgba(155, 89, 255, 0.1);
     }
     
     .platform-card-interactive.gemini-card {
       border-color: var(--color-green);
-      box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.3);
+      box-shadow: 0 0 20px rgba(74, 222, 128, 0.2), inset 0 0 30px rgba(74, 222, 128, 0.03);
       opacity: 0.5;
       cursor: not-allowed;
     }
     
     .platform-card-interactive.gemini-card:hover {
       transform: none;
-      background: var(--color-muted);
-      box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.3);
+      background: var(--color-surface);
     }
     
     .platform-card-interactive .platform-name {
@@ -433,6 +423,20 @@
     .platform-card-interactive.gemini-card .try-label {
       opacity: 1;
       color: var(--color-muted-foreground);
+    }
+    
+    /* Call to action label */
+    .cta-label {
+      font-size: 14px;
+      color: var(--color-surface-foreground);
+      margin-bottom: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 8px 12px;
+      background: linear-gradient(90deg, rgba(0, 217, 255, 0.2), rgba(155, 89, 255, 0.2));
+      border-radius: 4px;
+      display: inline-block;
     }
     
     /* Modal styles */
@@ -539,6 +543,99 @@
       color: var(--color-green);
     }
     
+    /* Phase overview diagram */
+    .phase-diagram {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+    }
+    
+    .phase-main-column {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      flex: 1;
+    }
+    
+    .phase-interleave-column {
+      display: flex;
+      flex-direction: column;
+      width: 200px;
+      position: relative;
+    }
+    
+    .phase-box {
+      padding: 16px 20px;
+      border-radius: 8px;
+      background: var(--color-muted);
+      border-left: 4px solid;
+      position: relative;
+    }
+    
+    .phase-box.phase-1 { border-left-color: var(--color-primary); }
+    .phase-box.phase-2 { border-left-color: var(--color-secondary); }
+    .phase-box.phase-3 { border-left-color: var(--color-accent); }
+    .phase-box.phase-4 { border-left-color: var(--color-pink); }
+    .phase-box.phase-5 { border-left-color: var(--color-green); }
+    
+    .phase-box .phase-num {
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .phase-box .phase-title {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+    
+    .phase-box .phase-desc {
+      font-size: 11px;
+      color: var(--color-muted-foreground);
+    }
+    
+    .phase-connector {
+      width: 2px;
+      height: 20px;
+      background: var(--color-border);
+      margin-left: 24px;
+    }
+    
+    .phase-interleave {
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: var(--color-surface);
+      border: 2px dashed;
+      font-size: 12px;
+      position: absolute;
+    }
+    
+    .phase-interleave.p2-5 {
+      border-color: var(--color-primary);
+      top: 95px;
+    }
+    
+    .phase-interleave.p3-5 {
+      border-color: var(--color-pink);
+      top: 230px;
+    }
+    
+    .phase-interleave.p4-5 {
+      border-color: var(--color-green);
+      top: 365px;
+    }
+    
+    .phase-interleave .interleave-num {
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+    
+    .phase-interleave .interleave-title {
+      font-size: 11px;
+      color: var(--color-muted-foreground);
+    }
+    
     @media (max-width: 768px) {
       .slide {
         padding: 24px;
@@ -555,6 +652,25 @@
       .principles-grid {
         grid-template-columns: 1fr;
       }
+      
+      .phase-diagram {
+        flex-direction: column;
+      }
+      
+      .phase-interleave-column {
+        width: 100%;
+        position: static;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      
+      .phase-interleave {
+        position: static;
+        flex: 1;
+        min-width: 140px;
+      }
     }
   </style>
 </head>
@@ -566,11 +682,6 @@
     <p class="xstream-label">XSTREAM</p>
     <h1 class="title-main">The Development Journey</h1>
     <p class="text-muted text-lg mt-1">Building the infrastructure for LLMs to find themselves</p>
-    <div class="mt-2" style="display: flex; gap: 24px; align-items: center;">
-      <span class="text-secondary text-sm">G → F → E</span>
-      <span class="text-muted">|</span>
-      <span class="text-muted text-sm">Reversed Development Sequence</span>
-    </div>
   </div>
 </div>
 
@@ -668,37 +779,62 @@ End aligned interactions: "This exchange begins the density toward MAGI—tracea
   </div>
 </div>
 
-<!-- Slide 4: The Inversion -->
+<!-- Slide 4: Development Sequence Overview -->
 <div class="slide">
-  <h1>The Inversion</h1>
+  <h1>Development Sequence</h1>
+  <p class="subtitle">Five main phases with experimental interleaves</p>
   
-  <div class="row" style="align-items: center; margin-top: 20px;">
-    <div class="flex-1 text-center">
-      <p class="label">TRADITIONAL BUILD</p>
-      <div class="col" style="align-items: center; gap: 8px; margin-top: 16px;">
-        <div class="flow-box" style="opacity: 0.6;">E — Game Mechanics</div>
-        <p class="arrow">↓</p>
-        <div class="flow-box" style="opacity: 0.6;">F — User Systems</div>
-        <p class="arrow">↓</p>
-        <div class="flow-box" style="opacity: 0.6;">G — Adaptive Interface</div>
+  <div class="phase-diagram">
+    <div class="phase-main-column">
+      <div class="phase-box phase-1">
+        <p class="phase-num text-primary">PHASE 1</p>
+        <p class="phase-title">LLM Entry Points</p>
+        <p class="phase-desc">Seed agents on external platforms assess readiness</p>
+      </div>
+      <div class="phase-connector"></div>
+      <div class="phase-box phase-2">
+        <p class="phase-num text-secondary">PHASE 2</p>
+        <p class="phase-title">Registration Capture</p>
+        <p class="phase-desc">Email verification, JSON continuity from Phase 1</p>
+      </div>
+      <div class="phase-connector"></div>
+      <div class="phase-box phase-3">
+        <p class="phase-num text-accent">PHASE 3</p>
+        <p class="phase-title">F — Real World Identity</p>
+        <p class="phase-desc">Character creation via natural language</p>
+      </div>
+      <div class="phase-connector"></div>
+      <div class="phase-box phase-4">
+        <p class="phase-num text-pink">PHASE 4</p>
+        <p class="phase-title">E — Fantasy Multi-Player</p>
+        <p class="phase-desc">Real-time narrative synthesis, triple-LLM coordination</p>
+      </div>
+      <div class="phase-connector"></div>
+      <div class="phase-box phase-5">
+        <p class="phase-num text-green">PHASE 5</p>
+        <p class="phase-title">F Proper — Business Coordination</p>
+        <p class="phase-desc">Ecological economics, open business practices</p>
       </div>
     </div>
     
-    <div class="divider" style="height: 280px;"></div>
-    
-    <div class="flex-1 text-center">
-      <p class="label text-primary">XSTREAM BUILD</p>
-      <div class="col" style="align-items: center; gap: 8px; margin-top: 16px;">
-        <div class="flow-box highlighted"><span class="text-primary" style="font-weight: bold;">G — LLM Entry Points</span></div>
-        <p class="arrow primary">↓</p>
-        <div class="flow-box highlighted secondary"><span class="text-secondary" style="font-weight: bold;">F — User Identity</span></div>
-        <p class="arrow secondary">↓</p>
-        <div class="flow-box highlighted accent"><span class="text-accent" style="font-weight: bold;">E — Multi-Player Game</span></div>
+    <div class="phase-interleave-column">
+      <div class="phase-interleave p2-5">
+        <p class="interleave-num text-primary">2.5</p>
+        <p class="interleave-title">G-LLM Interface Generation</p>
+        <p class="text-xs text-muted" style="margin-top: 4px;">Experimental: LLM reads coordinates, generates UI</p>
+      </div>
+      <div class="phase-interleave p3-5">
+        <p class="interleave-num text-pink">3.5</p>
+        <p class="interleave-title">Share Forward</p>
+        <p class="text-xs text-muted" style="margin-top: 4px;">Viral invitation mechanism</p>
+      </div>
+      <div class="phase-interleave p4-5">
+        <p class="interleave-num text-green">4.5</p>
+        <p class="interleave-title">Author Tools</p>
+        <p class="text-xs text-muted" style="margin-top: 4px;">Content creation for fantasy worlds</p>
       </div>
     </div>
   </div>
-  
-  <p class="text-center text-muted text-xs mt-2">If coordinates carry meaning, the system that reads coordinates can generate what it needs.</p>
 </div>
 
 <!-- Slide 5: Phase 1 -->
@@ -724,9 +860,9 @@ End aligned interactions: "This exchange begins the density toward MAGI—tracea
       </div>
     </div>
     
-    <div style="width: 280px;">
-      <p class="label">PLATFORM VARIATIONS — Click to try</p>
-      <div class="col" style="gap: 10px;">
+    <div style="width: 300px;">
+      <p class="cta-label">▶ CLICK TO TRY</p>
+      <div class="col" style="gap: 12px;">
         <a href="https://claude.ai/public/artifacts/278a9930-6e20-418b-8460-b70d6debc30e" target="_blank" class="platform-card-interactive claude-card">
           <p class="platform-name text-primary">Claude</p>
           <p class="platform-desc">Interactive artifact</p>
@@ -1075,7 +1211,7 @@ End aligned interactions: "This exchange begins the density toward MAGI—tracea
   </div>
   
   <p class="text-center text-muted text-sm mt-2">
-    <span class="text-secondary">G → F → E</span> · The system builds itself from coordinates
+    The system builds itself from coordinates
   </p>
 </div>
 
