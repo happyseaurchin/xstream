@@ -1,4 +1,5 @@
 export { AuthPage } from './AuthPage'
+export { AuthPageOTP } from './AuthPageOTP'
 export { Phase2Capture } from './Phase2Capture'
 export { PresenceBar } from './PresenceBar'
 export type { PresentUser } from './PresenceBar'

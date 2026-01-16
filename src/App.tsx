@@ -5,7 +5,7 @@ import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import { useSolidSubscription } from './hooks/useSolidSubscription'
 import { useContentSubscription } from './hooks/useContentSubscription'
 import {
-  AuthPage,
+  AuthPageOTP,
   PresenceBar,
   DraggableSeparator,
   Phase2Capture,
@@ -867,7 +867,7 @@ function App() {
 
   // Show auth page if not logged in
   if (!auth.user) {
-    return <AuthPage auth={auth} />
+    return <AuthPageOTP onSuccess={() => window.location.reload()} />
   }
 
   // Check if user is admin (bypass all gates)
