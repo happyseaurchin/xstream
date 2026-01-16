@@ -59,8 +59,8 @@ export function AuthPageOTP({ onSuccess }: AuthPageOTPProps) {
   // Step 2: Verify OTP code
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!otpCode.trim() || otpCode.length !== 6) {
-      setError('Please enter the 6-digit code')
+    if (!otpCode.trim() || otpCode.length < 6) {
+      setError('Please enter the verification code')
       return
     }
 
@@ -299,20 +299,20 @@ export function AuthPageOTP({ onSuccess }: AuthPageOTPProps) {
                 id="otp"
                 type="text"
                 value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456"
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                placeholder="12345678"
                 disabled={isLoading}
                 autoComplete="one-time-code"
                 autoFocus
-                maxLength={6}
-                style={{ letterSpacing: '0.5em', textAlign: 'center', fontSize: '1.5rem' }}
+                maxLength={8}
+                style={{ letterSpacing: '0.3em', textAlign: 'center', fontSize: '1.5rem' }}
                 required
               />
             </div>
 
             {error && <div className="auth-error">{error}</div>}
 
-            <button type="submit" className="auth-submit" disabled={isLoading || otpCode.length !== 6}>
+            <button type="submit" className="auth-submit" disabled={isLoading || otpCode.length < 6}>
               {isLoading ? 'Verifying...' : 'Verify'}
             </button>
 
