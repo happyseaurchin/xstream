@@ -335,109 +335,104 @@
       font-size: 14px;
     }
     
-    /* Platform links */
-    .platform-links {
-      display: flex;
-      gap: 16px;
-      margin-top: 24px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    
-    .platform-link {
-      display: inline-block;
-      padding: 12px 24px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: bold;
-      text-decoration: none;
-      transition: opacity 0.2s, transform 0.2s;
-      cursor: pointer;
-    }
-    
-    .platform-link:hover {
-      opacity: 0.9;
-      transform: translateY(-2px);
-    }
-    
-    .platform-link.chatgpt {
-      background: var(--color-secondary);
-      color: var(--color-surface);
-    }
-    
-    .platform-link.claude {
-      background: var(--color-primary);
-      color: var(--color-surface);
-    }
-    
-    .platform-link.grok {
-      background: var(--color-accent);
-      color: white;
-    }
-    
     /* Interactive platform cards for Phase 1 slide */
     .platform-card-interactive {
       background: var(--color-muted);
-      border-radius: 6px;
-      padding: 12px;
+      border-radius: 8px;
+      padding: 16px 20px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.3s ease;
       border: 2px solid transparent;
       text-decoration: none;
       display: block;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .platform-card-interactive::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      opacity: 0;
+      transition: opacity 0.3s ease;
     }
     
     .platform-card-interactive:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      transform: translateY(-4px) scale(1.02);
     }
     
     .platform-card-interactive.claude-card {
       border-color: var(--color-primary);
+      box-shadow: 0 0 0 1px rgba(0, 217, 255, 0.3);
     }
     
     .platform-card-interactive.claude-card:hover {
       background: rgba(0, 217, 255, 0.15);
-      box-shadow: 0 6px 20px rgba(0, 217, 255, 0.3);
+      box-shadow: 0 8px 32px rgba(0, 217, 255, 0.4), 0 0 0 1px var(--color-primary);
     }
     
     .platform-card-interactive.chatgpt-card {
       border-color: var(--color-secondary);
+      box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.3);
     }
     
     .platform-card-interactive.chatgpt-card:hover {
       background: rgba(255, 193, 7, 0.15);
-      box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3);
+      box-shadow: 0 8px 32px rgba(255, 193, 7, 0.4), 0 0 0 1px var(--color-secondary);
     }
     
     .platform-card-interactive.grok-card {
       border-color: var(--color-accent);
+      box-shadow: 0 0 0 1px rgba(155, 89, 255, 0.3);
     }
     
     .platform-card-interactive.grok-card:hover {
       background: rgba(155, 89, 255, 0.15);
-      box-shadow: 0 6px 20px rgba(155, 89, 255, 0.3);
+      box-shadow: 0 8px 32px rgba(155, 89, 255, 0.4), 0 0 0 1px var(--color-accent);
     }
     
     .platform-card-interactive.gemini-card {
       border-color: var(--color-green);
+      box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.3);
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     
     .platform-card-interactive.gemini-card:hover {
-      background: rgba(74, 222, 128, 0.15);
-      box-shadow: 0 6px 20px rgba(74, 222, 128, 0.3);
+      transform: none;
+      background: var(--color-muted);
+      box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.3);
+    }
+    
+    .platform-card-interactive .platform-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .platform-card-interactive .platform-desc {
+      font-size: 12px;
+      color: var(--color-muted-foreground);
     }
     
     .platform-card-interactive .try-label {
-      font-size: 10px;
-      color: var(--color-muted-foreground);
-      margin-top: 6px;
+      font-size: 11px;
+      margin-top: 8px;
       opacity: 0;
-      transition: opacity 0.2s;
+      transition: opacity 0.3s;
+      font-weight: bold;
     }
     
     .platform-card-interactive:hover .try-label {
       opacity: 1;
+    }
+    
+    .platform-card-interactive.gemini-card .try-label {
+      opacity: 1;
+      color: var(--color-muted-foreground);
     }
     
     /* Modal styles */
@@ -448,7 +443,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       z-index: 1000;
       justify-content: center;
       align-items: center;
@@ -460,13 +455,14 @@
     
     .modal {
       background: var(--color-surface);
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-accent);
       border-radius: 12px;
       max-width: 700px;
       width: 90%;
       max-height: 90vh;
       overflow-y: auto;
       padding: 32px;
+      box-shadow: 0 0 60px rgba(155, 89, 255, 0.3);
     }
     
     .modal-header {
@@ -490,6 +486,7 @@
       cursor: pointer;
       padding: 0;
       line-height: 1;
+      transition: color 0.2s;
     }
     
     .modal-close:hover {
@@ -505,7 +502,7 @@
     
     .copyable-box {
       background: var(--color-muted);
-      border: 1px solid var(--color-border);
+      border: 2px solid var(--color-border);
       border-radius: 8px;
       padding: 20px;
       font-family: monospace;
@@ -515,11 +512,12 @@
       word-break: break-word;
       cursor: pointer;
       position: relative;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
     
     .copyable-box:hover {
       border-color: var(--color-accent);
+      box-shadow: 0 0 20px rgba(155, 89, 255, 0.2);
     }
     
     .copyable-box::after {
@@ -527,11 +525,13 @@
       position: absolute;
       top: 8px;
       right: 8px;
-      font-size: 10px;
-      color: var(--color-muted-foreground);
+      font-size: 11px;
+      color: var(--color-accent);
       background: var(--color-surface);
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 4px;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
     }
     
     .copyable-box.copied::after {
@@ -555,16 +555,6 @@
       .principles-grid {
         grid-template-columns: 1fr;
       }
-      
-      .platform-links {
-        flex-direction: column;
-        align-items: center;
-      }
-      
-      .platform-link {
-        width: 200px;
-        text-align: center;
-      }
     }
   </style>
 </head>
@@ -580,13 +570,6 @@
       <span class="text-secondary text-sm">G → F → E</span>
       <span class="text-muted">|</span>
       <span class="text-muted text-sm">Reversed Development Sequence</span>
-    </div>
-    
-    <p class="label mt-2">Try the Phase 1 Seed Agents</p>
-    <div class="platform-links">
-      <a href="https://chatgpt.com/g/g-6967d9b4abc08191a0f0415a13ca457c-xstream-pscale-seed-agent" target="_blank" class="platform-link chatgpt">ChatGPT</a>
-      <a href="https://claude.ai/public/artifacts/278a9930-6e20-418b-8460-b70d6debc30e" target="_blank" class="platform-link claude">Claude</a>
-      <span class="platform-link grok" onclick="openGrokModal()">Grok</span>
     </div>
   </div>
 </div>
@@ -743,26 +726,26 @@ End aligned interactions: "This exchange begins the density toward MAGI—tracea
     
     <div style="width: 280px;">
       <p class="label">PLATFORM VARIATIONS — Click to try</p>
-      <div class="col" style="gap: 8px;">
+      <div class="col" style="gap: 10px;">
         <a href="https://claude.ai/public/artifacts/278a9930-6e20-418b-8460-b70d6debc30e" target="_blank" class="platform-card-interactive claude-card">
-          <p class="text-primary" style="font-weight: bold;">Claude</p>
-          <p class="text-xs text-muted">Interactive artifact</p>
-          <p class="try-label">→ Open in new tab</p>
+          <p class="platform-name text-primary">Claude</p>
+          <p class="platform-desc">Interactive artifact</p>
+          <p class="try-label text-primary">→ Open in new tab</p>
         </a>
         <a href="https://chatgpt.com/g/g-6967d9b4abc08191a0f0415a13ca457c-xstream-pscale-seed-agent" target="_blank" class="platform-card-interactive chatgpt-card">
-          <p class="text-secondary" style="font-weight: bold;">ChatGPT</p>
-          <p class="text-xs text-muted">Custom GPT</p>
-          <p class="try-label">→ Open in new tab</p>
+          <p class="platform-name text-secondary">ChatGPT</p>
+          <p class="platform-desc">Custom GPT</p>
+          <p class="try-label text-secondary">→ Open in new tab</p>
         </a>
         <div class="platform-card-interactive grok-card" onclick="openGrokModal()">
-          <p class="text-accent" style="font-weight: bold;">Grok</p>
-          <p class="text-xs text-muted">Initial prompt</p>
-          <p class="try-label">→ Copy prompt</p>
+          <p class="platform-name text-accent">Grok</p>
+          <p class="platform-desc">Initial prompt</p>
+          <p class="try-label text-accent">→ Copy prompt</p>
         </div>
-        <div class="platform-card-interactive gemini-card" style="opacity: 0.5; cursor: not-allowed;">
-          <p class="text-green" style="font-weight: bold;">Gemini</p>
-          <p class="text-xs text-muted">Agent configuration</p>
-          <p class="try-label" style="opacity: 1;">Coming soon</p>
+        <div class="platform-card-interactive gemini-card">
+          <p class="platform-name text-green">Gemini</p>
+          <p class="platform-desc">Agent configuration</p>
+          <p class="try-label">Coming soon</p>
         </div>
       </div>
     </div>
