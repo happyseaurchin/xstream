@@ -375,6 +375,71 @@
       color: white;
     }
     
+    /* Interactive platform cards for Phase 1 slide */
+    .platform-card-interactive {
+      background: var(--color-muted);
+      border-radius: 6px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 2px solid transparent;
+      text-decoration: none;
+      display: block;
+    }
+    
+    .platform-card-interactive:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+    
+    .platform-card-interactive.claude-card {
+      border-color: var(--color-primary);
+    }
+    
+    .platform-card-interactive.claude-card:hover {
+      background: rgba(0, 217, 255, 0.15);
+      box-shadow: 0 6px 20px rgba(0, 217, 255, 0.3);
+    }
+    
+    .platform-card-interactive.chatgpt-card {
+      border-color: var(--color-secondary);
+    }
+    
+    .platform-card-interactive.chatgpt-card:hover {
+      background: rgba(255, 193, 7, 0.15);
+      box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3);
+    }
+    
+    .platform-card-interactive.grok-card {
+      border-color: var(--color-accent);
+    }
+    
+    .platform-card-interactive.grok-card:hover {
+      background: rgba(155, 89, 255, 0.15);
+      box-shadow: 0 6px 20px rgba(155, 89, 255, 0.3);
+    }
+    
+    .platform-card-interactive.gemini-card {
+      border-color: var(--color-green);
+    }
+    
+    .platform-card-interactive.gemini-card:hover {
+      background: rgba(74, 222, 128, 0.15);
+      box-shadow: 0 6px 20px rgba(74, 222, 128, 0.3);
+    }
+    
+    .platform-card-interactive .try-label {
+      font-size: 10px;
+      color: var(--color-muted-foreground);
+      margin-top: 6px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .platform-card-interactive:hover .try-label {
+      opacity: 1;
+    }
+    
     /* Modal styles */
     .modal-overlay {
       display: none;
@@ -677,23 +742,27 @@ End aligned interactions: "This exchange begins the density toward MAGI—tracea
     </div>
     
     <div style="width: 280px;">
-      <p class="label">PLATFORM VARIATIONS</p>
+      <p class="label">PLATFORM VARIATIONS — Click to try</p>
       <div class="col" style="gap: 8px;">
-        <div class="platform-card">
-          <p class="text-primary">Claude</p>
+        <a href="https://claude.ai/public/artifacts/278a9930-6e20-418b-8460-b70d6debc30e" target="_blank" class="platform-card-interactive claude-card">
+          <p class="text-primary" style="font-weight: bold;">Claude</p>
           <p class="text-xs text-muted">Interactive artifact</p>
-        </div>
-        <div class="platform-card">
-          <p class="text-secondary">ChatGPT</p>
+          <p class="try-label">→ Open in new tab</p>
+        </a>
+        <a href="https://chatgpt.com/g/g-6967d9b4abc08191a0f0415a13ca457c-xstream-pscale-seed-agent" target="_blank" class="platform-card-interactive chatgpt-card">
+          <p class="text-secondary" style="font-weight: bold;">ChatGPT</p>
           <p class="text-xs text-muted">Custom GPT</p>
-        </div>
-        <div class="platform-card">
-          <p class="text-accent">Grok</p>
+          <p class="try-label">→ Open in new tab</p>
+        </a>
+        <div class="platform-card-interactive grok-card" onclick="openGrokModal()">
+          <p class="text-accent" style="font-weight: bold;">Grok</p>
           <p class="text-xs text-muted">Initial prompt</p>
+          <p class="try-label">→ Copy prompt</p>
         </div>
-        <div class="platform-card">
-          <p class="text-green">Gemini</p>
+        <div class="platform-card-interactive gemini-card" style="opacity: 0.5; cursor: not-allowed;">
+          <p class="text-green" style="font-weight: bold;">Gemini</p>
           <p class="text-xs text-muted">Agent configuration</p>
+          <p class="try-label" style="opacity: 1;">Coming soon</p>
         </div>
       </div>
     </div>
