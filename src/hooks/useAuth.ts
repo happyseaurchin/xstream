@@ -37,23 +37,58 @@ export function useAuth(): UseAuthReturn {
   const mountedRef = useRef(true)
   const sessionLoadedRef = useRef(false)
 
-  // Load user profile from users table (non-blocking - UI can render without it)
-  const loadProfile = useCallback(async (userId: string) => {
+  // Load user profile from users table, create if doesn't exist
+  const loadProfile = useCallback(async (userId: string, userEmail?: string) => {
     if (!supabase) return null
-    
+
     try {
       const { data, error: err } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
-      
+
       if (err) {
-        // User might not exist in users table yet - that's OK
-        console.warn('[Auth] Profile load error (may be new user):', err.message)
-        return null
+        // User doesn't exist in users table yet - create a default profile
+        console.warn('[Auth] Profile not found, creating default profile for:', userId)
+
+        const defaultProfile = {
+          id: userId,
+          display_name: userEmail?.split('@')[0] || 'User',
+          default_face: 'character',
+          preferences: {},
+          onboarding_phase: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+
+        const { data: newProfile, error: createErr } = await supabase
+          .from('users')
+          .upsert(defaultProfile)
+          .select()
+          .single()
+
+        if (createErr) {
+          console.error('[Auth] Failed to create profile:', createErr.message)
+          // Return a minimal profile so the UI doesn't hang
+          return {
+            id: userId,
+            displayName: userEmail?.split('@')[0] || 'User',
+            defaultFace: 'character' as const,
+            preferences: {},
+            onboardingPhase: 1,
+          } as UserProfile
+        }
+
+        return {
+          id: newProfile.id,
+          displayName: newProfile.display_name,
+          defaultFace: newProfile.default_face,
+          preferences: newProfile.preferences,
+          onboardingPhase: newProfile.onboarding_phase ?? 1,
+        } as UserProfile
       }
-      
+
       return {
         id: data.id,
         displayName: data.display_name,
@@ -123,7 +158,7 @@ export function useAuth(): UseAuthReturn {
         
         // Load profile in background (non-blocking)
         if (s?.user && mountedRef.current) {
-          const p = await loadProfile(s.user.id)
+          const p = await loadProfile(s.user.id, s.user.email)
           if (mountedRef.current) {
             setProfile(p)
           }
@@ -152,7 +187,7 @@ export function useAuth(): UseAuthReturn {
         
         if (s?.user) {
           // Load profile in background
-          const p = await loadProfile(s.user.id)
+          const p = await loadProfile(s.user.id, s.user.email)
           if (mountedRef.current) {
             setProfile(p)
           }
@@ -271,7 +306,7 @@ export function useAuth(): UseAuthReturn {
       }
 
       // Reload profile
-      const p = await loadProfile(user.id)
+      const p = await loadProfile(user.id, user.email)
       setProfile(p)
       return true
     } catch (err) {
