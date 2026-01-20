@@ -1,5 +1,13 @@
 # CLAUDE.md
 
+> ## START HERE
+> **Read [INFRASTRUCTURE.md](./INFRASTRUCTURE.md) FIRST** — it maps ALL repos, domains, and Vercel/Supabase projects.
+>
+> This repo (`happyseaurchin/xstream`) deploys to **xstream.onen.ai**.
+> If user mentions `xstream.machus.ai` or `/experiments` or `/videos`, that's `xstream-the-address-of-meaning` — a DIFFERENT repo.
+
+---
+
 ## WORKING WITH DAVID
 
 David is a **vibe-coder** — an architect and designer, not a professional developer. This means:
