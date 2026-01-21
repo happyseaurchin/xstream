@@ -237,6 +237,7 @@ export function ConstructionButton({
             <div className="border-t border-border/50 mt-1 pt-1">
               <button
                 onClick={() => {
+                  console.log('[ConstructionButton] Logout clicked');
                   onLogout();
                   setIsOpen(false);
                   setIsExpanded(false);
