@@ -43,7 +43,7 @@ const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` :
 const EDIT_DEBOUNCE_MS = 500
 
 // Admin whitelist - these emails bypass Phase 2 and get full access
-const ADMIN_EMAILS = ['david@ecosquared.co.uk', 'wisedragontree@gmail.com']
+const ADMIN_EMAILS = ['david@ecosquared.co.uk']
 
 // Character type for selector (dropdown)
 interface FrameCharacter {

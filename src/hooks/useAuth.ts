@@ -288,11 +288,34 @@ export function useAuth(): UseAuthReturn {
   const signOut = useCallback(async () => {
     if (!supabase) return
 
+    console.log('[Auth] signOut called')
     setError(null)
-    await supabase.auth.signOut()
+
+    try {
+      const { error: signOutError } = await supabase.auth.signOut()
+
+      if (signOutError) {
+        console.error('[Auth] signOut error:', signOutError)
+        // Still clear local state even if remote signout failed
+      } else {
+        console.log('[Auth] signOut successful')
+      }
+    } catch (err) {
+      console.error('[Auth] signOut exception:', err)
+    }
+
+    // Always clear local state
     setUser(null)
     setProfile(null)
     setSession(null)
+
+    // Force clear the auth storage to ensure clean logout
+    try {
+      localStorage.removeItem(SUPABASE_AUTH_KEY)
+      console.log('[Auth] Cleared auth storage')
+    } catch (e) {
+      console.warn('[Auth] Could not clear storage:', e)
+    }
   }, [])
 
   const updateProfile = useCallback(async (
