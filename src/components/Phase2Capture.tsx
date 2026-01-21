@@ -97,7 +97,14 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
         throw new Error('Supabase not configured')
       }
 
-      const { error: updateError } = await supabase
+      console.log('[Phase2] Updating user:', userId)
+
+      // Add timeout to prevent infinite hang
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database update timed out. Please try again.')), 10000)
+      )
+
+      const updatePromise = supabase
         .from('users')
         .update({
           onboarding_phase: 2,
@@ -106,12 +113,17 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
         })
         .eq('id', userId)
 
+      const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as { error: Error | null }
+
       if (updateError) {
+        console.error('[Phase2] Update error:', updateError)
         throw updateError
       }
 
+      console.log('[Phase2] Update successful')
       onComplete()
     } catch (err) {
+      console.error('[Phase2] Submit error:', err)
       setError(err instanceof Error ? err.message : 'Failed to save. Please try again.')
     } finally {
       setIsSubmitting(false)
@@ -301,9 +313,17 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
           <button
             className="phase2-logout"
             onClick={async () => {
+              // Clear localStorage immediately (same pattern as useAuth)
+              try {
+                localStorage.removeItem('sb-piqxyfmzzywxzqkzmpmm-auth-token')
+              } catch (e) {
+                console.warn('Could not clear auth storage:', e)
+              }
+              // Reload to show login page
+              window.location.reload()
+              // Try to tell Supabase in background (don't await - it hangs)
               if (supabase) {
-                await supabase.auth.signOut()
-                window.location.reload()
+                supabase.auth.signOut().catch(() => {})
               }
             }}
           >
