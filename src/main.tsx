@@ -29,7 +29,8 @@ function AuthGate() {
 
   // Not logged in
   if (!auth.user) {
-    return <AuthPageOTP onSuccess={() => window.location.reload()} />
+    // No reload needed - useAuth will react to the auth state change automatically
+    return <AuthPageOTP onSuccess={() => console.log('[AuthGate] Login success, auth state will update')} />
   }
 
   // Logged in - check if admin
