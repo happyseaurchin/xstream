@@ -98,7 +98,14 @@ export function useAuth(): UseAuthReturn {
       } as UserProfile
     } catch (err) {
       console.error('[Auth] Profile load exception:', err)
-      return null
+      // Return a minimal profile so the UI doesn't hang
+      return {
+        id: userId,
+        displayName: userEmail?.split('@')[0] || 'User',
+        defaultFace: 'character' as const,
+        preferences: {},
+        onboardingPhase: 1,
+      } as UserProfile
     }
   }, [])
 
