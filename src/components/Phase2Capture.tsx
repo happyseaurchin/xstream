@@ -100,11 +100,14 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
       console.log('[Phase2] Upserting user:', userId)
 
       // Add timeout to prevent infinite hang
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database update timed out. Please try again.')), 10000)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Database update timed out after 10s')), 10000)
       )
 
       // Use upsert instead of update - user row might not exist yet due to RLS
+      console.log('[Phase2] Starting upsert call...')
+      const startTime = Date.now()
+
       const updatePromise = supabase
         .from('users')
         .upsert({
@@ -112,6 +115,10 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
           onboarding_phase: 2,
           llm_invitation: parsedJson,
           updated_at: new Date().toISOString()
+        })
+        .then(result => {
+          console.log('[Phase2] Upsert completed in', Date.now() - startTime, 'ms')
+          return result
         })
 
       const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as { error: Error | null }
