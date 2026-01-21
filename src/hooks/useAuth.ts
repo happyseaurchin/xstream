@@ -286,35 +286,45 @@ export function useAuth(): UseAuthReturn {
   }, [])
 
   const signOut = useCallback(async () => {
-    if (!supabase) return
-
-    console.log('[Auth] signOut called')
-    setError(null)
-
-    try {
-      const { error: signOutError } = await supabase.auth.signOut()
-
-      if (signOutError) {
-        console.error('[Auth] signOut error:', signOutError)
-        // Still clear local state even if remote signout failed
-      } else {
-        console.log('[Auth] signOut successful')
-      }
-    } catch (err) {
-      console.error('[Auth] signOut exception:', err)
+    if (!supabase) {
+      console.log('[Auth] signOut: no supabase client')
+      return
     }
 
-    // Always clear local state
+    console.log('[Auth] signOut called, clearing state immediately')
+    setError(null)
+
+    // Clear local state FIRST - don't wait for network
     setUser(null)
     setProfile(null)
     setSession(null)
 
-    // Force clear the auth storage to ensure clean logout
+    // Force clear localStorage IMMEDIATELY
     try {
       localStorage.removeItem(SUPABASE_AUTH_KEY)
       console.log('[Auth] Cleared auth storage')
     } catch (e) {
       console.warn('[Auth] Could not clear storage:', e)
+    }
+
+    // Now try to tell Supabase (with timeout so it doesn't hang forever)
+    try {
+      console.log('[Auth] Calling supabase.auth.signOut...')
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('signOut timeout')), 3000)
+      )
+      const signOutPromise = supabase.auth.signOut()
+
+      const result = await Promise.race([signOutPromise, timeoutPromise]) as { error: Error | null }
+
+      if (result?.error) {
+        console.error('[Auth] signOut error:', result.error)
+      } else {
+        console.log('[Auth] signOut successful')
+      }
+    } catch (err) {
+      console.warn('[Auth] signOut failed or timed out:', err)
+      // Already cleared local state, so user is logged out locally
     }
   }, [])
 
