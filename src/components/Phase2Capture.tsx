@@ -97,21 +97,22 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
         throw new Error('Supabase not configured')
       }
 
-      console.log('[Phase2] Updating user:', userId)
+      console.log('[Phase2] Upserting user:', userId)
 
       // Add timeout to prevent infinite hang
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Database update timed out. Please try again.')), 10000)
       )
 
+      // Use upsert instead of update - user row might not exist yet due to RLS
       const updatePromise = supabase
         .from('users')
-        .update({
+        .upsert({
+          id: userId,
           onboarding_phase: 2,
           llm_invitation: parsedJson,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userId)
 
       const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as { error: Error | null }
 
