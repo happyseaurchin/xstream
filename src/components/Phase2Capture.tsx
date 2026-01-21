@@ -62,6 +62,7 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
   const [wantsPlaytester, setWantsPlaytester] = useState(false)
   const [showGrokModal, setShowGrokModal] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [savedSuccessfully, setSavedSuccessfully] = useState(false)
 
   const isAdmin = ADMIN_EMAILS.includes(userEmail)
 
@@ -129,7 +130,7 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
       }
 
       console.log('[Phase2] Update successful')
-      onComplete()
+      setSavedSuccessfully(true)
     } catch (err) {
       console.error('[Phase2] Submit error:', err)
       setError(err instanceof Error ? err.message : 'Failed to save. Please try again.')
@@ -198,10 +199,21 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
         <div className="phase2-content">
           <p className="phase2-user">Signed in as <strong>{userEmail}</strong></p>
 
-          <p className="phase2-description">
-            While we prepare Phase 3, you can explore the concept with your favourite LLM.
-            Paste the invitation JSON from your conversation below (optional).
-          </p>
+          {savedSuccessfully ? (
+            <div className="phase2-success">
+              <p className="phase2-success-message">
+                ✓ Your preferences have been saved.
+              </p>
+              <p className="phase2-success-detail">
+                You'll be notified when Phase 3 is ready. In the meantime, feel free to explore the concept with the LLM links above.
+              </p>
+            </div>
+          ) : (
+            <p className="phase2-description">
+              While we prepare Phase 3, you can explore the concept with your favourite LLM.
+              Paste the invitation JSON from your conversation below (optional).
+            </p>
+          )}
 
           {/* LLM Links */}
           <div className="llm-links">
@@ -263,56 +275,60 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
             </div>
           )}
 
-          {/* JSON Input */}
-          <div className="json-input-section">
-            <label htmlFor="json-input">Paste your LLM invitation JSON (optional)</label>
-            <textarea
-              id="json-input"
-              value={jsonInput}
-              onChange={(e) => setJsonInput(e.target.value)}
-              placeholder='{"invitation": "..."}'
-              rows={6}
-              disabled={isSubmitting}
-            />
-          </div>
+          {/* JSON Input - only show if not saved yet */}
+          {!savedSuccessfully && (
+            <>
+              <div className="json-input-section">
+                <label htmlFor="json-input">Paste your LLM invitation JSON (optional)</label>
+                <textarea
+                  id="json-input"
+                  value={jsonInput}
+                  onChange={(e) => setJsonInput(e.target.value)}
+                  placeholder='{"invitation": "..."}'
+                  rows={6}
+                  disabled={isSubmitting}
+                />
+              </div>
 
-          {/* Playtester Option */}
-          <div className="playtester-option">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={wantsPlaytester}
-                onChange={(e) => setWantsPlaytester(e.target.checked)}
-                disabled={isSubmitting}
-              />
-              <span>I'd like to be notified about playtesting opportunities</span>
-            </label>
-          </div>
+              {/* Playtester Option */}
+              <div className="playtester-option">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={wantsPlaytester}
+                    onChange={(e) => setWantsPlaytester(e.target.checked)}
+                    disabled={isSubmitting}
+                  />
+                  <span>I'd like to be notified about playtesting opportunities</span>
+                </label>
+              </div>
 
-          {error && (
-            <div className="phase2-error">{error}</div>
-          )}
+              {error && (
+                <div className="phase2-error">{error}</div>
+              )}
 
-          <button
-            className="phase2-submit"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Saving...' : 'Continue'}
-          </button>
-
-          {/* Admin bypass */}
-          {isAdmin && (
-            <div className="admin-section">
-              <p className="admin-notice">Admin detected: {userEmail}</p>
               <button
-                className="admin-bypass"
-                onClick={handleAdminBypass}
+                className="phase2-submit"
+                onClick={handleSubmit}
                 disabled={isSubmitting}
               >
-                Skip to Full Access (Admin)
+                {isSubmitting ? 'Saving...' : 'Continue'}
               </button>
-            </div>
+
+              {/* Admin bypass */}
+              {isAdmin && (
+                <div className="admin-section">
+                  <p className="admin-notice">Admin detected: {userEmail}</p>
+                  <button
+                    className="admin-bypass"
+                    onClick={handleAdminBypass}
+                    disabled={isSubmitting}
+                  >
+                    Skip to Full Access (Admin)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
