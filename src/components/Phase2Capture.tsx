@@ -198,7 +198,7 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
                 ✓ Your preferences have been saved.
               </p>
               <p className="phase2-success-detail">
-                You'll be notified when Phase 3 is ready. In the meantime, feel free to explore the concept with the LLM links above.
+                You will be notified when access is granted.
               </p>
             </div>
           ) : (
@@ -305,7 +305,7 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
                 onClick={handleSubmit}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Saving...' : 'Continue'}
+                {isSubmitting ? 'Saving...' : 'Save'}
               </button>
 
               {/* Admin bypass */}

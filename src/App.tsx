@@ -856,7 +856,7 @@ function App() {
     ? { '--xstream-column-bg': columnBackground } as React.CSSProperties
     : undefined
 
-  // Show loading while checking auth
+  // Show loading while checking auth (keep this minimal)
   if (auth.isLoading) {
     return (
       <div className="app loading-screen">
@@ -870,37 +870,31 @@ function App() {
     return <AuthPageOTP onSuccess={() => window.location.reload()} />
   }
 
-  // If profile hasn't loaded yet but we have a user, create a minimal profile
-  // This prevents infinite "Loading profile..." when database is slow/failing
-  const profile = auth.profile ?? {
-    id: auth.user.id,
-    displayName: auth.user.email?.split('@')[0] || 'User',
-    defaultFace: 'character' as const,
-    preferences: {},
-    onboardingPhase: 1,
-  }
-
-  // Check if user is admin (bypass all gates)
+  // SIMPLE GATE: Check email ONLY - no database calls, no profile loading
+  // Admin users get the app, everyone else gets Phase 2
   const isAdmin = ADMIN_EMAILS.includes(auth.user.email || '')
 
-  // Check onboarding phase from profile
-  // Phase 1 = just registered, Phase 2 = completed phase 2, Phase 3+ = full access
-  // Admin users or users with phase >= 3 get full access
-  const onboardingPhase = profile.onboardingPhase ?? 1
-  const needsPhase2 = !isAdmin && onboardingPhase < 2
-
-  // Show Phase 2 capture page if user hasn't completed it (and not admin)
-  if (needsPhase2) {
+  if (!isAdmin) {
+    // Non-admin users ALWAYS see Phase 2 - simple, no complications
     return (
       <Phase2Capture
         userEmail={auth.user.email || ''}
         userId={auth.user.id}
         onComplete={() => {
-          // Reload profile to get updated onboarding_phase
-          window.location.reload()
+          // This won't actually be called - users stay on Phase 2
+          console.log('[App] Phase 2 complete callback (should not happen for non-admin)')
         }}
       />
     )
+  }
+
+  // Only admins reach here - use profile if available, fallback otherwise
+  const profile = auth.profile ?? {
+    id: auth.user.id,
+    displayName: auth.user.email?.split('@')[0] || 'User',
+    defaultFace: 'character' as const,
+    preferences: {},
+    onboardingPhase: 3,
   }
 
   return (
