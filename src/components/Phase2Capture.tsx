@@ -98,31 +98,24 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
         throw new Error('Supabase not configured')
       }
 
-      console.log('[Phase2] Upserting user:', userId)
+      console.log('[Phase2] Updating user:', userId)
+      console.log('[Phase2] Payload:', { onboarding_phase: 2, llm_invitation: parsedJson })
 
-      // Add timeout to prevent infinite hang
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Database update timed out after 10s')), 10000)
-      )
-
-      // Use upsert instead of update - user row might not exist yet due to RLS
-      console.log('[Phase2] Starting upsert call...')
+      // Simple update (row already exists)
       const startTime = Date.now()
 
-      const updatePromise = supabase
+      const { data, error: updateError } = await supabase
         .from('users')
-        .upsert({
-          id: userId,
+        .update({
           onboarding_phase: 2,
           llm_invitation: parsedJson,
           updated_at: new Date().toISOString()
         })
-        .then(result => {
-          console.log('[Phase2] Upsert completed in', Date.now() - startTime, 'ms')
-          return result
-        })
+        .eq('id', userId)
+        .select()
 
-      const { error: updateError } = await Promise.race([updatePromise, timeoutPromise]) as { error: Error | null }
+      console.log('[Phase2] Update completed in', Date.now() - startTime, 'ms')
+      console.log('[Phase2] Result:', { data, error: updateError })
 
       if (updateError) {
         console.error('[Phase2] Update error:', updateError)
