@@ -200,21 +200,28 @@ export function useAuth(): UseAuthReturn {
         console.log('[Auth] State change:', event)
         if (!mountedRef.current) return
 
-        // Mark session as loaded - onAuthStateChange can fire before getSession returns
+        // CRITICAL: Mark session as loaded IMMEDIATELY on ANY auth state change
+        // This prevents the timeout from clearing storage while profile loads
         if (!sessionLoadedRef.current) {
           sessionLoadedRef.current = true
           clearTimeout(timeoutId)
+          console.log('[Auth] Session confirmed, timeout cancelled')
         }
 
         setSession(s)
         setUser(s?.user ?? null)
         setIsLoading(false)
-        
+
         if (s?.user) {
-          // Load profile in background
-          const p = await loadProfile(s.user.id, s.user.email)
-          if (mountedRef.current) {
-            setProfile(p)
+          // Load profile in background - failures are non-fatal
+          try {
+            const p = await loadProfile(s.user.id, s.user.email)
+            if (mountedRef.current) {
+              setProfile(p)
+            }
+          } catch (profileErr) {
+            console.warn('[Auth] Profile load error (non-fatal):', profileErr)
+            // Don't clear auth - user is still logged in!
           }
         } else {
           setProfile(null)

@@ -28,3 +28,4 @@ dist-ssr
 .env.local
 .env.*.local
 xstream-the-address-of-meaning/
+.vercel
