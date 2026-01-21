@@ -188,9 +188,16 @@ export function useAuth(): UseAuthReturn {
       async (event, s) => {
         console.log('[Auth] State change:', event)
         if (!mountedRef.current) return
-        
+
+        // Mark session as loaded - onAuthStateChange can fire before getSession returns
+        if (!sessionLoadedRef.current) {
+          sessionLoadedRef.current = true
+          clearTimeout(timeoutId)
+        }
+
         setSession(s)
         setUser(s?.user ?? null)
+        setIsLoading(false)
         
         if (s?.user) {
           // Load profile in background
