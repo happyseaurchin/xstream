@@ -43,7 +43,7 @@ const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` :
 const EDIT_DEBOUNCE_MS = 500
 
 // Admin whitelist - these emails bypass Phase 2 and get full access
-const ADMIN_EMAILS = ['david@ecosquared.co.uk']
+const ADMIN_EMAILS = ['david@ecosquared.co.uk', 'wisedragontree@gmail.com']
 
 // Character type for selector (dropdown)
 interface FrameCharacter {
@@ -870,13 +870,14 @@ function App() {
     return <AuthPageOTP onSuccess={() => window.location.reload()} />
   }
 
-  // Wait for profile to load before showing Phase 2 check (prevents flash)
-  if (!auth.profile) {
-    return (
-      <div className="app loading-screen">
-        <div className="loading-text">Loading profile...</div>
-      </div>
-    )
+  // If profile hasn't loaded yet but we have a user, create a minimal profile
+  // This prevents infinite "Loading profile..." when database is slow/failing
+  const profile = auth.profile ?? {
+    id: auth.user.id,
+    displayName: auth.user.email?.split('@')[0] || 'User',
+    defaultFace: 'character' as const,
+    preferences: {},
+    onboardingPhase: 1,
   }
 
   // Check if user is admin (bypass all gates)
@@ -885,8 +886,7 @@ function App() {
   // Check onboarding phase from profile
   // Phase 1 = just registered, Phase 2 = completed phase 2, Phase 3+ = full access
   // Admin users or users with phase >= 3 get full access
-  // Note: onboarding_phase may not exist yet in profile - default to phase 1
-  const onboardingPhase = (auth.profile as any)?.onboardingPhase ?? 1
+  const onboardingPhase = profile.onboardingPhase ?? 1
   const needsPhase2 = !isAdmin && onboardingPhase < 2
 
   // Show Phase 2 capture page if user hasn't completed it (and not admin)
