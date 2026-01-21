@@ -251,7 +251,7 @@ export function ConstructionButton({
 
           <div className="px-4 py-2 border-t border-border/50 bg-muted/30">
             <span className="text-[10px] text-muted-foreground font-mono">
-              v0.12.0
+              v0.12.1
             </span>
           </div>
         </div>
