@@ -5,10 +5,8 @@ import { useLiquidSubscription } from './hooks/useLiquidSubscription'
 import { useSolidSubscription } from './hooks/useSolidSubscription'
 import { useContentSubscription } from './hooks/useContentSubscription'
 import {
-  AuthPageOTP,
   PresenceBar,
   DraggableSeparator,
-  Phase2Capture,
 } from './components'
 // New zone components
 import { SolidZone } from './components/xstream/SolidZone'
@@ -42,8 +40,6 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const GENERATE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/generate-v2` : null
 const EDIT_DEBOUNCE_MS = 500
 
-// Admin whitelist - these emails bypass Phase 2 and get full access
-const ADMIN_EMAILS = ['david@ecosquared.co.uk']
 
 // Character type for selector (dropdown)
 interface FrameCharacter {
@@ -856,42 +852,11 @@ function App() {
     ? { '--xstream-column-bg': columnBackground } as React.CSSProperties
     : undefined
 
-  // Show loading while checking auth (keep this minimal)
-  if (auth.isLoading) {
-    return (
-      <div className="app loading-screen">
-        <div className="loading-text">Loading...</div>
-      </div>
-    )
-  }
-
-  // Show auth page if not logged in
-  if (!auth.user) {
-    return <AuthPageOTP onSuccess={() => window.location.reload()} />
-  }
-
-  // SIMPLE GATE: Check email ONLY - no database calls, no profile loading
-  // Admin users get the app, everyone else gets Phase 2
-  const isAdmin = ADMIN_EMAILS.includes(auth.user.email || '')
-
-  if (!isAdmin) {
-    // Non-admin users ALWAYS see Phase 2 - simple, no complications
-    return (
-      <Phase2Capture
-        userEmail={auth.user.email || ''}
-        userId={auth.user.id}
-        onComplete={() => {
-          // This won't actually be called - users stay on Phase 2
-          console.log('[App] Phase 2 complete callback (should not happen for non-admin)')
-        }}
-      />
-    )
-  }
-
-  // Only admins reach here - use profile if available, fallback otherwise
+  // App is only rendered by AuthGate for admin users
+  // Use profile if available, fallback otherwise
   const profile = auth.profile ?? {
-    id: auth.user.id,
-    displayName: auth.user.email?.split('@')[0] || 'User',
+    id: auth.user?.id || '',
+    displayName: auth.user?.email?.split('@')[0] || 'User',
     defaultFace: 'character' as const,
     preferences: {},
     onboardingPhase: 3,
