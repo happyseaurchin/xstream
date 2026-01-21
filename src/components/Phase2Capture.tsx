@@ -99,7 +99,7 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
       }
 
       console.log('[Phase2] Updating user:', userId)
-      console.log('[Phase2] Payload:', { onboarding_phase: 2, llm_invitation: parsedJson })
+      console.log('[Phase2] Payload:', { onboarding_phase: 2, llm_invitation: parsedJson, wants_playtester: wantsPlaytester })
 
       // Simple update (row already exists)
       const startTime = Date.now()
@@ -109,6 +109,7 @@ export function Phase2Capture({ userEmail, userId, onComplete }: Phase2CapturePr
         .update({
           onboarding_phase: 2,
           llm_invitation: parsedJson,
+          wants_playtester: wantsPlaytester,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)
