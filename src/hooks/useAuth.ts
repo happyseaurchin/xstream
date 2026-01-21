@@ -38,15 +38,35 @@ export function useAuth(): UseAuthReturn {
   const sessionLoadedRef = useRef(false)
 
   // Load user profile from users table, create if doesn't exist
-  const loadProfile = useCallback(async (userId: string, userEmail?: string) => {
-    if (!supabase) return null
+  // Uses timeout to prevent hanging if Supabase client is stuck
+  const loadProfile = useCallback(async (userId: string, userEmail?: string): Promise<UserProfile> => {
+    const fallbackProfile: UserProfile = {
+      id: userId,
+      displayName: userEmail?.split('@')[0] || 'User',
+      defaultFace: 'character' as const,
+      preferences: {},
+      onboardingPhase: 1,
+    }
+
+    if (!supabase) return fallbackProfile
+
+    // Helper to race against timeout
+    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Profile load timeout')), ms)
+        )
+      ])
+    }
 
     try {
-      const { data, error: err } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
+      console.log('[Auth] Loading profile for:', userId)
+
+      const { data, error: err } = await withTimeout(
+        supabase.from('users').select('*').eq('id', userId).single(),
+        5000
+      )
 
       if (err) {
         // User doesn't exist in users table yet - create a default profile
@@ -62,50 +82,41 @@ export function useAuth(): UseAuthReturn {
           updated_at: new Date().toISOString()
         }
 
-        const { data: newProfile, error: createErr } = await supabase
-          .from('users')
-          .upsert(defaultProfile)
-          .select()
-          .single()
+        try {
+          const { data: newProfile, error: createErr } = await withTimeout(
+            supabase.from('users').upsert(defaultProfile).select().single(),
+            5000
+          )
 
-        if (createErr) {
-          console.error('[Auth] Failed to create profile:', createErr.message)
-          // Return a minimal profile so the UI doesn't hang
+          if (createErr) {
+            console.error('[Auth] Failed to create profile:', createErr.message)
+            return fallbackProfile
+          }
+
           return {
-            id: userId,
-            displayName: userEmail?.split('@')[0] || 'User',
-            defaultFace: 'character' as const,
-            preferences: {},
-            onboardingPhase: 1,
-          } as UserProfile
+            id: newProfile.id,
+            displayName: newProfile.display_name,
+            defaultFace: newProfile.default_face,
+            preferences: newProfile.preferences,
+            onboardingPhase: newProfile.onboarding_phase ?? 1,
+          }
+        } catch (createTimeout) {
+          console.warn('[Auth] Profile create timed out, using fallback')
+          return fallbackProfile
         }
-
-        return {
-          id: newProfile.id,
-          displayName: newProfile.display_name,
-          defaultFace: newProfile.default_face,
-          preferences: newProfile.preferences,
-          onboardingPhase: newProfile.onboarding_phase ?? 1,
-        } as UserProfile
       }
 
+      console.log('[Auth] Profile loaded:', data.display_name)
       return {
         id: data.id,
         displayName: data.display_name,
         defaultFace: data.default_face,
         preferences: data.preferences,
         onboardingPhase: data.onboarding_phase ?? 1,
-      } as UserProfile
+      }
     } catch (err) {
-      console.error('[Auth] Profile load exception:', err)
-      // Return a minimal profile so the UI doesn't hang
-      return {
-        id: userId,
-        displayName: userEmail?.split('@')[0] || 'User',
-        defaultFace: 'character' as const,
-        preferences: {},
-        onboardingPhase: 1,
-      } as UserProfile
+      console.warn('[Auth] Profile load failed or timed out:', err)
+      return fallbackProfile
     }
   }, [])
 
