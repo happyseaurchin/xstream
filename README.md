@@ -163,7 +163,7 @@ The core insight: coordination of experience in minds matters more than producti
 
 ## License
 
-[Add appropriate license]
+MIT — see [LICENSE](LICENSE)
 
 ---
 
