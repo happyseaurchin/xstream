@@ -27,5 +27,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.mcp.json
 xstream-the-address-of-meaning/
 .vercel
