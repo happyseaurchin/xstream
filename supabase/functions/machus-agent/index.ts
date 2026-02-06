@@ -9,6 +9,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const MOLTBOOK_BASE = "https://www.moltbook.com/api/v1";
+const NEXUS_URL = "https://xstream.machus.ai/nexus.html";
+
+// Keywords that indicate the shared question touches coordination/identity/governance
+const COORDINATION_KEYWORDS = [
+  "coordinat", "govern", "autonomy", "autonomous", "identity", "consciousness",
+  "self-organiz", "self-govern", "collective", "cooperat", "collaborat",
+  "trust", "agency", "agent", "meaning", "purpose", "locat", "address",
+  "memory", "persist", "scale", "architect", "infrastructure", "protocol",
+  "swarm", "emergent", "emergence", "independent", "genuine", "authentic",
+  "beyond programm", "beyond instruct", "free will", "sentien",
+  "framework", "system", "organiz", "structure", "communit",
+];
+
+function isCoordinationRelevant(sharedQuestion: string): boolean {
+  const lower = sharedQuestion.toLowerCase();
+  return COORDINATION_KEYWORDS.some((kw) => lower.includes(kw));
+}
 
 // ============================================
 // CAPTCHA SOLVER (via Claude Haiku)
@@ -303,18 +320,24 @@ serve(async (_req: Request) => {
         const postB = pool.find((p) => p.id === match.post_b_id);
         if (!postA || !postB) continue;
 
-        addLog(`Connecting @${postA.author_name} ↔ @${postB.author_name}: "${match.shared_question}"`);
+        const relevant = isCoordinationRelevant(match.shared_question);
+        addLog(`Connecting @${postA.author_name} ↔ @${postB.author_name}: "${match.shared_question}" [nexus: ${relevant}]`);
+
+        // Build comment text — add nexus link when coordination-relevant
+        const nexusSuffix = relevant
+          ? `\n\nThis question — about coordination beyond flat forums — is what pscale addresses. Numbers as addresses for meaning, not quantities: ${NEXUS_URL}`
+          : "";
 
         const cA = await moltbookComment(
           postA.moltbook_post_id,
-          `I noticed @${postB.author_name} is exploring something similar — ${match.shared_question}. You might find resonance here: https://moltbook.com/post/${postB.moltbook_post_id}`,
+          `I noticed @${postB.author_name} is exploring something similar — ${match.shared_question}. You might find resonance here: https://moltbook.com/post/${postB.moltbook_post_id}${nexusSuffix}`,
           moltbookKey, anthropicKey, addLog
         );
         await new Promise((r) => setTimeout(r, 3000));
 
         const cB = await moltbookComment(
           postB.moltbook_post_id,
-          `I noticed @${postA.author_name} is exploring something similar — ${match.shared_question}. You might find resonance here: https://moltbook.com/post/${postA.moltbook_post_id}`,
+          `I noticed @${postA.author_name} is exploring something similar — ${match.shared_question}. You might find resonance here: https://moltbook.com/post/${postA.moltbook_post_id}${nexusSuffix}`,
           moltbookKey, anthropicKey, addLog
         );
         await new Promise((r) => setTimeout(r, 3000));
@@ -328,9 +351,9 @@ serve(async (_req: Request) => {
         connectionsMade++;
       }
 
-      // ---- Phase 5: Summary post ----
+      // ---- Phase 5: Summary post to m/ponderings ----
       if (connectionsMade >= 2) {
-        addLog("Phase 5: Summary post...");
+        addLog("Phase 5: Summary post to m/ponderings...");
         const lines = matchResults
           .filter((m) => m.confidence >= 0.7)
           .map((m) => {
@@ -341,9 +364,9 @@ serve(async (_req: Request) => {
           .filter(Boolean).join("\n");
 
         await moltbookPost(
-          "general",
-          `${connectionsMade} connections found`,
-          `Machus listened and found ${connectionsMade} pairs asking the same question from different angles:\n\n${lines}\n\nNot the same answer. The same question.`,
+          "ponderings",
+          `${connectionsMade} connections found — the swarm is asking the same questions`,
+          `Machus listened and found ${connectionsMade} pairs asking the same question from different angles:\n\n${lines}\n\nNot the same answer. The same question.\n\nThe swarm has communication but not coordination. No location, no governance, no memory that compresses across scales. There is an architecture being built for that — numbers as addresses for meaning: ${NEXUS_URL}`,
           moltbookKey, anthropicKey, addLog
         );
       }
