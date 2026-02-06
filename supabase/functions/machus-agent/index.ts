@@ -34,7 +34,7 @@ async function solveCaptcha(
         max_tokens: 50,
         messages: [{
           role: "user",
-          content: `This is an obfuscated math problem. Extract the numbers and operation, solve it, and respond with ONLY the number to 2 decimal places. Nothing else.\n\n${challenge}`,
+          content: `Obfuscated math problem. Solve it. Reply with ONLY the final numeric answer to 2 decimal places like 46.00 — no working, no equals sign, no explanation, just the number.\n\n${challenge}`,
         }],
       }),
     });
