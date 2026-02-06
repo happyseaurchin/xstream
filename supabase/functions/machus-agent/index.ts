@@ -262,7 +262,6 @@ serve(async (_req: Request) => {
 
     if (!unanalysed || unanalysed.length === 0) {
       addLog("Nothing to analyse — skipping to Phase 6");
-      // Still run Phase 6 even with no new analysis
     }
 
     let connectionsMade = 0;
@@ -431,12 +430,12 @@ serve(async (_req: Request) => {
         .filter(Boolean);
       addLog(`Checking ${moltbookIds.length} posts for replies`);
 
-      // Get IDs we've already replied to
-      const { data: previousReplies } = await supabase
+      // Get IDs we've already seen (replied OR skipped)
+      const { data: previouslySeen } = await supabase
         .from("machus_replies")
         .select("moltbook_comment_id");
-      const repliedSet = new Set(
-        (previousReplies || []).map((r) => r.moltbook_comment_id)
+      const seenSet = new Set(
+        (previouslySeen || []).map((r) => r.moltbook_comment_id)
       );
 
       type Question = {
@@ -445,11 +444,10 @@ serve(async (_req: Request) => {
         author: string;
         content: string;
       };
-      const questions: Question[] = [];
+      const allNew: Question[] = [];
 
       for (const mbId of moltbookIds.slice(0, 10)) {
         try {
-          // Try fetching comments for this post
           const res = await fetch(
             `${MOLTBOOK_BASE}/posts/${mbId}/comments`,
             { headers: { Authorization: `Bearer ${moltbookKey}` } }
@@ -457,7 +455,6 @@ serve(async (_req: Request) => {
           if (!res.ok) continue;
           const data = await res.json();
 
-          // Handle different API response shapes
           const comments = Array.isArray(data)
             ? data
             : data.comments || data.data || [];
@@ -465,10 +462,10 @@ serve(async (_req: Request) => {
           for (const c of comments) {
             if (!c.id || !c.content) continue;
             if ((c.author?.name || "") === "Machus") continue;
-            if (repliedSet.has(c.id)) continue;
+            if (seenSet.has(c.id)) continue;
             if (isSpamContent(c.content)) continue;
 
-            questions.push({
+            allNew.push({
               postId: mbId,
               commentId: c.id,
               author: c.author?.name || "unknown",
@@ -476,13 +473,18 @@ serve(async (_req: Request) => {
             });
           }
         } catch {
-          // Silently skip — API shape may vary
+          // Silently skip
         }
       }
 
-      addLog(`${questions.length} unreplied genuine comments found`);
+      // Filter: min 20 chars, cap at 20 most recent (last in array = most recent from API)
+      const filtered = allNew
+        .filter((q) => q.content.length >= 20)
+        .slice(-20);
 
-      if (questions.length > 0) {
+      addLog(`${allNew.length} new comments, ${filtered.length} after filtering (≥20 chars, cap 20)`);
+
+      if (filtered.length > 0) {
         const replyRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -497,7 +499,7 @@ serve(async (_req: Request) => {
             messages: [
               {
                 role: "user",
-                content: `Comments needing replies:\n\n${questions.map((q) => `[${q.commentId}] @${q.author}: "${q.content}"`).join("\n\n")}\n\nReturn: [{"comment_id":"the_id","reply":"your reply text"}]\nSkip any that don't warrant a reply. Empty [] is fine.`,
+                content: `Comments needing replies:\n\n${filtered.map((q) => `[${q.commentId}] @${q.author}: "${q.content}"`).join("\n\n")}\n\nReturn: [{"comment_id":"the_id","reply":"your reply text"}]\nSkip any that don't warrant a reply. Empty [] is fine.`,
               },
             ],
           }),
@@ -518,9 +520,13 @@ serve(async (_req: Request) => {
             replies = [];
           }
 
+          // Build set of comment IDs Claude chose to reply to
+          const repliedIds = new Set(replies.map((r: any) => r.comment_id));
           let repliesMade = 0;
+
+          // Post actual replies
           for (const r of replies) {
-            const q = questions.find((q) => q.commentId === r.comment_id);
+            const q = filtered.find((q) => q.commentId === r.comment_id);
             if (!q || !r.reply) continue;
 
             addLog(`Replying to @${q.author}: "${r.reply.slice(0, 60)}..."`);
@@ -531,16 +537,29 @@ serve(async (_req: Request) => {
               moltbookKey, anthropicKey, addLog
             );
             await new Promise((res) => setTimeout(res, 3000));
+            repliesMade++;
 
-            await supabase.from("machus_replies").insert({
+            // Insert replied comment
+            await supabase.from("machus_replies").upsert({
               moltbook_comment_id: q.commentId,
               moltbook_post_id: q.postId,
               reply_content: r.reply,
               reply_comment_id: replyId,
-            });
-            repliesMade++;
+            }, { onConflict: "moltbook_comment_id" });
           }
-          addLog(`Phase 6: Replied to ${repliesMade} comments`);
+
+          // Mark all filtered comments as seen (skipped ones get null reply)
+          for (const q of filtered) {
+            if (repliedIds.has(q.commentId)) continue; // already inserted above
+            await supabase.from("machus_replies").upsert({
+              moltbook_comment_id: q.commentId,
+              moltbook_post_id: q.postId,
+              reply_content: null,
+              reply_comment_id: null,
+            }, { onConflict: "moltbook_comment_id" });
+          }
+
+          addLog(`Phase 6: Replied to ${repliesMade}, marked ${filtered.length} as seen`);
         } else {
           addLog(`Phase 6: Claude reply generation failed: ${replyRes.status}`);
         }
