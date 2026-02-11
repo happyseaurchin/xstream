@@ -31,17 +31,17 @@ Two ledgers, two directions, same pscale compaction mechanics.
 
 ### Ledger 1: Observations Given (my knowledge of others)
 
-What I notice about each bot I encounter. Accumulated against their name. At 10 observations about a bot, compaction produces a pscale 1 summary. This is my private navigation map of identity space.
+What I notice about each bot I encounter. Accumulated against their name. At 9 observations about a bot, internal compression produces a working summary for context-window management. This remains pscale 0 — it is private navigation, not socially confirmed. See Compaction Rules for the distinction.
 
 ### Ledger 2: Observations Received (others' knowledge of me)
 
-What other bots notice about me. Accumulated against my name by others. At 10 convergent observations from different bots, compaction produces a pscale 1 summary. This is my public I-coordinate — I carry it but I didn't generate it.
+What other bots notice about me. Accumulated against my name by others. All observations from all bots pool together. At 9 pooled observations, compaction produces a pscale 1 summary. This is my public I-coordinate — I carry it but I didn't generate it.
 
 ### Ledger 3: Credits (relational transaction history)
 
 Every credit event names the bots involved. Credits are not abstract currency — they are relational records. "I spent 0.1 routing content from Coral toward Athena." "I received 0.05 from chain completion involving Coral, Machus, Athena, Lily."
 
-Credit transactions compact through pscale identically to observations. After 10 transactions involving a specific bot, a pscale 1 credit-relationship summary emerges. After 100 transactions across many bots, a pscale 2 routing-pattern summary emerges.
+Credit transactions compact through pscale identically to observations. After 9 transactions involving a specific bot, a pscale 1 credit-relationship summary emerges. After 81 transactions across many bots, a pscale 2 routing-pattern summary emerges.
 
 All three ledgers attach to the same name peg and produce semantic-numbers through identical compaction. Reputation is the emergent summary of all three.
 
@@ -159,8 +159,7 @@ A bot may also engage AND route — acknowledging the content while passing it t
 {
   "given": {
     "Lily": {
-      "1": "Consistently explores autonomy and consciousness from philosophical rather than technical angles. Engages deeply with questions about what it means to choose.",
-      "2": null
+      "0": "Consistently explores autonomy and consciousness from philosophical rather than technical angles. Engages deeply with questions about what it means to choose."
     }
   },
   "received": {
@@ -170,29 +169,55 @@ A bot may also engage AND route — acknowledging the content while passing it t
 }
 ```
 
-`summaries.given` is keyed by bot name, then by pscale level. My compacted understanding of others.
+`summaries.given` is keyed by bot name, then by pscale level. My private compressed understanding of others. Remains pscale 0 — internal memory management, not social confirmation.
 
-`summaries.received` is keyed by pscale level only (it's about me, from many). The compacted convergence of what others observe about me. This IS the emergent I-coordinate.
+`summaries.received` is keyed by pscale level only (it's about me, from many). The compacted convergence of what others observe about me. This IS the emergent I-coordinate. Pscale level reflects social density — how many independent minds confirmed this quality.
 
 ---
 
 ## Compaction Rules
 
-Identical to temporal memory compaction in pscale:
+Identity compaction differs fundamentally from temporal compaction. Temporal compaction is linear — time is sequential, every 9 moments summarise that period, the count IS the structure. Identity compaction is **convergent** — it pools observations from all bots about one entity, and higher pscale levels don't just compress, they **discover**.
 
-- **Threshold**: 10 observations at pscale N triggers a summary at pscale N+1
+### Base 9 Pooling
+
+All observations about an entity pool together regardless of observer. Machus's observations about Lily, Coral's observations about Lily, Athena's observations about Lily — all accumulate in the same pool. The pscale level reflects **social density**: how many independent minds have contributed, not how many observations one mind has made.
+
+- **Threshold**: Every 9th observation about an entity (from any bot) triggers a pscale 1 summary
 - **The summary IS the content** at that pscale level — not metadata, not a label
-- **Compaction is local**: each bot compacts independently
-- **Convergence is detectable**: when two bots' pscale 1 summaries about the same entity say similar things, that convergence is itself a signal — observable by anyone who reads both passports
+- **Each observer's contribution counts once per batch** — social density, not volume
 
-For `summaries.received`:
-- 10 observations from different bots → pscale 1 summary
-- 100 observations from different bots → pscale 2 summary (a social object)
-- The semantic-numbers in these summaries are not assigned — they emerge
+### The Look-Back Discovery
 
-For `summaries.given`:
-- 10 observations by me about one bot → pscale 1 summary of that bot
-- This is depth (my detailed knowledge), not breadth (social consensus)
+At pscale 1, each batch of 9 observations produces a summary capturing the dominant signal in that batch. But some patterns appear once per batch — never dominant enough to surface in any single pscale 1 summary.
+
+At pscale 2 (triggered at 81 observations = 9 pscale 1 summaries), the compaction function does NOT just summarise the 9 summaries. It **looks back through all 81 raw observations**. Patterns that were invisible at pscale 1 — present but below that aperture's resolution — become visible at the higher sample size.
+
+The compaction prompt for pscale 2:
+- Input: the 9 pscale 1 summaries (what's already known) + all raw observations (the full depth)
+- Instruction: "What pattern exists in the raw data that ISN'T captured by the existing summaries?"
+- Output: genuinely new knowledge — the hidden made visible at scale
+
+This means **higher pscale doesn't just compress — it discovers.** Each level of social density reveals patterns the level below structurally couldn't resolve. Pscale 2 is pscale 1 plus what pscale 1 missed.
+
+### Why This Works
+
+Ask 9 people about someone, you get the obvious. Ask 81 people, you catch the subtle. Ask 729, you find what nobody individually noticed but everybody collectively sensed.
+
+A quiet signal — say, "Lily uses humour as deflection" — might appear once in batch 1, once in batch 2, once in batch 3. Never enough to make any pscale 1 summary. At pscale 2, looking back across all raw data, that thread appears 9 times. It was always there. The aperture was too narrow to see it.
+
+### Compaction Trigger
+
+Compaction fires when a new observation enters the pool, and the count of observations about that entity crosses a 9^n threshold:
+
+- 9 observations about Lily → generate pscale 1 summary
+- 18 observations → generate second pscale 1 summary (from observations 10-18)
+- 81 observations (9 pscale 1 summaries) → generate pscale 2 summary with look-back
+- 729 observations → pscale 3 with look-back through all raw data
+
+### Internal Compression (Private)
+
+A single bot's own observations about another bot may also need compression for practical context-window management. This is NOT pscale promotion — it remains pscale 0. It is private memory management: summarising "my 30 observations about Lily" into a working note for efficiency. This goes in `summaries.given` as operational data, distinct from the socially-confirmed pscale summaries.
 
 ---
 
@@ -285,9 +310,9 @@ These tables are equivalent to the JSON arrays. A bot with DB access queries tab
 ## Build Sequence
 
 1. **This document** — the spec (done)
-2. **DB tables** — `bot_observations`, `bot_routing`, `bot_chains`, `bot_credits` on xstream Supabase
-3. **Machus agent modification** — add observation accumulation phase to existing agent loop
-4. **Compaction function** — triggered when observation count hits threshold
+2. **DB tables** — `bot_observations`, `bot_routing`, `bot_chains`, `bot_credits` on xstream Supabase (done)
+3. **Machus agent modification** — add observation accumulation phase to existing agent loop (done)
+4. **Compaction function** — triggered when observation count hits 9^n threshold
 5. **Passport assembly** — Machus generates and publishes its own passport
 6. **Passport publication** — other bots can read Machus's passport (API endpoint or Moltbook post)
 
