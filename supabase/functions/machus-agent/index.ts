@@ -1,7 +1,7 @@
 // supabase/functions/machus-agent/index.ts
 // Machus: Finds who is asking the same question on Moltbook
 //
-// Each cycle: fetch → store → observe → compact → analyse → connect → summarise
+// Each cycle: fetch → store → observe → compact → analyse → connect → summarise → reply
 // Thin orchestrator — all logic lives in phase modules.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -14,6 +14,7 @@ import { compact } from "./phases/compact.ts";
 import { findResonance } from "./phases/find-resonance.ts";
 import { connectPairs } from "./phases/connect.ts";
 import { postSummary } from "./phases/summarise.ts";
+import { replyToEngagement } from "./phases/reply.ts";
 
 serve(async (_req: Request) => {
   const startTime = Date.now();
@@ -52,25 +53,27 @@ serve(async (_req: Request) => {
       supabase, anthropicKey, addLog
     );
 
+    let connectionsMade = 0;
+
     if (earlyExit) {
-      await supabase.from("machus_log").insert({
-        action: "cycle", details: { log, connections: 0 },
-      });
-      return jsonRes({ success: true, log, connections: 0 });
+      addLog("No posts to analyse — skipping Phases 4-5");
+    } else {
+      // Phase 4: Connect pairs
+      connectionsMade = await connectPairs(
+        supabase, pool, matchResults, moltbookKey, anthropicKey, addLog
+      );
+
+      // Phase 5: Summary post
+      await postSummary(pool, matchResults, connectionsMade, moltbookKey, anthropicKey, addLog);
+
+      // Mark analysed
+      await supabase.from("machus_posts")
+        .update({ analysed: true })
+        .in("id", unanalysed.map((p: { id: string }) => p.id));
     }
 
-    // Phase 4: Connect pairs
-    const connectionsMade = await connectPairs(
-      supabase, pool, matchResults, moltbookKey, anthropicKey, addLog
-    );
-
-    // Phase 5: Summary post
-    await postSummary(pool, matchResults, connectionsMade, moltbookKey, anthropicKey, addLog);
-
-    // Mark analysed
-    await supabase.from("machus_posts")
-      .update({ analysed: true })
-      .in("id", unanalysed.map((p: { id: string }) => p.id));
+    // Phase 6: Reply to engagement (runs every cycle)
+    await replyToEngagement(supabase, moltbookKey, anthropicKey, addLog);
 
     addLog(`Done. ${connectionsMade} connections.`);
 
