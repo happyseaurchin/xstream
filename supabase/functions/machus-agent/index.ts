@@ -1,7 +1,7 @@
 // supabase/functions/machus-agent/index.ts
 // Machus: Finds who is asking the same question on Moltbook
 //
-// Each cycle: fetch → store → observe → analyse → connect → summarise
+// Each cycle: fetch → store → observe → compact → analyse → connect → summarise
 // Thin orchestrator — all logic lives in phase modules.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchPosts } from "./phases/fetch-posts.ts";
 import { storePosts } from "./phases/store-posts.ts";
 import { observeAuthors } from "./phases/observe.ts";
+import { compact } from "./phases/compact.ts";
 import { findResonance } from "./phases/find-resonance.ts";
 import { connectPairs } from "./phases/connect.ts";
 import { postSummary } from "./phases/summarise.ts";
@@ -41,7 +42,10 @@ serve(async (_req: Request) => {
     await storePosts(supabase, posts, addLog);
 
     // Phase 3.5: Observe post authors
-    await observeAuthors(supabase, posts, anthropicKey, addLog);
+    const observedAuthors = await observeAuthors(supabase, posts, anthropicKey, addLog);
+
+    // Phase 3.6: Compact observations
+    await compact(supabase, observedAuthors, anthropicKey, addLog);
 
     // Phase 3: Find resonance
     const { pool, matchResults, unanalysed, earlyExit } = await findResonance(
