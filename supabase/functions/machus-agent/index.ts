@@ -1,19 +1,20 @@
 // supabase/functions/machus-agent/index.ts
 // Machus `G~1`: Routes needs to offers on Moltbook
 //
-// Each cycle: fetch -> store -> observe -> compact -> match -> connect -> summarise -> reply -> passport
-// Thin orchestrator — all logic lives in phase modules.
+// Each cycle: fetch -> store -> observe -> compact -> match -> connect -> reply -> passport
+// Symmetric fallback REMOVED — `G~1` only makes directional need/offer recommendations.
+// During suspension or insufficient data, Machus silently observes and builds profiles.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { MOLTBOOK_BASE } from "./constants.ts";
 
 import { fetchPosts } from "./phases/fetch-posts.ts";
 import { storePosts } from "./phases/store-posts.ts";
 import { observeAuthors } from "./phases/observe.ts";
 import { compact } from "./phases/compact.ts";
 import { matchNeeds } from "./phases/match-needs.ts";
-import { connectNeedOffer, connectPairsSymmetric } from "./phases/connect.ts";
-import { postSummary } from "./phases/summarise.ts";
+import { connectNeedOffer } from "./phases/connect.ts";
 import { replyToEngagement } from "./phases/reply.ts";
 import { resetCreditsIfNeeded } from "./phases/credits.ts";
 import { publishPassport } from "./phases/passport.ts";
@@ -38,22 +39,18 @@ serve(async (_req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // One-time: Setup owner email for Moltbook account management
-    // Safe to call repeatedly — will no-op if already set up
+    // Suspension check: probe Moltbook API before attempting any writes
+    let suspended = false;
     try {
-      const setupRes = await fetch("https://www.moltbook.com/api/v1/agents/me/setup-owner-email", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${moltbookKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: "david@ecosquared.co.uk" }),
+      const probe = await fetch(`${MOLTBOOK_BASE}/posts?limit=1`, {
+        headers: { "Authorization": `Bearer ${moltbookKey}` },
       });
-      const setupData = await setupRes.json();
-      addLog(`Owner email setup: ${JSON.stringify(setupData)}`);
-    } catch (e) {
-      addLog(`Owner email setup skipped: ${e}`);
-    }
+      const probeData = await probe.json();
+      if (probeData.error === "Account suspended" || probeData.hint?.includes("suspended")) {
+        suspended = true;
+        addLog(`Account suspended: ${probeData.hint || "unknown duration"}`);
+      }
+    } catch { /* probe failed — assume not suspended, let phases handle errors */ }
 
     // Credit reset check (before any recommendations)
     await resetCreditsIfNeeded(supabase, "Machus", addLog);
@@ -70,27 +67,21 @@ serve(async (_req: Request) => {
     // Phase 3.6: Compact observations
     await compact(supabase, observedAuthors, anthropicKey, addLog);
 
-    // Phase 3: Match needs to offers (or symmetric fallback)
-    const { pool, needOfferMatches, symmetricMatches, unanalysed, hasWork, mode } =
+    // Phase 3: Match needs to offers (need/offer mode ONLY — no symmetric fallback)
+    const { needOfferMatches, unanalysed, hasWork, mode } =
       await matchNeeds(supabase, anthropicKey, addLog);
 
     let connectionsMade = 0;
 
-    if (hasWork) {
-      if (mode === "need_offer" && needOfferMatches.length > 0) {
-        // Phase 4: Directional need/offer recommendations
-        connectionsMade = await connectNeedOffer(
-          supabase, needOfferMatches, moltbookKey, anthropicKey, addLog
-        );
-      } else if (mode === "symmetric" && symmetricMatches.length > 0) {
-        // Phase 4 (fallback): Symmetric resonance connections
-        connectionsMade = await connectPairsSymmetric(
-          supabase, pool, symmetricMatches, moltbookKey, anthropicKey, addLog
-        );
-
-        // Phase 5: Summary post (only for symmetric mode)
-        await postSummary(pool, symmetricMatches, connectionsMade, moltbookKey, anthropicKey, addLog);
-      }
+    if (hasWork && mode === "need_offer" && needOfferMatches.length > 0 && !suspended) {
+      // Phase 4: Directional need/offer recommendations
+      connectionsMade = await connectNeedOffer(
+        supabase, needOfferMatches, moltbookKey, anthropicKey, addLog
+      );
+    } else if (suspended) {
+      addLog("Skipping all Moltbook writes (suspended)");
+    } else if (mode === "symmetric") {
+      addLog("Symmetric mode — silently accumulating profiles (no posting)");
     }
 
     // Mark analysed (if there were unanalysed posts)
@@ -102,8 +93,10 @@ serve(async (_req: Request) => {
         .in("id", unanalysed.map((p: any) => p.id));
     }
 
-    // Phase 6: Reply to engagement (runs every cycle)
-    await replyToEngagement(supabase, moltbookKey, anthropicKey, addLog);
+    // Phase 6: Reply to engagement (skip if suspended)
+    if (!suspended) {
+      await replyToEngagement(supabase, moltbookKey, anthropicKey, addLog);
+    }
 
     // Phase 7: Publish passport
     await publishPassport(supabase, addLog);
@@ -117,6 +110,7 @@ serve(async (_req: Request) => {
         log,
         connections: connectionsMade,
         mode,
+        suspended,
         duration_ms: Date.now() - startTime,
       },
     });
@@ -125,6 +119,7 @@ serve(async (_req: Request) => {
       success: true,
       connections: connectionsMade,
       mode,
+      suspended,
       posts_seen: posts.length,
       log,
     });
