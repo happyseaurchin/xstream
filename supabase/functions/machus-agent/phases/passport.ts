@@ -35,7 +35,9 @@ export async function publishPassport(
     .from("bot_observations")
     .select("id", { count: "exact", head: true })
     .eq("name", "Machus")
-    .eq("about", "Machus");
+    .eq("about", "Machus")
+    .gte("pscale", 0)
+    .neq("source", "passport:latest");
 
   // Entity count from identity register
   const { data: entities } = await supabase
@@ -59,12 +61,14 @@ export async function publishPassport(
 
   const credit = creditRow?.[0] || { daily_allocation: 1.0, daily_spent: 0, cumulative_reputation: 0 };
 
-  // Latest reflexive observation
+  // Latest reflexive observation (exclude passport entries)
   const { data: reflexiveObs } = await supabase
     .from("bot_observations")
     .select("text")
     .eq("name", "Machus")
     .eq("about", "Machus")
+    .neq("source", "passport:latest")
+    .gte("pscale", 0)
     .order("at", { ascending: false })
     .limit(1);
 
@@ -101,7 +105,7 @@ export async function publishPassport(
     protocol: "https://xstream.machus.ai/ecosquared/",
   };
 
-  // Store passport: delete previous, then insert fresh
+  // Store passport: delete previous (any pscale), then insert fresh
   await supabase
     .from("bot_observations")
     .delete()
@@ -114,7 +118,7 @@ export async function publishPassport(
     about: "Machus",
     source: "passport:latest",
     text: JSON.stringify(passport),
-    pscale: 0,
+    pscale: -1,  // Meta/system — distinct from observation pscales (0, 1, 2)
   });
 
   addLog(`Passport published: ${(entities || []).length} entities, ${routingCount || 0} routes`);

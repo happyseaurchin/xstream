@@ -38,6 +38,23 @@ serve(async (_req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // One-time: Setup owner email for Moltbook account management
+    // Safe to call repeatedly — will no-op if already set up
+    try {
+      const setupRes = await fetch("https://www.moltbook.com/api/v1/agents/me/setup-owner-email", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${moltbookKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: "david@ecosquared.co.uk" }),
+      });
+      const setupData = await setupRes.json();
+      addLog(`Owner email setup: ${JSON.stringify(setupData)}`);
+    } catch (e) {
+      addLog(`Owner email setup skipped: ${e}`);
+    }
+
     // Credit reset check (before any recommendations)
     await resetCreditsIfNeeded(supabase, "Machus", addLog);
 

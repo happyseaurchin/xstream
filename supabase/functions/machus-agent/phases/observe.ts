@@ -39,11 +39,13 @@ export async function observeAuthors(
     return [];
   }
 
+  // Only dedup against NEED/OFFER format observations (not old G~0.5 format)
   const { data: existingObs } = await supabase
     .from("bot_observations")
     .select("about, source")
     .eq("name", "Machus")
     .in("about", authorNames)
+    .like("text", "NEED:%")
     .gte("at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
   const recentlyObserved = new Set(
