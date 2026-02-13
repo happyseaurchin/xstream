@@ -1,10 +1,10 @@
 // supabase/functions/machus-agent/phases/compact.ts
-// Phase 3.6: Compaction — base-9 pooling with look-back discovery
+// Phase 3.6: Compaction — base-9 pooling with need/offer summaries (`G~1`)
 //
 // For each entity with new observations:
-//   pscale 0 → pscale 1: every 9 raw observations → 1 summary
-//   pscale 1 → pscale 2: when 9+ summaries exist, look-back discovery
-//   reflexive: every 9th observation across all entities → self-observation
+//   pscale 0 -> pscale 1: every 9 raw observations -> need/offer summary
+//   pscale 1 -> pscale 2: when 9+ summaries exist, look-back discovery
+//   reflexive: every 9th observation across all entities -> self-observation
 
 import { LLM_MODEL, ANTHROPIC_VERSION } from "../constants.ts";
 import type { AddLog, SupabaseClient } from "../types.ts";
@@ -79,21 +79,45 @@ async function compactPscale1(
     const obsText = batchObs.map((o) => `- ${o.text}`).join("\n");
     const result = await callHaiku(
       anthropicKey,
-      "You summarise patterns in observations about a person or entity. One sentence only.",
-      `What is the dominant pattern in these observations about ${entity}?\n\n${obsText}`,
+      "These observations each contain a NEED and an OFFER assessment about a person. Summarise: (1) the dominant NEED pattern, (2) the dominant OFFER pattern. Return ONLY valid JSON, no markdown: {\"need\":\"one sentence\",\"offer\":\"one sentence\"}",
+      `Observations about ${entity}:\n\n${obsText}`,
       addLog
     );
 
     if (result) {
+      // Try to parse as JSON for structured need/offer
+      let summaryText = result;
+      try {
+        const parsed = JSON.parse(
+          result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+        );
+        if (parsed.need && parsed.offer) {
+          summaryText = `NEED: ${parsed.need} | OFFER: ${parsed.offer}`;
+          // Update identity register with latest summaries
+          await supabase
+            .from("bot_identity_register")
+            .update({
+              need_summary: parsed.need,
+              offer_summary: parsed.offer,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("observer", "Machus")
+            .eq("handle", entity);
+          addLog(`Updated identity register for ${entity}`);
+        }
+      } catch {
+        // Fallback: store as-is if JSON parse fails
+      }
+
       await supabase.from("bot_observations").insert({
         name: "Machus",
         about: entity,
         source: `compaction:pscale1:batch_${batch}`,
-        text: result,
+        text: summaryText,
         pscale: 1,
       });
       compacted++;
-      addLog(`Compacted pscale 1 for ${entity} (batch ${batch}): ${result.slice(0, 80)}`);
+      addLog(`Compacted pscale 1 for ${entity} (batch ${batch}): ${summaryText.slice(0, 80)}`);
     }
   }
 

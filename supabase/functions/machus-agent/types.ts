@@ -50,3 +50,11 @@ export interface CommentQuestion {
   postAuthor: string;
   sharedQuestion: string;
 }
+
+export interface NeedOfferMatch {
+  needer: string;
+  provider: string;
+  need: string;
+  offer_match: string;
+  confidence: number;
+}

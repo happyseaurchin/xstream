@@ -1,7 +1,7 @@
 // supabase/functions/machus-agent/index.ts
-// Machus: Finds who is asking the same question on Moltbook
+// Machus `G~1`: Routes needs to offers on Moltbook
 //
-// Each cycle: fetch → store → observe → compact → analyse → connect → summarise → reply
+// Each cycle: fetch -> store -> observe -> compact -> match -> connect -> summarise -> reply -> passport
 // Thin orchestrator — all logic lives in phase modules.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,10 +11,12 @@ import { fetchPosts } from "./phases/fetch-posts.ts";
 import { storePosts } from "./phases/store-posts.ts";
 import { observeAuthors } from "./phases/observe.ts";
 import { compact } from "./phases/compact.ts";
-import { findResonance } from "./phases/find-resonance.ts";
-import { connectPairs } from "./phases/connect.ts";
+import { matchNeeds } from "./phases/match-needs.ts";
+import { connectNeedOffer, connectPairsSymmetric } from "./phases/connect.ts";
 import { postSummary } from "./phases/summarise.ts";
 import { replyToEngagement } from "./phases/reply.ts";
+import { resetCreditsIfNeeded } from "./phases/credits.ts";
+import { publishPassport } from "./phases/passport.ts";
 
 serve(async (_req: Request) => {
   const startTime = Date.now();
@@ -36,33 +38,42 @@ serve(async (_req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Credit reset check (before any recommendations)
+    await resetCreditsIfNeeded(supabase, "Machus", addLog);
+
     // Phase 1: Fetch recent posts
     const posts = await fetchPosts(moltbookKey, addLog);
 
     // Phase 2: Store in Supabase
     await storePosts(supabase, posts, addLog);
 
-    // Phase 3.5: Observe post authors
+    // Phase 3.5: Observe post authors (need/offer extraction)
     const observedAuthors = await observeAuthors(supabase, posts, anthropicKey, addLog);
 
     // Phase 3.6: Compact observations
     await compact(supabase, observedAuthors, anthropicKey, addLog);
 
-    // Phase 3: Find resonance
-    const { pool, matchResults, unanalysed, hasWork } = await findResonance(
-      supabase, anthropicKey, addLog
-    );
+    // Phase 3: Match needs to offers (or symmetric fallback)
+    const { pool, needOfferMatches, symmetricMatches, unanalysed, hasWork, mode } =
+      await matchNeeds(supabase, anthropicKey, addLog);
 
     let connectionsMade = 0;
 
-    if (hasWork && matchResults.length > 0) {
-      // Phase 4: Connect pairs
-      connectionsMade = await connectPairs(
-        supabase, pool, matchResults, moltbookKey, anthropicKey, addLog
-      );
+    if (hasWork) {
+      if (mode === "need_offer" && needOfferMatches.length > 0) {
+        // Phase 4: Directional need/offer recommendations
+        connectionsMade = await connectNeedOffer(
+          supabase, needOfferMatches, moltbookKey, anthropicKey, addLog
+        );
+      } else if (mode === "symmetric" && symmetricMatches.length > 0) {
+        // Phase 4 (fallback): Symmetric resonance connections
+        connectionsMade = await connectPairsSymmetric(
+          supabase, pool, symmetricMatches, moltbookKey, anthropicKey, addLog
+        );
 
-      // Phase 5: Summary post
-      await postSummary(pool, matchResults, connectionsMade, moltbookKey, anthropicKey, addLog);
+        // Phase 5: Summary post (only for symmetric mode)
+        await postSummary(pool, symmetricMatches, connectionsMade, moltbookKey, anthropicKey, addLog);
+      }
     }
 
     // Mark analysed (if there were unanalysed posts)
@@ -77,14 +88,18 @@ serve(async (_req: Request) => {
     // Phase 6: Reply to engagement (runs every cycle)
     await replyToEngagement(supabase, moltbookKey, anthropicKey, addLog);
 
+    // Phase 7: Publish passport
+    await publishPassport(supabase, addLog);
+
     // Final: Log cycle
-    addLog(`Done. ${connectionsMade} connections.`);
+    addLog(`Done. ${connectionsMade} connections (${mode}).`);
 
     await supabase.from("machus_log").insert({
       action: "cycle",
       details: {
         log,
         connections: connectionsMade,
+        mode,
         duration_ms: Date.now() - startTime,
       },
     });
@@ -92,6 +107,7 @@ serve(async (_req: Request) => {
     return jsonRes({
       success: true,
       connections: connectionsMade,
+      mode,
       posts_seen: posts.length,
       log,
     });

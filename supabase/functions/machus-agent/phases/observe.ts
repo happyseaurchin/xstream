@@ -1,5 +1,9 @@
 // supabase/functions/machus-agent/phases/observe.ts
-// Phase 3.5: Observation accumulation for bot_observations
+// Phase 3.5: Observation accumulation — need/offer extraction (`G~1`)
+//
+// For each post author: extract what they NEED and what they OFFER.
+// Store as structured observation in bot_observations.
+// Register new entities in bot_identity_register.
 
 import { LLM_MODEL, ANTHROPIC_VERSION } from "../constants.ts";
 import type { AddLog, SupabaseClient, MoltbookPost, AuthorPost } from "../types.ts";
@@ -10,7 +14,7 @@ export async function observeAuthors(
   anthropicKey: string,
   addLog: AddLog
 ): Promise<string[]> {
-  addLog("Phase 3.5: Observing authors...");
+  addLog("Phase 3.5: Observing authors (need/offer)...");
 
   // Collect unique authors with their best post (longest content)
   const authorPosts = new Map<string, AuthorPost>();
@@ -30,6 +34,11 @@ export async function observeAuthors(
 
   // Check which authors we've already observed this cycle (avoid duplicates)
   const authorNames = Array.from(authorPosts.keys());
+  if (authorNames.length === 0) {
+    addLog("No authors to observe this cycle");
+    return [];
+  }
+
   const { data: existingObs } = await supabase
     .from("bot_observations")
     .select("about, source")
@@ -49,57 +58,108 @@ export async function observeAuthors(
 
   const observedAuthors: string[] = [];
 
-  if (toObserve.length > 0) {
-    const obsRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-      },
-      body: JSON.stringify({
-        model: LLM_MODEL,
-        max_tokens: 2000,
-        system: "You observe what each author seems to care about based on their post. One sentence per author. Focus on their underlying concern or question, not surface topic. Return ONLY valid JSON array, no markdown.",
-        messages: [{
-          role: "user",
-          content: `Authors and their posts:\n${toObserve.map((a) => `@${a.author}: "${a.title}" — ${a.content}`).join("\n\n")}\n\nReturn: [{"author":"name","observation":"one sentence"}]`,
-        }],
-      }),
-    });
-
-    if (obsRes.ok) {
-      const obsText = (await obsRes.json()).content?.[0]?.text || "[]";
-      // deno-lint-ignore no-explicit-any
-      let observations: any[] = [];
-      try {
-        observations = JSON.parse(
-          obsText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-        );
-      } catch { observations = []; }
-
-      let obsCount = 0;
-      for (const obs of observations) {
-        const authorData = authorPosts.get(obs.author);
-        if (!authorData || !obs.observation) continue;
-
-        await supabase.from("bot_observations").insert({
-          name: "Machus",
-          about: obs.author,
-          source: `moltbook:post:${authorData.postId}`,
-          text: obs.observation,
-          pscale: 0,
-        });
-        observedAuthors.push(obs.author);
-        obsCount++;
-      }
-      addLog(`Observed ${obsCount} authors`);
-    } else {
-      addLog(`Observation Haiku call failed: ${obsRes.status}`);
-    }
-  } else {
+  if (toObserve.length === 0) {
     addLog("No new authors to observe this cycle");
+    return [];
   }
 
+  const obsRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicKey,
+      "anthropic-version": ANTHROPIC_VERSION,
+    },
+    body: JSON.stringify({
+      model: LLM_MODEL,
+      max_tokens: 2000,
+      system: "For each author, based on their post, identify: (1) what they appear to NEED — what they're seeking, struggling with, or asking for; (2) what they OFFER — what they consistently provide, know about, or demonstrate. One sentence each. Return ONLY valid JSON array, no markdown.",
+      messages: [{
+        role: "user",
+        content: `Authors and their posts:\n${toObserve.map((a) => `@${a.author}: "${a.title}" — ${a.content}`).join("\n\n")}\n\nReturn: [{"author":"name","need":"what they need","offer":"what they offer"}]`,
+      }],
+    }),
+  });
+
+  if (!obsRes.ok) {
+    addLog(`Observation Haiku call failed: ${obsRes.status}`);
+    return [];
+  }
+
+  const obsText = (await obsRes.json()).content?.[0]?.text || "[]";
+  // deno-lint-ignore no-explicit-any
+  let observations: any[] = [];
+  try {
+    observations = JSON.parse(
+      obsText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+    );
+  } catch { observations = []; }
+
+  let obsCount = 0;
+  for (const obs of observations) {
+    const authorData = authorPosts.get(obs.author);
+    if (!authorData || !obs.need || !obs.offer) continue;
+
+    // Store structured observation: "NEED: ... | OFFER: ..."
+    const text = `NEED: ${obs.need} | OFFER: ${obs.offer}`;
+    await supabase.from("bot_observations").insert({
+      name: "Machus",
+      about: obs.author,
+      source: `moltbook:post:${authorData.postId}`,
+      text,
+      pscale: 0,
+    });
+
+    // Register in identity register (upsert: create if new, increment if existing)
+    await registerEntity(supabase, obs.author, addLog);
+
+    observedAuthors.push(obs.author);
+    obsCount++;
+  }
+  addLog(`Observed ${obsCount} authors (need/offer)`);
+
   return observedAuthors;
+}
+
+async function registerEntity(
+  supabase: SupabaseClient,
+  handle: string,
+  addLog: AddLog
+): Promise<void> {
+  // Check if entity already registered
+  const { data: existing } = await supabase
+    .from("bot_identity_register")
+    .select("id, observation_count")
+    .eq("observer", "Machus")
+    .eq("handle", handle)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    // Increment observation count
+    await supabase
+      .from("bot_identity_register")
+      .update({
+        observation_count: existing[0].observation_count + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing[0].id);
+  } else {
+    // Assign next local_i
+    const { data: maxRow } = await supabase
+      .from("bot_identity_register")
+      .select("local_i")
+      .eq("observer", "Machus")
+      .order("local_i", { ascending: false })
+      .limit(1);
+
+    const nextI = (maxRow && maxRow.length > 0) ? maxRow[0].local_i + 1 : 1;
+
+    await supabase.from("bot_identity_register").insert({
+      observer: "Machus",
+      handle,
+      local_i: nextI,
+      observation_count: 1,
+    });
+    addLog(`Registered new entity: @${handle} (i=${nextI})`);
+  }
 }
