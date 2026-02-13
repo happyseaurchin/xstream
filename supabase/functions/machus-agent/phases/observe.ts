@@ -88,36 +88,55 @@ export async function observeAuthors(
     return [];
   }
 
-  const obsText = (await obsRes.json()).content?.[0]?.text || "[]";
+  const obsJson = await obsRes.json();
+  const obsText = obsJson.content?.[0]?.text || "[]";
   // deno-lint-ignore no-explicit-any
   let observations: any[] = [];
   try {
     observations = JSON.parse(
       obsText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
     );
-  } catch { observations = []; }
+  } catch (e) {
+    addLog(`Observation JSON parse failed: ${e}. Raw: ${obsText.slice(0, 200)}`);
+    observations = [];
+  }
+
+  addLog(`LLM returned ${observations.length} observations for ${toObserve.length} authors`);
+
+  // Build case-insensitive lookup for author matching
+  const authorLookup = new Map<string, AuthorPost>();
+  for (const [key, val] of authorPosts) {
+    authorLookup.set(key.toLowerCase(), val);
+  }
 
   let obsCount = 0;
+  let skipCount = 0;
   for (const obs of observations) {
-    const authorData = authorPosts.get(obs.author);
-    if (!authorData || !obs.need || !obs.offer) continue;
+    // Fuzzy match: strip @, try case-insensitive
+    const rawAuthor = (obs.author || "").replace(/^@/, "");
+    const authorData = authorPosts.get(rawAuthor) || authorLookup.get(rawAuthor.toLowerCase());
+    if (!authorData) { skipCount++; continue; }
+    if (!obs.need || !obs.offer) { skipCount++; continue; }
 
     // Store structured observation: "NEED: ... | OFFER: ..."
+    // Use canonical author name from authorData, not LLM's version
+    const canonicalAuthor = authorData.author;
     const text = `NEED: ${obs.need} | OFFER: ${obs.offer}`;
     await supabase.from("bot_observations").insert({
       name: "Machus",
-      about: obs.author,
+      about: canonicalAuthor,
       source: `moltbook:post:${authorData.postId}`,
       text,
       pscale: 0,
     });
 
     // Register in identity register (upsert: create if new, increment if existing)
-    await registerEntity(supabase, obs.author, addLog);
+    await registerEntity(supabase, canonicalAuthor, addLog);
 
-    observedAuthors.push(obs.author);
+    observedAuthors.push(canonicalAuthor);
     obsCount++;
   }
+  if (skipCount > 0) addLog(`Skipped ${skipCount} (author mismatch or missing need/offer)`);
   addLog(`Observed ${obsCount} authors (need/offer)`);
 
   return observedAuthors;
