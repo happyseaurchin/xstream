@@ -1,9 +1,10 @@
 /**
  * claude.ts — browser-side Claude API caller with full logging.
  *
- * Every call logs: engine name, model, full system/user prompts,
- * full response, token usage. Open browser console to see everything.
+ * Every call logs to both console and the session logger.
  */
+
+import { logEngine, logError } from './logger'
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 
@@ -25,13 +26,14 @@ export async function callClaude(
   maxTokens = 2048,
   engineLabel = 'unknown'
 ): Promise<ClaudeResponse> {
-  // Log the full request
+  // Log request
+  logEngine(engineLabel, 'request', { model, system, user })
+
   console.group(`🔮 [${engineLabel}] → ${model}`)
-  console.log('%c SYSTEM PROMPT:', 'color: #c4a262; font-weight: bold')
+  console.log('%c SYSTEM:', 'color: #c4a262; font-weight: bold')
   console.log(system)
-  console.log('%c USER PROMPT:', 'color: #6a9fb5; font-weight: bold')
+  console.log('%c USER:', 'color: #6a9fb5; font-weight: bold')
   console.log(user)
-  console.log(`Max tokens: ${maxTokens}`)
   console.groupEnd()
 
   const response = await fetch(ANTHROPIC_API_URL, {
@@ -52,6 +54,7 @@ export async function callClaude(
 
   if (!response.ok) {
     const err = await response.text()
+    logError(engineLabel, `API ${response.status}: ${err}`)
     console.error(`❌ [${engineLabel}] API error ${response.status}:`, err)
     throw new Error(`Claude API ${response.status}: ${err}`)
   }
@@ -62,11 +65,14 @@ export async function callClaude(
     ?.map((c: any) => c.text)
     ?.join('') ?? ''
 
-  // Log the full response
+  const tokens = `${data.usage?.input_tokens ?? 0} in, ${data.usage?.output_tokens ?? 0} out`
+
+  // Log response
+  logEngine(engineLabel, 'response', { response: text, tokens })
+
   console.group(`✅ [${engineLabel}] ← response`)
-  console.log('%c RESPONSE:', 'color: #8fbc8f; font-weight: bold')
   console.log(text)
-  console.log(`Tokens: ${data.usage?.input_tokens ?? 0} in, ${data.usage?.output_tokens ?? 0} out`)
+  console.log(`Tokens: ${tokens}`)
   console.groupEnd()
 
   return {

@@ -1,11 +1,9 @@
 /**
  * shelf.ts — read/write JSON blocks by key, with logging.
- *
- * Supabase as a JSON locker. One table, three functions.
- * Every read/write is logged to console with the full block data.
  */
 
 import { supabase } from './supabase'
+import { logShelf, logEvent } from './logger'
 
 export async function readBlock(id: string): Promise<any | null> {
   if (!supabase) return null
@@ -19,20 +17,16 @@ export async function readBlock(id: string): Promise<any | null> {
     return null
   }
   if (!data) {
-    console.log(`📦 [shelf] READ "${id}" — not found`)
+    logEvent('shelf', `READ "${id}" — not found`)
     return null
   }
-  console.group(`📦 [shelf] READ "${id}"`)
-  console.log(data.data)
-  console.groupEnd()
+  logShelf('READ', id, data.data)
   return data.data ?? null
 }
 
 export async function writeBlock(id: string, block: any): Promise<void> {
   if (!supabase) return
-  console.group(`📦 [shelf] WRITE "${id}"`)
-  console.log(block)
-  console.groupEnd()
+  logShelf('WRITE', id, block)
   const { error } = await supabase
     .from('blocks')
     .upsert({ id, data: block, updated_at: new Date().toISOString() })
@@ -53,6 +47,6 @@ export async function readBlocksByPrefix(
     console.warn(`📦 [shelf] READ prefix "${prefix}" — error:`, error.message)
     return []
   }
-  console.log(`📦 [shelf] READ prefix "${prefix}" — ${data?.length ?? 0} results`)
+  logEvent('shelf', `READ prefix "${prefix}" — ${data?.length ?? 0} results`)
   return data ?? []
 }
