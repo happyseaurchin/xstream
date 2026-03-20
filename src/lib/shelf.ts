@@ -10,7 +10,7 @@ import { supabase } from './supabase'
 export async function readBlock(id: string): Promise<any | null> {
   if (!supabase) return null
   const { data, error } = await supabase
-    .from('shelf')
+    .from('blocks')
     .select('data')
     .eq('id', id)
     .single()
@@ -24,7 +24,7 @@ export async function readBlock(id: string): Promise<any | null> {
 export async function writeBlock(id: string, block: any): Promise<void> {
   if (!supabase) return
   const { error } = await supabase
-    .from('shelf')
+    .from('blocks')
     .upsert({ id, data: block, updated_at: new Date().toISOString() })
   if (error) {
     console.error(`[shelf] writeBlock("${id}") failed:`, error.message)
@@ -36,7 +36,7 @@ export async function readBlocksByPrefix(
 ): Promise<Array<{ id: string; data: any }>> {
   if (!supabase) return []
   const { data, error } = await supabase
-    .from('shelf')
+    .from('blocks')
     .select('id, data')
     .like('id', `${prefix}%`)
   if (error) {
