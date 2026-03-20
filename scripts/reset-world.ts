@@ -1,73 +1,70 @@
 /**
- * reset-world.ts — reset Thornkeep blocks in Supabase to their authored state.
+ * reset-world.ts — wipe all blocks and re-upload from JSON files.
  *
- * Usage: npx tsx scripts/reset-world.ts
+ * Usage: npm run reset
  *
- * Reads the JSON files from blocks/worlds/thornkeep/ and upserts them
- * into the blocks table. Also deletes any player knowledge blocks.
+ * 1. Deletes ALL rows from the blocks table
+ * 2. Uploads each JSON file from blocks/worlds/thornkeep/
+ *
+ * Reads VITE_SUPABASE_ANON_KEY from .env.local (create it if missing).
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
-const SUPABASE_URL = 'https://piqxyfmzzywxzqkzmpmm.supabase.co'
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
+// Load .env.local manually (tsx doesn't auto-load it)
+const envPath = join(__dirname, '..', '.env.local')
+if (existsSync(envPath)) {
+  const lines = readFileSync(envPath, 'utf-8').split('\n')
+  for (const line of lines) {
+    const match = line.match(/^([^#=]+)=(.*)$/)
+    if (match) process.env[match[1].trim()] = match[2].trim()
+  }
+}
 
-if (!SUPABASE_ANON_KEY) {
-  console.error('Set VITE_SUPABASE_ANON_KEY environment variable')
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://piqxyfmzzywxzqkzmpmm.supabase.co'
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY
+
+if (!SUPABASE_KEY) {
+  console.error(`
+  No anon key found. Create .env.local with:
+
+    VITE_SUPABASE_URL=https://piqxyfmzzywxzqkzmpmm.supabase.co
+    VITE_SUPABASE_ANON_KEY=your-key-here
+
+  (Get the key from Supabase dashboard → Settings → API)
+  `)
   process.exit(1)
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
-const WORLD_ID = 'thornkeep'
-const BLOCKS_DIR = join(__dirname, '..', 'blocks', 'worlds', WORLD_ID)
-
-const BLOCK_FILES = ['spatial', 'events', 'characters', 'rules']
+const WORLD = 'thornkeep'
+const DIR = join(__dirname, '..', 'blocks', 'worlds', WORLD)
+const FILES = ['spatial', 'events', 'characters', 'rules']
 
 async function main() {
-  console.log(`Resetting ${WORLD_ID} blocks...`)
+  // 1. Delete everything
+  const { error: delErr } = await supabase.from('blocks').delete().neq('id', '')
+  if (delErr) {
+    console.error('Failed to clear:', delErr.message)
+    process.exit(1)
+  }
+  console.log('🗑️  Cleared all blocks.')
 
-  // 1. Upsert world blocks from files
-  for (const name of BLOCK_FILES) {
-    const path = join(BLOCKS_DIR, `${name}.json`)
-    const data = JSON.parse(readFileSync(path, 'utf-8'))
-    const id = `${WORLD_ID}:${name}`
-
+  // 2. Upload originals from disk
+  for (const name of FILES) {
+    const data = JSON.parse(readFileSync(join(DIR, `${name}.json`), 'utf-8'))
     const { error } = await supabase
       .from('blocks')
-      .upsert({ id, data, updated_at: new Date().toISOString() })
+      .insert({ id: `${WORLD}:${name}`, data, updated_at: new Date().toISOString() })
 
-    if (error) {
-      console.error(`  ❌ ${id}: ${error.message}`)
-    } else {
-      console.log(`  ✅ ${id} reset`)
-    }
+    if (error) console.error(`  ❌ ${name}: ${error.message}`)
+    else console.log(`  ✅ ${WORLD}:${name}`)
   }
 
-  // 2. Delete player knowledge blocks
-  const { data: playerBlocks } = await supabase
-    .from('blocks')
-    .select('id')
-    .like('id', '%:knowledge')
-
-  if (playerBlocks && playerBlocks.length > 0) {
-    for (const block of playerBlocks) {
-      const { error } = await supabase
-        .from('blocks')
-        .delete()
-        .eq('id', block.id)
-
-      if (error) {
-        console.error(`  ❌ Delete ${block.id}: ${error.message}`)
-      } else {
-        console.log(`  🗑️  ${block.id} deleted`)
-      }
-    }
-  }
-
-  console.log('Done. World is fresh.')
+  console.log('\n🌊 World reset. Fresh start.')
 }
 
 main()
