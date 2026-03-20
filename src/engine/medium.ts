@@ -63,8 +63,8 @@ ${committed}
 You are the narrative engine. Synthesise what happens when ${characterName} does this.
 
 CRITICAL RULES:
-- Write in past tense. What happened, not what might happen. Determined.
-- Use sensory detail — sounds, textures, smells, light. This is a lived moment.
+- Write in SECOND PERSON PRESENT TENSE. "You step forward", "You notice", not "He stepped" or "Tubs approached".
+- Use sensory detail — sounds, textures, smells, light. This is a lived moment happening NOW.
 - Only name characters the player has been introduced to (check the knowledge block). Otherwise describe by appearance: "the broad woman behind the bar", "the thin stranger in the back room".
 - Other characters REACT to the action — they are not scenery. Show their responses.
 - Two to four sentences. Vivid and specific. No hedging.
@@ -85,7 +85,8 @@ ONLY valid JSON. No markdown fences.`
     'claude-sonnet-4-6',
     system,
     user,
-    1024
+    1024,
+    'MEDIUM'
   )
 
   let parsed: any

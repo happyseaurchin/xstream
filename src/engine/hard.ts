@@ -124,7 +124,7 @@ Keys:
 
 Respond with ONLY valid JSON, no markdown fences.`
 
-  const response = await callClaude(apiKey, 'claude-sonnet-4-6', system, user, 2048)
+  const response = await callClaude(apiKey, 'claude-sonnet-4-6', system, user, 2048, 'HARD')
 
   let parsed: any
   try {

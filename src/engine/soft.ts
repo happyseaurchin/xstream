@@ -63,7 +63,8 @@ Respond as a thought partner, in second person ("you"). Be vivid and brief — o
     'claude-haiku-4-5-20251001',
     system,
     user,
-    512
+    512,
+    'SOFT'
   )
 
   return {
