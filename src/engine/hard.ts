@@ -8,7 +8,7 @@
  * Model: Sonnet (quality over speed — runs rarely).
  */
 
-import { bsp, blockToText, spindleTexts } from '../lib/bsp'
+import { bsp, blockToText, spindleTexts, floorDepth } from '../lib/bsp'
 import type { PscaleBlock } from '../lib/bsp'
 import { readBlock } from '../lib/shelf'
 import { callClaude } from '../lib/claude'
@@ -48,85 +48,88 @@ export async function runHard(
     readBlock(`${worldId}:rules`),
   ])
 
-  // 2. BSP-extract spindles at character's coordinates
+  // 2. BSP-extract spindle from spatial at character's coordinates
+  // coordinates is e.g. '111' for main room in a floor-3 block
+  // Pass directly — no '0.' prefix for accumulation blocks
   const spatialSpindle = spatial
-    ? spindleTexts(spatial, `0.${coordinates}`).join('\n')
-    : 'No spatial data available.'
+    ? spindleTexts(spatial as PscaleBlock, coordinates).join(' → ')
+    : 'No spatial data.'
 
-  const eventsText = events ? blockToText(events, 4) : 'No events recorded.'
+  // Also get siblings (what's adjacent)
+  const spatialResult = spatial ? bsp(spatial as PscaleBlock, coordinates, 'ring') : null
+  const adjacentText = spatialResult && spatialResult.mode === 'ring'
+    ? spatialResult.siblings.map(s => `${s.digit}: ${s.text || '?'}`).join(', ')
+    : 'Unknown'
 
-  const charactersText = characters
-    ? blockToText(characters, 3)
-    : 'No characters present.'
+  // 3. Events — render the full block (it's small)
+  const eventsText = events ? blockToText(events as PscaleBlock, 3) : 'No events.'
 
+  // 4. Characters — extract who is nearby based on location
+  // Hard sees everything to compute proximity
+  const charactersText = characters ? blockToText(characters as PscaleBlock, 3) : 'No characters.'
+
+  // 5. Rules — extract at the top-level location digit
+  const topDigit = coordinates.charAt(0)
   const rulesSpindle = rules
-    ? spindleTexts(rules, `0.${coordinates.charAt(0)}`).join('\n')
-    : 'No rules defined.'
+    ? spindleTexts(rules as PscaleBlock, `0.${topDigit}`).join('\n')
+    : 'No rules.'
 
-  // 3. Extract knowledge spindle
-  const knowledgeText = knowledge
-    ? blockToText(knowledge, 3)
-    : 'No knowledge yet.'
+  // 6. Knowledge
+  const knowledgeText = knowledge ? blockToText(knowledge, 3) : 'No knowledge yet.'
 
-  // 4. Get face context
+  // 7. Face context
   const faceIndex = face === 'player' ? '1' : face === 'author' ? '2' : '3'
-  const faceSpindle = spindleTexts(FACES_BLOCK, `0.${faceIndex}`).join('\n')
+  const faceSpindle = spindleTexts(FACES_BLOCK as PscaleBlock, `0.${faceIndex}`).join('\n')
 
-  // 5. Compose system prompt from Hard block
-  const system = blockToText(HARD_BLOCK, 4)
+  // 8. Compose
+  const system = blockToText(HARD_BLOCK as PscaleBlock, 4)
 
-  // 6. Compose user message
   const user = `TRIGGER: ${trigger}
 CHARACTER: ${characterName}
-COORDINATES: ${coordinates}
+COORDINATES: ${coordinates} (floor 3: pscale +2 = village, +1 = building, 0 = room, -1 = detail)
 FACE: ${face}
 
---- FACE CONTEXT ---
-${faceSpindle}
-
---- SPATIAL (at ${coordinates}) ---
+--- SPATIAL SPINDLE (where I am, broad to specific) ---
 ${spatialSpindle}
 
---- EVENTS ---
+--- ADJACENT LOCATIONS ---
+${adjacentText}
+
+--- EVENTS (what has happened) ---
 ${eventsText}
 
---- CHARACTERS ---
+--- ALL CHARACTERS ---
 ${charactersText}
 
---- RULES (at ${coordinates}) ---
+--- RULES ---
 ${rulesSpindle}
 
---- CHARACTER KNOWLEDGE ---
+--- WHAT MY CHARACTER KNOWS ---
 ${knowledgeText}
 
-Produce a frame as JSON with these keys:
-- characterState: who I am, where I am, what I perceive
-- proximateCharacters: who is nearby and what they appear to be doing
-- environment: the scene — sights, sounds, smells, atmosphere
-- activeRules: what constraints apply here
-- availableActions: what I could plausibly do right now
+--- FACE INSTRUCTIONS ---
+${faceSpindle}
 
-Also return:
-- knowledgeUpdates: array of strings — things the character should now know that are not in their knowledge block
-- locationChange: string or null — new coordinates if the character has moved
+Produce a frame as JSON. The frame must describe the world ONLY as experienced by ${characterName}.
+Use sensory detail from the spatial spindle. Do not name characters unless they are in the knowledge block.
+
+Keys:
+- characterState: who I am, where I am, what I perceive (sensory, atmospheric)
+- proximateCharacters: who is visible and what they appear to be doing (use knowledge block for names, otherwise describe by appearance)
+- environment: the scene — draw heavily from the spatial spindle. Sights, sounds, smells.
+- activeRules: constraints that apply here (from rules block)
+- availableActions: what I could plausibly do (specific to this scene, not generic)
+- knowledgeUpdates: array of things the character can now perceive that are not in their knowledge block (describe by appearance, not by name, unless introduced)
+- locationChange: null unless the character has moved
 
 Respond with ONLY valid JSON, no markdown fences.`
 
-  // 7. Call Claude (Sonnet)
-  const response = await callClaude(
-    apiKey,
-    'claude-sonnet-4-6',
-    system,
-    user,
-    2048
-  )
+  const response = await callClaude(apiKey, 'claude-sonnet-4-6', system, user, 2048)
 
-  // 8. Parse response
   let parsed: any
   try {
     parsed = JSON.parse(response.text)
   } catch {
-    // If Claude didn't return clean JSON, try to extract it
     const jsonMatch = response.text.match(/\{[\s\S]*\}/)
     parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
   }

@@ -2,16 +2,15 @@
  * medium.ts — Medium-LLM engine.
  *
  * The breath. Synthesises committed intentions into solid narrative.
- * Reads the frame from Hard, committed content from nearby characters,
- * and produces what actually happened.
+ * Reads the frame from Hard and the character's knowledge block.
+ * Does NOT read the world characters block directly — only what
+ * the character knows and perceives (via the frame).
  *
- * Triggers: player commits liquid, synthesis window closes.
  * Model: Sonnet (synthesis quality).
  */
 
 import { blockToText } from '../lib/bsp'
 import type { PscaleBlock } from '../lib/bsp'
-import { readBlock } from '../lib/shelf'
 import { callClaude } from '../lib/claude'
 import { MEDIUM_BLOCK } from '../blocks/agents'
 import type { Frame } from './hard'
@@ -20,6 +19,7 @@ export interface MediumResult {
   solid: string
   knowledgeUpdates: string[]
   eventEntry: string
+  locationChange?: string
   inputTokens: number
   outputTokens: number
 }
@@ -33,48 +33,53 @@ export async function runMedium(
   characterName: string,
   face: 'player' | 'author' | 'designer'
 ): Promise<MediumResult> {
-  // 1. Read characters block to find nearby committed content
-  const characters = await readBlock(`${worldId}:characters`)
-  const nearbyText = characters
-    ? blockToText(characters, 3)
-    : 'No other characters nearby.'
-
-  // 2. Knowledge context
   const knowledgeText = knowledge
     ? blockToText(knowledge, 3)
-    : 'No knowledge yet.'
+    : 'The character knows nothing yet.'
 
-  // 3. System prompt from Medium block
-  const system = blockToText(MEDIUM_BLOCK, 4)
+  const system = blockToText(MEDIUM_BLOCK as PscaleBlock, 4)
 
-  // 4. Compose user message
   const user = `FACE: ${face}
 CHARACTER: ${characterName}
 
---- FRAME (world state from Hard-LLM) ---
-Character state: ${frame.characterState}
-Environment: ${frame.environment}
-Proximate characters: ${frame.proximateCharacters}
-Active rules: ${frame.activeRules}
-Available actions: ${frame.availableActions}
+--- THE SCENE (from Hard-LLM frame) ---
+${frame.environment}
+
+--- YOUR CHARACTER ---
+${frame.characterState}
+
+--- WHO IS NEARBY (as perceived) ---
+${frame.proximateCharacters}
+
+--- RULES IN EFFECT ---
+${frame.activeRules}
+
+--- WHAT THE CHARACTER KNOWS ---
+${knowledgeText}
 
 --- COMMITTED ACTION ---
 ${committed}
 
---- NEARBY CHARACTERS ---
-${nearbyText}
+You are the narrative engine. Synthesise what happens when ${characterName} does this.
 
---- CHARACTER KNOWLEDGE ---
-${knowledgeText}
+CRITICAL RULES:
+- Write in past tense. What happened, not what might happen. Determined.
+- Use sensory detail — sounds, textures, smells, light. This is a lived moment.
+- Only name characters the player has been introduced to (check the knowledge block). Otherwise describe by appearance: "the broad woman behind the bar", "the thin stranger in the back room".
+- Other characters REACT to the action — they are not scenery. Show their responses.
+- Two to four sentences. Vivid and specific. No hedging.
+- If the action involves moving to a new location, include "locationChange" with the new coordinates.
 
-Synthesise what happens. Produce:
-1. "solid" — narrative of what occurred (past tense, determined, 2-4 sentences)
-2. "knowledgeUpdates" — array of strings the character learned from this experience
-3. "eventEntry" — a one-line summary for the events log
+Respond with JSON:
+{
+  "solid": "The narrative of what happened.",
+  "knowledgeUpdates": ["Things the character now knows that they didn't before — learned through THIS action. Use descriptions, not world-block names."],
+  "eventEntry": "One-line summary for the world events log.",
+  "locationChange": null
+}
 
-Respond with ONLY valid JSON, no markdown fences.`
+ONLY valid JSON. No markdown fences.`
 
-  // 5. Call Claude (Sonnet)
   const response = await callClaude(
     apiKey,
     'claude-sonnet-4-6',
@@ -83,7 +88,6 @@ Respond with ONLY valid JSON, no markdown fences.`
     1024
   )
 
-  // 6. Parse response
   let parsed: any
   try {
     parsed = JSON.parse(response.text)
@@ -96,6 +100,7 @@ Respond with ONLY valid JSON, no markdown fences.`
     solid: parsed.solid ?? response.text,
     knowledgeUpdates: parsed.knowledgeUpdates ?? [],
     eventEntry: parsed.eventEntry ?? '',
+    locationChange: parsed.locationChange ?? null,
     inputTokens: response.inputTokens,
     outputTokens: response.outputTokens,
   }

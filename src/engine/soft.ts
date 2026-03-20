@@ -4,7 +4,6 @@
  * The heartbeat. Faces the user directly. Helps shape vapor
  * into liquid through reflection, condensation, and forking.
  *
- * Triggers: user types (ASK), user requests clarification.
  * Model: Haiku (fast, cheap — runs frequently).
  */
 
@@ -28,39 +27,37 @@ export async function runSoft(
   recentSolid: string,
   face: 'player' | 'author' | 'designer'
 ): Promise<SoftResult> {
-  // 1. System prompt from Soft block
-  const system = blockToText(SOFT_BLOCK, 4)
+  const system = blockToText(SOFT_BLOCK as PscaleBlock, 4)
 
-  // 2. Knowledge context
   const knowledgeText = knowledge
     ? blockToText(knowledge, 3)
-    : 'No knowledge yet.'
+    : 'You have just arrived. You know nothing about this place yet.'
 
-  // 3. Compose user message — frame extract + knowledge + vapor
   const user = `FACE: ${face}
 
---- WHAT YOU KNOW (character state) ---
+--- THE SCENE ---
+${frame.environment}
+
+--- YOUR CHARACTER ---
 ${frame.characterState}
 
---- WHAT IS POSSIBLE ---
+--- WHO YOU SEE ---
+${frame.proximateCharacters}
+
+--- WHAT YOU COULD DO ---
 ${frame.availableActions}
 
 --- WHAT JUST HAPPENED ---
 ${recentSolid || 'Nothing yet — you have just arrived.'}
 
---- WHAT THE CHARACTER KNOWS ---
+--- WHAT YOU KNOW ---
 ${knowledgeText}
 
---- NEARBY ---
-${frame.proximateCharacters}
-
---- VAPOR (what the user is thinking/asking) ---
+--- THE PLAYER SAYS ---
 ${vapor}
 
-Respond in character. Be brief — shorter than the user's input.
-Help shape their intention. Do not produce solid narrative.`
+Respond as a thought partner, in second person ("you"). Be vivid and brief — one to three sentences. Draw on the scene's atmosphere. If they seem unsure, offer two or three concrete options grounded in what they can perceive. Never name characters unless they appear in the knowledge block.`
 
-  // 4. Call Claude (Haiku — fast and cheap)
   const response = await callClaude(
     apiKey,
     'claude-haiku-4-5-20251001',

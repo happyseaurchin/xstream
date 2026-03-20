@@ -26,7 +26,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState('')
   const [characterName, setCharacterName] = useState('')
   const [worldId, setWorldId] = useState('thornkeep')
-  const [coordinates, setCoordinates] = useState('11') // Start at Salted Dog main room
+  const [coordinates, setCoordinates] = useState('111') // Main room of the Salted Dog (floor 3: pscale 0 = room)
 
   // Engine state
   const frameRef = useRef<Frame | null>(null)
@@ -68,7 +68,7 @@ export default function App() {
           if (!(k in characters)) {
             characters[k] = {
               _: `${name}. A newcomer. Just arrived.`,
-              '1': `Location: 1.1 (the Salted Dog)`,
+              '1': `Location: 111 (main room of the Salted Dog)`,
               '2': `Purpose: unknown — they have just arrived.`,
               '3': `State: standing in the doorway, taking in the room.`,
             }
@@ -80,7 +80,7 @@ export default function App() {
 
       // Run Hard to build initial frame
       const result = await runHard(
-        key, name, '11', world, 'player', 'entry', knowledge
+        key, name, '111', world, 'player', 'entry', knowledge
       )
       frameRef.current = result.frame
 
@@ -153,13 +153,25 @@ export default function App() {
         await applyKnowledgeUpdates(result.knowledgeUpdates, characterName)
       }
 
+      // If location changed, update coordinates and re-run Hard
+      if (result.locationChange) {
+        setCoordinates(result.locationChange)
+        const hardResult = await runHard(
+          apiKey, characterName, result.locationChange, worldId, face, 'location-change', knowledgeRef.current
+        )
+        frameRef.current = hardResult.frame
+        if (hardResult.knowledgeUpdates.length > 0) {
+          await applyKnowledgeUpdates(hardResult.knowledgeUpdates, characterName)
+        }
+      }
+
       setCommitted(null)
       setSynthesising(false)
     } catch (err: any) {
       setSoftResponse(`Synthesis error: ${err.message}`)
       setSynthesising(false)
     }
-  }, [apiKey, worldId, characterName, face])
+  }, [apiKey, worldId, characterName, face, coordinates])
 
   // --- Knowledge update helper ---
   async function applyKnowledgeUpdates(updates: string[], name: string) {
