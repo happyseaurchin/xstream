@@ -63,7 +63,7 @@ Help shape their intention. Do not produce solid narrative.`
   // 4. Call Claude (Haiku — fast and cheap)
   const response = await callClaude(
     apiKey,
-    'claude-haiku-3-5-20241022',
+    'claude-3-5-haiku-20241022',
     system,
     user,
     512
