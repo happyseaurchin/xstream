@@ -16,7 +16,8 @@ import { runSoft } from './engine/soft'
 import { runMedium } from './engine/medium'
 import { readBlock, writeBlock } from './lib/shelf'
 import { KNOWLEDGE_TEMPLATE } from './blocks/agents'
-import { downloadLog, getEntryCount } from './lib/logger'
+import { downloadLog } from './lib/logger'
+import { resetWorld } from './lib/world-seed'
 import type { PscaleBlock } from './lib/bsp'
 
 type AppState = 'setup' | 'loading' | 'ready'
@@ -247,6 +248,9 @@ export default function App() {
         </button>
         <button onClick={downloadLog} style={refreshBtnStyle} title="Download session log">
           📋
+        </button>
+        <button onClick={() => { resetWorld(); setAppState('setup'); setSolidEntries([]); setSoftResponse(null); setCommitted(null); }} style={refreshBtnStyle} title="Reset world (fresh start)">
+          🔄
         </button>
       </div>
 
