@@ -10,7 +10,7 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 
 export type ClaudeModel =
   | 'claude-sonnet-4-20250514'
-  | 'claude-3-5-haiku-20241022'
+  | 'claude-haiku-4-5-20241022'
 
 export interface ClaudeResponse {
   text: string
