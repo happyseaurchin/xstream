@@ -1,0 +1,25 @@
+{
+  "_": "What this character knows. Learned through direct experience only. If it is not here, the character does not know it. Organised by category. Hard-LLM writes here when the character learns something. Soft and Medium read from here to know what the character can reference.",
+  "1": {
+    "_": "People. Who the character has met or heard about.",
+    "1": "A broad woman tends bar. Have not learned her name yet.",
+    "2": "A thin nervous man sits in the back room. Stranger. Arrived recently."
+  },
+  "2": {
+    "_": "Places. What the character has seen or been told about.",
+    "1": "A tavern. Stone walls, low ceiling, smoky. A fire in the hearth. Harbour visible through the front door."
+  },
+  "3": {
+    "_": "Events. What the character has witnessed or been told.",
+    "1": "Just arrived. The room is warm after the cold outside."
+  },
+  "4": {
+    "_": "Rumours and hearsay. Things heard but not confirmed.",
+  },
+  "5": {
+    "_": "Possessions. What the character carries or has access to."
+  },
+  "6": {
+    "_": "Relationships. How the character relates to others they have met."
+  }
+}

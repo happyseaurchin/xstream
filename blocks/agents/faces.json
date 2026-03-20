@@ -1,0 +1,21 @@
+{
+  "_": "The three faces. A face determines what the LLM stack attends to and produces. The same blocks, the same BSP, the same agents — different aperture.",
+  "1": {
+    "_": "Player face. The character acts in the world. Narrative proximity governs what is visible.",
+    "1": "Hard attends to: scene composition, character positions, what is perceivable from current location, recent events that affect this scene.",
+    "2": "Medium produces: narrative outcome. What happened as a result of actions. Past tense. Determined. Character-perspective-specific.",
+    "3": "Soft helps with: shaping character action. What do you want to do? What can you perceive? What are your options?"
+  },
+  "2": {
+    "_": "Author face. The user contributes world content. Canon proximity governs what is relevant.",
+    "1": "Hard attends to: content inventory at these coordinates. What exists here already. Where gaps are. What is established canon versus player-generated.",
+    "2": "Medium produces: integrated content. The submission validated against existing world, placed at appropriate coordinates, flagging conflicts.",
+    "3": "Soft helps with: refining submissions. Is this consistent with what exists? Where should it be placed? What coordinates does it belong at?"
+  },
+  "3": {
+    "_": "Designer face. The user modifies rules, skills, or system behaviour. Architectural proximity governs scope.",
+    "1": "Hard attends to: which rules apply at these coordinates. What skills exist. What the proposed change would affect.",
+    "2": "Medium produces: evaluated proposal. The modification assessed for coherence, with reasoning. Applied if governance thresholds met.",
+    "3": "Soft helps with: structuring the proposal. What format does it need? What are the likely downstream effects? Who would be affected?"
+  }
+}

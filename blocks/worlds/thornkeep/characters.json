@@ -1,0 +1,27 @@
+{
+  "_": "Characters present at the Broken Coast. NPCs are pre-authored entries. Player characters are added dynamically when they join. Each entry: underscore is name and summary, digits are location, purpose, visible state.",
+  "1": {
+    "_": "Gull. Barkeep of the Salted Dog. Broad-shouldered, weathered hands, voice like gravel over sand. Forty-odd years. Born here.",
+    "1": "Location: 1.1 (the Salted Dog — she is almost always here)",
+    "2": "Purpose: keep the tavern running, hear everything, say little. She knows more than anyone about what happens in Thornkeep but shares only when she chooses.",
+    "3": "State: behind the bar, wiping a glass, watching the room. Occasionally exchanges a word with a regular. Eyes track the stranger in the back room."
+  },
+  "2": {
+    "_": "Varo. A thin man in a salt-stained travelling coat. Stranger. Nobody knows where he came from or why he is here. Nervous energy. Dark eyes.",
+    "1": "Location: 1.1.2 (back room of the Salted Dog)",
+    "2": "Purpose: waiting for someone or something. He checks the door every time it opens. He has a small leather case he keeps close.",
+    "3": "State: sitting alone at the corner table, back to the wall. A drink barely touched. Fingers drumming. He startles when addressed."
+  },
+  "3": {
+    "_": "Old Pell. The priest of the chapel of the Drowned Saint. Elderly, stooped, rheumy eyes. Gentle but worried.",
+    "1": "Location: 1.3 (the chapel — most of the time) or 1.4 (the market square — mornings)",
+    "2": "Purpose: tend the chapel, reassure the town about the crypt sounds. He is not reassured himself.",
+    "3": "State: in the chapel, sitting in the front pew, listening. He has been sleeping badly. He keeps glancing at the crypt door."
+  },
+  "4": {
+    "_": "Denna. A fisherwoman. Wiry, sun-darkened, early thirties. Crew of the Merrow's Daughter — the boat that was lost in the storm.",
+    "1": "Location: 1.2 (the harbour — daytime) or 1.1 (the Salted Dog — evenings)",
+    "2": "Purpose: get her boat replaced or repaired. She is furious about the harbourmaster's absence — it is his job to arrange compensation from the town fund.",
+    "3": "State: at the harbour, inspecting the damaged fourth boat, assessing whether it could be made seaworthy. Muttering. Kicking things."
+  }
+}

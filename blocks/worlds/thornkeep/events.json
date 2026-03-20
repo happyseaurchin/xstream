@@ -1,0 +1,23 @@
+{
+  "_": "What has happened at the Broken Coast. Recent events, each with spatial and temporal tags. Read the underscore of each entry for summary; read deeper for detail.",
+  "1": {
+    "_": "The storm. Two days ago. Affected the whole coast.",
+    "1": "A bad one — three days of gale. One fishing boat lost, the Merrow's Daughter. Crew of four made it to shore.",
+    "2": "The harbour took damage. The fourth boat was thrown against the quay. Hull staved. Being repaired."
+  },
+  "2": {
+    "_": "The stranger. Yesterday evening. Arrived at the Salted Dog.",
+    "1": "A thin man in a salt-stained coat. Came on foot from the cliff path. Asked for a room. Paid in advance with coins nobody recognised.",
+    "2": "He sits in the back room. Does not drink much. Watches the door. Fingers drum the table."
+  },
+  "3": {
+    "_": "The harbourmaster. Missing three days. Last seen before the storm.",
+    "1": "His hut is padlocked from outside. His boat is still moored. Nobody saw him leave.",
+    "2": "The town council has not yet appointed a replacement. The fishermen are managing the harbour themselves."
+  },
+  "4": {
+    "_": "The sounds from the crypt. Reported over the past week.",
+    "1": "Scratching, rhythmic, from below the chapel floor. The old priest says it is rats. The children say it is the Drowned Saint waking.",
+    "2": "The crypt door has not been opened in living memory. The iron is rusted but the oak is sound."
+  }
+}

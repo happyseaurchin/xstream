@@ -1,0 +1,42 @@
+{
+  "_": {
+    "_": {
+      "_": "The Broken Coast. A stretch of grey cliffs and fishing villages on the western edge of a dying empire. Salt wind, low cloud, stone that remembers."
+    }
+  },
+  "1": {
+    "_": "Thornkeep. A walled town built into the cliff face. Three hundred souls. Stone and salt and the sound of the sea.",
+    "1": {
+      "_": "The Salted Dog. A tavern pressed against the harbour wall. Low ceiling, smoky, warm. Tar and fish stew and woodsmoke.",
+      "1": "The main room. A dozen rough tables. A fire in the hearth. The barkeep is a broad woman. Regulars drink quietly. A board by the door lists rooms to let.",
+      "2": "The back room. A heavy curtain separates it from the main room. Quieter. Two tables. Used for private dealings and card games.",
+      "3": "The stairs up. Narrow, steep, creaking. Lead to four rented rooms above. The second door sticks."
+    },
+    "2": {
+      "_": "The harbour. Open to the sea on the west side. A stone quay curves around a small natural basin.",
+      "1": "The quay. Wet stone, slippery with weed. Rope coiled, nets drying. Three fishing boats moored. A fourth hauled up on blocks, hull staved.",
+      "2": "The harbourmaster's hut. Small, wooden, paint peeling. Padlocked. Nobody has seen the harbourmaster in three days.",
+      "3": "The fish market. Open-sided shelter with stone counters. Empty now — the catch comes in at dawn."
+    },
+    "3": {
+      "_": "The chapel of the Drowned Saint. Ancient stone, older than the town. Tilted slightly seaward as if leaning into the wind.",
+      "1": "The nave. Six wooden pews, salt-warped. A figure carved in driftwood above the altar — arms spread, face worn smooth. Smells of damp stone and old candle wax.",
+      "2": "The crypt door. Iron-banded oak set into the floor behind the altar. Heavy ring handle. It does not open. Scratching sounds have been reported from below."
+    },
+    "4": {
+      "_": "The market square. A cobbled space between the chapel and the harbour road. A well in the centre with a rusted winch.",
+      "1": "The well. Deep. The water tastes of iron. Children dare each other to look over the edge.",
+      "2": "The notice board. Weather-beaten wood. A few posted notes: a lost dog, a warning about the cliff path at night, a faded bounty notice for someone called Merrow."
+    }
+  },
+  "2": {
+    "_": "The cliff path. Connects Thornkeep to the watchtower. Narrow, exposed, carved into the rock face. No railings.",
+    "1": "The halfway point. A flat rock where travellers rest. Wide view of the sea to the west, Thornkeep below to the south.",
+    "2": "The watchtower. Abandoned. Three stories of crumbling stone. The top floor has no roof."
+  },
+  "3": {
+    "_": "The tide caves. Below the cliffs, accessible at low tide only. The entrance is a crack in the rock wide enough for one person.",
+    "1": "The outer cave. Sand floor, ceiling dripping. Shells and debris from the tide line. Light reaches here.",
+    "2": "The inner passage. Darkness. The sound of water deeper in. The air changes — warmer, with a smell that doesn't belong to the sea."
+  }
+}

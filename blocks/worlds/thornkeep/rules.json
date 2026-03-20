@@ -1,0 +1,31 @@
+{
+  "_": "Rules and constraints at the Broken Coast. Keyed loosely by spatial relevance. These are what the world enforces, not suggestions.",
+  "1": {
+    "_": "Thornkeep general.",
+    "1": "Sound carries. Shouting outdoors will be heard by most of the town within a minute.",
+    "2": "The town watch is two men, usually drunk. They respond to violence but slowly.",
+    "3": "Strangers are noticed. Everyone knows everyone. A new face is remarked upon within the hour."
+  },
+  "2": {
+    "_": "The Salted Dog.",
+    "1": "Gull keeps order. She has a cudgel under the bar and will use it. Fighting in the tavern ends with both parties in the street.",
+    "2": "The back room is understood as private. Entering without invitation is a social offence. Gull will intervene.",
+    "3": "Drinks are cheap. Rooms are not. Two silver a night."
+  },
+  "3": {
+    "_": "The harbour and sea.",
+    "1": "The tide is significant. The tide caves are only accessible for four hours around low tide. Entering at high tide is fatal.",
+    "2": "The sea is cold. Swimming is possible but exhausting. Hypothermia within fifteen minutes.",
+    "3": "The fishing boats belong to specific families. Taking one without permission is serious."
+  },
+  "4": {
+    "_": "The cliff path and watchtower.",
+    "1": "The cliff path is dangerous at night. No railings, loose stone. Falls are not survivable.",
+    "2": "The watchtower is structurally unsound above the second floor. The third floor could collapse under weight."
+  },
+  "5": {
+    "_": "The chapel and crypt.",
+    "1": "The crypt door has resisted all attempts to open it. Brute force will not work. The lock mechanism is not visible.",
+    "2": "The chapel is considered holy ground. Violence here would turn the entire town against you."
+  }
+}
