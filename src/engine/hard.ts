@@ -115,7 +115,7 @@ Respond with ONLY valid JSON, no markdown fences.`
   // 7. Call Claude (Sonnet)
   const response = await callClaude(
     apiKey,
-    'claude-sonnet-4-20250514',
+    'claude-sonnet-4-6',
     system,
     user,
     2048
