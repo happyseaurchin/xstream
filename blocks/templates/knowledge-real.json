@@ -1,0 +1,21 @@
+{
+  "_": "What this user knows through their xstream interactions. Built up through engagement. If it is not here, the system has not yet registered it. Organised by category.",
+  "1": {
+    "_": "People. Who the user has encountered or been told about through xstream."
+  },
+  "2": {
+    "_": "Topics. What subjects have come up, what territory has been explored."
+  },
+  "3": {
+    "_": "Events. What has happened during xstream sessions — commitments, exchanges, outcomes."
+  },
+  "4": {
+    "_": "Connections. Links discovered between topics, people, ideas."
+  },
+  "5": {
+    "_": "Outputs. Things produced — texts, decisions, proposals, designs."
+  },
+  "6": {
+    "_": "Context. Real-world context the user has provided about themselves and their situation."
+  }
+}

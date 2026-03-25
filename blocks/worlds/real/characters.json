@@ -1,0 +1,3 @@
+{
+  "_": "Users present in this xstream instance. Each user is a real person with their own context, interests, and purposes. Entries are added when users join. The Hard-LLM reads this to compute proximity — who should be aware of whom, based on shared interests, location, or temporal overlap."
+}

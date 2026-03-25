@@ -1,0 +1,14 @@
+{
+  "_": {
+    "_": {
+      "_": "The real world. The shared reality of all users. You know this world — it is the world you were trained on, updated by what users bring. Coordinates locate users by scale: region, community, locale."
+    }
+  },
+  "1": {
+    "_": "Unlocated. The user has not yet specified their region. They exist in the real world but their position within it is unresolved. Use what they tell you about themselves to infer context.",
+    "1": {
+      "_": "Unlocated community. The user's immediate social context is unknown.",
+      "1": "Unlocated locale. Where the user physically is right now — their room, their office, their café — is unspecified. Ask or infer from conversation."
+    }
+  }
+}

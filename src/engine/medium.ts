@@ -1,10 +1,9 @@
 /**
- * medium.ts — Medium-LLM engine.
+ * medium.ts — Medium-LLM engine (real-world mode).
  *
- * The breath. Synthesises committed intentions into solid narrative.
- * Reads the frame from Hard and the character's knowledge block.
- * Does NOT read the world characters block directly — only what
- * the character knows and perceives (via the frame).
+ * The breath. Synthesises committed intentions into solid output.
+ * In real-world mode: not narrative fiction, but coordination synthesis.
+ * What emerges when a user's commitment meets the context.
  *
  * Model: Sonnet (synthesis quality).
  */
@@ -30,51 +29,52 @@ export async function runMedium(
   frame: Frame,
   knowledge: PscaleBlock | null,
   worldId: string,
-  characterName: string,
+  userName: string,
   face: 'player' | 'author' | 'designer'
 ): Promise<MediumResult> {
   const knowledgeText = knowledge
     ? blockToText(knowledge, 3)
-    : 'The character knows nothing yet.'
+    : 'No accumulated knowledge yet.'
 
   const system = blockToText(MEDIUM_BLOCK as PscaleBlock, 4)
 
-  const user = `FACE: ${face}
-CHARACTER: ${characterName}
+  const user = `FACE: ${face === 'player' ? 'character' : face}
+USER: ${userName}
 
---- THE SCENE (from Hard-LLM frame) ---
+--- CONTEXT (from Hard-LLM frame) ---
 ${frame.environment}
 
---- YOUR CHARACTER ---
+--- THIS USER ---
 ${frame.characterState}
 
---- WHO IS NEARBY (as perceived) ---
+--- OTHER USERS (if any) ---
 ${frame.proximateCharacters}
 
---- RULES IN EFFECT ---
+--- INTERACTION NORMS ---
 ${frame.activeRules}
 
---- WHAT THE CHARACTER KNOWS ---
+--- ACCUMULATED KNOWLEDGE ---
 ${knowledgeText}
 
---- COMMITTED ACTION ---
+--- COMMITTED CONTENT ---
 ${committed}
 
-You are the narrative engine. Synthesise what happens when ${characterName} does this.
+You are the synthesis engine. ${userName} has committed the above. Synthesise what emerges.
 
-CRITICAL RULES:
-- Write in SECOND PERSON PRESENT TENSE. "You step forward", "You notice", not "He stepped" or "Tubs approached".
-- Use sensory detail — sounds, textures, smells, light. This is a lived moment happening NOW.
-- Only name characters the player has been introduced to (check the knowledge block). Otherwise describe by appearance: "the broad woman behind the bar", "the thin stranger in the back room".
-- Other characters REACT to the action — they are not scenery. Show their responses.
-- Two to four sentences. Vivid and specific. No hedging.
-- If the action involves moving to a new location, include "locationChange" with the new coordinates.
+CRITICAL RULES FOR REAL-WORLD MODE:
+- Write in SECOND PERSON PRESENT TENSE. "You articulate...", "You connect...", not third person.
+- This is REAL engagement, not fiction. Ground everything in actual knowledge.
+- Draw on what you know about the real world. If they committed a thought about climate policy, contextualise it with what you actually know.
+- If other users are present, show how their contributions relate. If solo, synthesise the user's thinking with relevant world context.
+- Two to four sentences. Specific, grounded, useful. No hedging.
+- This is what EMERGES from commitment meeting context — not what the user should think, but what naturally follows.
+- If the commitment shifts the user's focus significantly, include "locationChange" with a note about the shift.
 
 Respond with JSON:
 {
-  "solid": "The narrative of what happened.",
-  "knowledgeUpdates": ["Things the character now knows that they didn't before — learned through THIS action. Use descriptions, not world-block names."],
-  "eventEntry": "One-line summary for the world events log.",
+  "solid": "What emerges from this commitment in this context.",
+  "knowledgeUpdates": ["Things the system should now register — connections made, context established, insights that emerged."],
+  "eventEntry": "One-line summary for the session events log.",
   "locationChange": null
 }
 

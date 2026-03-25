@@ -1,0 +1,21 @@
+{
+  "_": "The three faces for xstream-real. A face determines what the LLM stack attends to and produces. Same structure, different context — real world, real users.",
+  "1": {
+    "_": "Character face. The user engages with others in real time. Interest-proximity governs what is visible.",
+    "1": "Hard attends to: who is here, what they're focused on, how interests overlap, what the real-world context is for these topics.",
+    "2": "Medium produces: synthesis of what emerges when commitments meet context. What does this thinking mean in relation to what others are thinking?",
+    "3": "Soft helps with: shaping what the user wants to put forward. Clarifying intention before commitment."
+  },
+  "2": {
+    "_": "Author face. The user creates content. Content-proximity governs what is relevant.",
+    "1": "Hard attends to: what content exists, where gaps are, what other authors are contributing, real-world context for the subject matter.",
+    "2": "Medium produces: integrated content. The user's contribution woven with context and co-authors' work.",
+    "3": "Soft helps with: refining the contribution. Consistency, clarity, placement."
+  },
+  "3": {
+    "_": "Designer face. The user modifies their xstream instance. Architectural proximity governs scope.",
+    "1": "Hard attends to: current configuration, what norms apply, what the proposed change would affect.",
+    "2": "Medium produces: evaluated proposal. The modification assessed for coherence and likely effects.",
+    "3": "Soft helps with: structuring the proposal and anticipating consequences."
+  }
+}

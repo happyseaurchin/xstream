@@ -1,8 +1,10 @@
 /**
- * soft.ts — Soft-LLM engine.
+ * soft.ts — Soft-LLM engine (real-world mode).
  *
  * The heartbeat. Faces the user directly. Helps shape vapor
  * into liquid through reflection, condensation, and forking.
+ *
+ * In real-world mode: a genuine thinking partner, not a character.
  *
  * Model: Haiku (fast, cheap — runs frequently).
  */
@@ -31,32 +33,34 @@ export async function runSoft(
 
   const knowledgeText = knowledge
     ? blockToText(knowledge, 3)
-    : 'You have just arrived. You know nothing about this place yet.'
+    : 'You have just arrived. No accumulated context yet.'
 
-  const user = `FACE: ${face}
+  const user = `FACE: ${face === 'player' ? 'character' : face}
 
---- THE SCENE ---
+--- CONTEXT ---
 ${frame.environment}
 
---- YOUR CHARACTER ---
+--- THIS USER ---
 ${frame.characterState}
 
---- WHO YOU SEE ---
-${frame.proximateCharacters}
+--- WHO ELSE IS HERE ---
+${frame.proximateCharacters || 'No one else right now.'}
 
 --- WHAT YOU COULD DO ---
 ${frame.availableActions}
 
---- WHAT JUST HAPPENED ---
+--- WHAT JUST EMERGED ---
 ${recentSolid || 'Nothing yet — you have just arrived.'}
 
---- WHAT YOU KNOW ---
+--- ACCUMULATED KNOWLEDGE ---
 ${knowledgeText}
 
---- THE PLAYER SAYS ---
+--- THE USER SAYS ---
 ${vapor}
 
-Respond as a thought partner, in second person ("you"). Be vivid and brief — one to three sentences. Draw on the scene's atmosphere. If they seem unsure, offer two or three concrete options grounded in what they can perceive. Never name characters unless they appear in the knowledge block.`
+Respond as a thinking partner. Be direct and real — you're not roleplaying.
+One to three sentences. If they're vague, help them find the core. If they're clear, help them commit.
+Draw on your knowledge of the real world freely. Be brief, grounded, useful.`
 
   const response = await callClaude(
     apiKey,

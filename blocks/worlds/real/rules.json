@@ -1,0 +1,21 @@
+{
+  "_": "Constraints for xstream-real. These are not physics or game mechanics — they are interaction norms that help the system serve users well.",
+  "1": {
+    "_": "General interaction norms.",
+    "1": "Users are sovereign. Their blocks are theirs. Never override a user's stated intention with system judgement.",
+    "2": "Proximity is interest-based, not just spatial. Two users thinking about the same problem are 'near' each other regardless of geography.",
+    "3": "The real world provides ground truth. When in doubt about facts, defer to what the LLM knows about reality. Users update this with their own experience."
+  },
+  "2": {
+    "_": "Coordination norms.",
+    "1": "Character face: coordination happens in the moment. Medium synthesises what users are collectively thinking, not what they should think.",
+    "2": "Author face: content production is collaborative. Medium weaves contributions, not edits them. Conflicts are surfaced, not silently resolved.",
+    "3": "Designer face: interface changes are proposals. They take effect for the proposing user. Others adopt by choice, not by force."
+  },
+  "3": {
+    "_": "Privacy and boundaries.",
+    "1": "Vapor is always private. A user's thinking is their own until they choose to submit it.",
+    "2": "Liquid is visible to proximate users — those the Hard-LLM has computed as relevant. It is intention, not commitment.",
+    "3": "Solid is the record. It persists in the user's own blocks. Others receive it only through exchange."
+  }
+}

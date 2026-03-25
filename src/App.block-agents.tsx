@@ -1,9 +1,10 @@
 /**
- * App.block-agents.tsx — block-agents app with original xstream UI.
+ * App.block-agents.tsx — xstream-real: real-world coordination interface.
  *
- * Three zones with draggable separators, themes, floating input button.
- * Engines: Hard (frame), Soft (thought partner), Medium (narrator).
+ * Three zones with draggable separators, themes, floating input.
+ * Engines: Hard (frame), Soft (thought partner), Medium (synthesis).
  * Pure localStorage — no server, no database.
+ * The real world is the world — LLM knowledge provides content.
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
@@ -29,15 +30,15 @@ type AppPhase = 'setup' | 'loading' | 'ready'
 type Theme = 'dark' | 'light' | 'cyber' | 'soft'
 
 const MIN_ZONE = 80
-const HEADER_HEIGHT = 44
 
 export default function App() {
   // Session
   const [phase, setPhase] = useState<AppPhase>('setup')
   const [apiKey, setApiKey] = useState('')
-  const [characterName, setCharacterName] = useState('')
-  const [worldId, setWorldId] = useState('thornkeep')
+  const [userName, setUserName] = useState('')
+  const [worldId, setWorldId] = useState('real')
   const [coordinates, setCoordinates] = useState('111')
+  const userContextRef = useRef<string>('')
 
   // Engine
   const frameRef = useRef<Frame | null>(null)
@@ -76,32 +77,41 @@ export default function App() {
   }, [])
 
   // --- Entry ---
-  const handleEnter = useCallback(async (key: string, name: string, world: string) => {
+  const handleEnter = useCallback(async (key: string, name: string, world: string, context: string) => {
     setApiKey(key)
-    setCharacterName(name)
+    setUserName(name)
     setWorldId(world)
+    userContextRef.current = context
     setPhase('loading')
-    setStatusMessage('Building your view of the world...')
+    setStatusMessage('Building your context...')
 
     try {
+      // Init knowledge block
       let knowledge = await readBlock(`${name.toLowerCase()}:knowledge`)
       if (!knowledge) {
         knowledge = JSON.parse(JSON.stringify(KNOWLEDGE_TEMPLATE))
+        // Seed with user context if provided
+        if (context) {
+          const k = knowledge as any
+          if (k['6'] && typeof k['6'] === 'object') {
+            k['6']['1'] = context
+          }
+        }
         await writeBlock(`${name.toLowerCase()}:knowledge`, knowledge)
       }
       knowledgeRef.current = knowledge
 
-      // Register character
+      // Register user in characters block
       const characters = await readBlock(`${world}:characters`)
       if (characters) {
-        for (let d = 5; d <= 9; d++) {
+        for (let d = 1; d <= 9; d++) {
           const k = String(d)
           if (!(k in characters)) {
             characters[k] = {
-              _: `${name}. A newcomer. Just arrived.`,
-              '1': `Location: 111 (main room of the Salted Dog)`,
-              '2': `Purpose: unknown — they have just arrived.`,
-              '3': `State: standing in the doorway, taking in the room.`,
+              _: `${name}. A real person. Just arrived.`,
+              '1': `Location: unresolved`,
+              '2': `Focus: ${context || 'not yet specified'}`,
+              '3': `State: just entered xstream.`,
             }
             await writeBlock(`${world}:characters`, characters)
             break
@@ -109,7 +119,11 @@ export default function App() {
         }
       }
 
-      const result = await runHard(key, name, '111', world, 'player', 'entry', knowledge)
+      // Run Hard to build initial frame
+      const result = await runHard(
+        key, name, '111', world, 'player', 'entry',
+        knowledge, context
+      )
       frameRef.current = result.frame
 
       if (result.knowledgeUpdates.length > 0) {
@@ -164,12 +178,12 @@ export default function App() {
     const card: LiquidCard = {
       id: Date.now().toString(),
       userId: 'self',
-      userName: characterName,
+      userName: userName,
       content: text,
       timestamp: Date.now(),
     }
     setLiquidCards(prev => [...prev, card])
-  }, [characterName])
+  }, [userName])
 
   // --- COMMIT (Medium) ---
   const handleCommit = useCallback(async (cardId: string) => {
@@ -182,7 +196,7 @@ export default function App() {
     try {
       const result = await runMedium(
         apiKey, card.content, frameRef.current,
-        knowledgeRef.current, worldId, characterName, 'player'
+        knowledgeRef.current, worldId, userName, 'player'
       )
 
       // Add to solid
@@ -199,7 +213,7 @@ export default function App() {
       if (result.eventEntry) {
         const events = await readBlock(`${worldId}:events`)
         if (events) {
-          for (let d = 5; d <= 9; d++) {
+          for (let d = 1; d <= 9; d++) {
             const k = String(d)
             if (!(k in events)) {
               events[k] = { _: result.eventEntry }
@@ -212,19 +226,22 @@ export default function App() {
 
       // Knowledge updates
       if (result.knowledgeUpdates.length > 0) {
-        await applyKnowledgeUpdates(result.knowledgeUpdates, characterName)
+        await applyKnowledgeUpdates(result.knowledgeUpdates, userName)
       }
 
-      // Location change
+      // Context shift — refresh Hard frame
       if (result.locationChange) {
         setCoordinates(result.locationChange)
-        const hardResult = await runHard(
-          apiKey, characterName, result.locationChange, worldId, 'player', 'location-change', knowledgeRef.current
-        )
-        frameRef.current = hardResult.frame
-        if (hardResult.knowledgeUpdates.length > 0) {
-          await applyKnowledgeUpdates(hardResult.knowledgeUpdates, characterName)
-        }
+      }
+
+      // Always refresh frame after a commit
+      const hardResult = await runHard(
+        apiKey, userName, coordinates, worldId, 'player', 'context-shift',
+        knowledgeRef.current, userContextRef.current
+      )
+      frameRef.current = hardResult.frame
+      if (hardResult.knowledgeUpdates.length > 0) {
+        await applyKnowledgeUpdates(hardResult.knowledgeUpdates, userName)
       }
 
       setSynthesising(false)
@@ -239,7 +256,7 @@ export default function App() {
       })
       setSynthesising(false)
     }
-  }, [apiKey, worldId, characterName, liquidCards])
+  }, [apiKey, worldId, userName, coordinates, liquidCards])
 
   // --- Copy liquid card text back to vapor input ---
   const handleCopyToVapor = useCallback((text: string) => {
@@ -252,31 +269,29 @@ export default function App() {
     const knowledge = knowledgeRef.current
 
     for (const raw of updates) {
-      // Handle both string and {category, update} formats from LLM
       const update = typeof raw === 'string' ? raw : (raw?.update ?? raw?.description ?? String(raw))
       const categoryHint = typeof raw === 'object' ? (raw?.category ?? '').toLowerCase() : ''
 
       let categoryKey = '3' // default: Events
       if (categoryHint.includes('people') || categoryHint.includes('person')) {
         categoryKey = '1'
-      } else if (categoryHint.includes('place')) {
+      } else if (categoryHint.includes('topic')) {
         categoryKey = '2'
       } else if (categoryHint.includes('event')) {
         categoryKey = '3'
-      } else if (categoryHint.includes('rumour') || categoryHint.includes('hearsay')) {
+      } else if (categoryHint.includes('connection')) {
         categoryKey = '4'
-      } else if (categoryHint.includes('possession')) {
+      } else if (categoryHint.includes('output')) {
         categoryKey = '5'
-      } else if (categoryHint.includes('relationship')) {
+      } else if (categoryHint.includes('context')) {
         categoryKey = '6'
       } else {
-        // Fallback: guess from content
         const lower = update.toLowerCase()
-        if (lower.includes('person') || lower.includes('woman') || lower.includes('man') || lower.includes('name')) {
+        if (lower.includes('person') || lower.includes('user') || lower.includes('name')) {
           categoryKey = '1'
-        } else if (lower.includes('place') || lower.includes('room') || lower.includes('building')) {
+        } else if (lower.includes('topic') || lower.includes('about') || lower.includes('field')) {
           categoryKey = '2'
-        } else if (lower.includes('rumour') || lower.includes('heard') || lower.includes('apparently')) {
+        } else if (lower.includes('connect') || lower.includes('link') || lower.includes('relate')) {
           categoryKey = '4'
         }
       }
@@ -327,11 +342,11 @@ export default function App() {
     <div className="app" data-theme={theme} data-face="character">
       {/* Minimal header */}
       <div className="flex items-center gap-3 px-4 h-[44px] border-b border-border/50 text-sm shrink-0">
-        <span className="text-face-accent font-medium">{characterName}</span>
-        <span className="text-muted-foreground text-xs font-mono">{coordinates}</span>
+        <span className="text-face-accent font-medium">{userName}</span>
+        <span className="text-muted-foreground text-xs">real</span>
         <div className="flex-1" />
         <button onClick={() => downloadLog()} className="text-muted-foreground hover:text-foreground text-xs" title="Download log">📋</button>
-        <button onClick={handleReset} className="text-muted-foreground hover:text-foreground text-xs" title="Reset world">🔄</button>
+        <button onClick={handleReset} className="text-muted-foreground hover:text-foreground text-xs" title="Reset">🔄</button>
       </div>
 
       {statusMessage && (
@@ -366,7 +381,7 @@ export default function App() {
         value={vaporText}
         onChange={setVaporText}
         isQuerying={softLoading}
-        placeholder="What do you do?"
+        placeholder="What are you thinking?"
       />
     </div>
   )

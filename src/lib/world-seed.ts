@@ -1,17 +1,18 @@
 /**
- * world-seed.ts — bundle world blocks and seed localStorage on first run.
+ * world-seed.ts — seed real-world blocks to localStorage on first run.
  *
- * Imports the authored JSON files directly (Vite bundles them).
- * On first run, writes them to localStorage. On reset, overwrites.
+ * Real-world mode: minimal seed. The world is the real world —
+ * the LLM knows it already. These blocks provide structure,
+ * not content.
  */
 
-import spatial from '../../blocks/worlds/thornkeep/spatial.json'
-import events from '../../blocks/worlds/thornkeep/events.json'
-import characters from '../../blocks/worlds/thornkeep/characters.json'
-import rules from '../../blocks/worlds/thornkeep/rules.json'
+import spatial from '../../blocks/worlds/real/spatial.json'
+import events from '../../blocks/worlds/real/events.json'
+import characters from '../../blocks/worlds/real/characters.json'
+import rules from '../../blocks/worlds/real/rules.json'
 import { clearAllBlocks } from './shelf'
 
-const WORLD = 'thornkeep'
+const WORLD = 'real'
 
 const SEED_BLOCKS: Record<string, any> = {
   [`${WORLD}:spatial`]: spatial,
@@ -30,7 +31,7 @@ function writeBlockDirect(id: string, data: any) {
 /** Seed world blocks if not already present. */
 export function seedIfNeeded(): void {
   if (localStorage.getItem(SEEDED_KEY)) return
-  console.log('🌱 First run — seeding world blocks...')
+  console.log('🌱 First run — seeding real-world blocks...')
   for (const [id, data] of Object.entries(SEED_BLOCKS)) {
     writeBlockDirect(id, data)
     console.log(`  ✅ ${id}`)
@@ -39,7 +40,7 @@ export function seedIfNeeded(): void {
   console.log('🌊 World ready.')
 }
 
-/** Reset everything — clear all blocks, reseed from authored files. */
+/** Reset everything — clear all blocks, reseed from real-world files. */
 export function resetWorld(): void {
   clearAllBlocks()
   localStorage.removeItem(SEEDED_KEY)
