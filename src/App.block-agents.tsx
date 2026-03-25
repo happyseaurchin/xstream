@@ -119,6 +119,7 @@ export default function App() {
       setStatusMessage('')
       setPhase('ready')
     } catch (err: any) {
+      console.error('❌ [ENTER] Failed:', err)
       setStatusMessage(`Error: ${err.message}`)
       setPhase('setup')
     }
@@ -246,19 +247,38 @@ export default function App() {
   }, [])
 
   // --- Knowledge helper ---
-  async function applyKnowledgeUpdates(updates: string[], name: string) {
+  async function applyKnowledgeUpdates(updates: any[], name: string) {
     if (!knowledgeRef.current) return
     const knowledge = knowledgeRef.current
 
-    for (const update of updates) {
-      const lower = update.toLowerCase()
-      let categoryKey = '3'
-      if (lower.includes('person') || lower.includes('woman') || lower.includes('man') || lower.includes('name')) {
+    for (const raw of updates) {
+      // Handle both string and {category, update} formats from LLM
+      const update = typeof raw === 'string' ? raw : (raw?.update ?? raw?.description ?? String(raw))
+      const categoryHint = typeof raw === 'object' ? (raw?.category ?? '').toLowerCase() : ''
+
+      let categoryKey = '3' // default: Events
+      if (categoryHint.includes('people') || categoryHint.includes('person')) {
         categoryKey = '1'
-      } else if (lower.includes('place') || lower.includes('room') || lower.includes('building')) {
+      } else if (categoryHint.includes('place')) {
         categoryKey = '2'
-      } else if (lower.includes('rumour') || lower.includes('heard') || lower.includes('apparently')) {
+      } else if (categoryHint.includes('event')) {
+        categoryKey = '3'
+      } else if (categoryHint.includes('rumour') || categoryHint.includes('hearsay')) {
         categoryKey = '4'
+      } else if (categoryHint.includes('possession')) {
+        categoryKey = '5'
+      } else if (categoryHint.includes('relationship')) {
+        categoryKey = '6'
+      } else {
+        // Fallback: guess from content
+        const lower = update.toLowerCase()
+        if (lower.includes('person') || lower.includes('woman') || lower.includes('man') || lower.includes('name')) {
+          categoryKey = '1'
+        } else if (lower.includes('place') || lower.includes('room') || lower.includes('building')) {
+          categoryKey = '2'
+        } else if (lower.includes('rumour') || lower.includes('heard') || lower.includes('apparently')) {
+          categoryKey = '4'
+        }
       }
 
       const category = knowledge[categoryKey]
