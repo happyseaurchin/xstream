@@ -1,16 +1,11 @@
 /**
  * PUT /api/relay/[gameId]/[charId] — store a character's block
  * GET /api/relay/[gameId]/[charId] — get a specific character's block
- *
- * The relay is a dumb bucket. It stores JSON blocks keyed by gameId:charId.
- * Blocks expire after 24 hours (TTL on blob metadata).
- * The kernel writes here. Peers read from the list endpoint.
  */
 import { put, head } from '@vercel/blob';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS for browser-to-API calls
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -21,20 +16,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'PUT') {
     try {
-      const block = req.body;
-      // Strip API key before storing — never relay secrets
-      const safe = { ...block };
-      if (safe.medium) safe.medium = { ...safe.medium, api_key: '[REDACTED]' };
+      // Parse body — may be string or already parsed
+      let block = req.body;
+      if (typeof block === 'string') {
+        block = JSON.parse(block);
+      }
+      if (!block || typeof block !== 'object') {
+        return res.status(400).json({ error: 'Invalid JSON body', received: typeof block });
+      }
 
-      await put(key, JSON.stringify(safe), {
+      // Strip API key before storing — never relay secrets
+      const safe = JSON.parse(JSON.stringify(block));
+      if (safe.medium) safe.medium.api_key = '[REDACTED]';
+
+      const json = JSON.stringify(safe);
+
+      await put(key, json, {
         access: 'public',
         addRandomSuffix: false,
         contentType: 'application/json',
       });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, size: json.length });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
-      return res.status(500).json({ error: msg });
+      const stack = e instanceof Error ? e.stack?.split('\n').slice(0, 3).join('\n') : '';
+      console.error('[relay PUT]', msg, stack);
+      return res.status(500).json({ error: msg, detail: stack });
     }
   }
 

@@ -18,11 +18,16 @@ import type { Block, MediumResult, AccumulatedEvent, DominoSignal } from './type
 // ============================================================
 
 async function writeBlock(gameId: string, charId: string, block: Block): Promise<void> {
-  await fetch(`/api/relay/${gameId}/${charId}`, {
+  const res = await fetch(`/api/relay/${gameId}/${charId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(block),
   });
+  if (!res.ok) {
+    const err = await res.text();
+    console.error(`[relay PUT] ${res.status}:`, err);
+    throw new Error(`Relay PUT failed: ${res.status} — ${err.substring(0, 200)}`);
+  }
 }
 
 async function readPeerBlocks(gameId: string, myCharId: string): Promise<Block[]> {
