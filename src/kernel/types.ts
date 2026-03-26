@@ -16,6 +16,7 @@ export interface Block {
     poll_interval_s: number;
     domino_fires_medium: boolean;
     accumulation_threshold: number;
+    domino_mode: 'auto' | 'informed' | 'silent';
   };
   medium: {
     model: string;

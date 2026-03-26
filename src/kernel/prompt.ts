@@ -41,6 +41,8 @@ export function buildMediumPrompt(
 
   // Intention depends on trigger type
   let intentSection: string;
+  const dominoMode = block.trigger?.domino_mode ?? 'auto';
+
   if (triggerType === 'commit') {
     intentSection = `${name}'S COMMITTED INTENTION (liquid):\n${block.pending_liquid ?? ''}`;
   } else {
@@ -48,6 +50,12 @@ export function buildMediumPrompt(
     if (block.pending_liquid) {
       intentSection += `\n\n${name}'S PENDING LIQUID (submitted before domino — may be used or overridden by events):\n${block.pending_liquid}`;
     }
+
+    // Mode-specific domino instruction
+    if (dominoMode === 'informed') {
+      intentSection += `\n\nDOMINO MODE: PERCEPTION ONLY. Narrate what ${name} perceives — sights, sounds, sensations. ${name} does NOT act, speak, decide, or respond. You are a camera, not an actor. The player will decide what to do. Produce empty domino list — do not trigger further cascades.`;
+    }
+    // 'auto' mode: no extra instruction, medium narrates freely including character action
   }
 
   // Constraints

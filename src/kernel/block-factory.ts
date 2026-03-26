@@ -45,6 +45,7 @@ export function createBlock(
       poll_interval_s: 3,
       domino_fires_medium: true,
       accumulation_threshold: 0,
+      domino_mode: 'auto' as const,
     },
     medium: {
       model,

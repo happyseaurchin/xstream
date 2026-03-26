@@ -47,6 +47,7 @@ export default function App() {
   const [kernelStatus, setKernelStatus] = useState('idle')
   const [kernelLogs, setKernelLogs] = useState<string[]>([])
   const [accumulatedCount, setAccumulatedCount] = useState(0)
+  const [dominoMode, setDominoMode] = useState<'auto' | 'informed' | 'silent'>('auto')
 
   // Theme
   const [theme, setTheme] = useState<Theme>(() =>
@@ -238,6 +239,16 @@ Help them think. Be vivid and brief (1-3 sentences). Don't narrate — suggest, 
     setVaporText(text)
   }, [])
 
+  // --- Domino mode toggle ---
+  const handleDominoModeToggle = useCallback(() => {
+    const modes: Array<'auto' | 'informed' | 'silent'> = ['auto', 'informed', 'silent']
+    const next = modes[(modes.indexOf(dominoMode) + 1) % modes.length]
+    setDominoMode(next)
+    if (kernelRef.current) {
+      kernelRef.current.block.trigger.domino_mode = next
+    }
+  }, [dominoMode])
+
   // --- Reset ---
   const handleReset = useCallback(() => {
     kernelRef.current?.stop()
@@ -282,6 +293,14 @@ Help them think. Be vivid and brief (1-3 sentences). Don't narrate — suggest, 
         <span className="text-xs" style={{ opacity: 0.5 }}>
           {kernelStatus === 'idle' ? '🟢' : kernelStatus === 'resolving' ? '🟡' : kernelStatus === 'domino_responding' ? '💥' : '⚪'}
         </span>
+        <button
+          onClick={handleDominoModeToggle}
+          className="text-xs"
+          style={{ opacity: 0.7, cursor: 'pointer', background: 'none', border: 'none', color: 'inherit', padding: '2px 4px' }}
+          title={`Domino mode: ${dominoMode}. Click to cycle.`}
+        >
+          {dominoMode === 'auto' ? '🔄auto' : dominoMode === 'informed' ? '👁️watch' : '🔇silent'}
+        </button>
         {accumulatedCount > 0 && (
           <span className="text-xs text-face-accent" title="Accumulated peer events">
             📥 {accumulatedCount}

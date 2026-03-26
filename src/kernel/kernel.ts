@@ -239,7 +239,9 @@ export class Kernel {
       }
 
       // ── STEP 2: Process dominos ──
-      if (newDominos.length > 0 && this.block.trigger?.domino_fires_medium) {
+      const dominoMode = this.block.trigger?.domino_mode ?? 'auto';
+      const shouldFireDomino = this.block.trigger?.domino_fires_medium && dominoMode !== 'silent';
+      if (newDominos.length > 0 && shouldFireDomino) {
         for (const domino of newDominos) {
           this.callbacks.onDomino(domino.source, domino.context);
           this.callbacks.onLog(
