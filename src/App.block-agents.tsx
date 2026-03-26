@@ -1,9 +1,10 @@
 /**
- * App.block-agents.tsx — block-agents app with original xstream UI.
+ * App.block-agents.tsx — xstream UI powered by sovereign browser kernel.
  *
  * Three zones with draggable separators, themes, floating input button.
- * Engines: Hard (frame), Soft (thought partner), Medium (narrator).
- * Pure localStorage — no server, no database.
+ * Engine: Kernel (polls relay, fires medium-LLM on commit/domino).
+ * Soft-LLM (ASK) remains a direct call — no coordination needed.
+ * Pure browser — no server runs LLM calls. All API costs are the player's.
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
@@ -13,14 +14,9 @@ import { LiquidZone } from './components/xstream/LiquidZone'
 import { VapourZone } from './components/xstream/VapourZone'
 import { DraggableSeparator } from './components/DraggableSeparator'
 import { ConstructionButton } from './components/xstream/ConstructionButton'
-import { runHard, type Frame } from './engine/hard'
-import { runSoft } from './engine/soft'
-import { runMedium } from './engine/medium'
-import { readBlock, writeBlock } from './lib/shelf'
-import { KNOWLEDGE_TEMPLATE } from './blocks/agents'
-import { downloadLog } from './lib/logger'
-import { resetWorld } from './lib/world-seed'
-import type { PscaleBlock } from './lib/bsp'
+import { Kernel } from './kernel/kernel'
+import { createBlock, generateGameCode } from './kernel/block-factory'
+import { callClaude } from './kernel/claude-direct'
 import type { SolidBlock, LiquidCard } from './types/xstream'
 import type { SoftLLMResponse } from './types'
 import './App.css'
@@ -29,19 +25,16 @@ type AppPhase = 'setup' | 'loading' | 'ready'
 type Theme = 'dark' | 'light' | 'cyber' | 'soft'
 
 const MIN_ZONE = 80
-const HEADER_HEIGHT = 44
 
 export default function App() {
   // Session
   const [phase, setPhase] = useState<AppPhase>('setup')
   const [apiKey, setApiKey] = useState('')
   const [characterName, setCharacterName] = useState('')
-  const [worldId, setWorldId] = useState('thornkeep')
-  const [coordinates, setCoordinates] = useState('111')
+  const [gameCode, setGameCode] = useState('')
 
-  // Engine
-  const frameRef = useRef<Frame | null>(null)
-  const knowledgeRef = useRef<PscaleBlock | null>(null)
+  // Kernel
+  const kernelRef = useRef<Kernel | null>(null)
 
   // UI data
   const [solidBlocks, setSolidBlocks] = useState<SolidBlock[]>([])
@@ -51,6 +44,9 @@ export default function App() {
   const [softLoading, setSoftLoading] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [vaporText, setVaporText] = useState('')
+  const [kernelStatus, setKernelStatus] = useState('idle')
+  const [kernelLogs, setKernelLogs] = useState<string[]>([])
+  const [accumulatedCount, setAccumulatedCount] = useState(0)
 
   // Theme
   const [theme, setTheme] = useState<Theme>(() =>
@@ -65,6 +61,11 @@ export default function App() {
     localStorage.setItem('xstream-theme', theme)
   }, [theme])
 
+  // Cleanup kernel on unmount
+  useEffect(() => {
+    return () => { kernelRef.current?.stop() }
+  }, [])
+
   // --- Draggable separator handlers ---
   const handleTopDrag = useCallback((delta: number) => {
     setSolidHeight(h => Math.max(MIN_ZONE, h + delta))
@@ -75,80 +76,130 @@ export default function App() {
     setLiquidHeight(h => Math.max(MIN_ZONE, h + delta))
   }, [])
 
-  // --- Entry ---
-  const handleEnter = useCallback(async (key: string, name: string, world: string) => {
+  // --- Kernel callbacks ---
+  const makeKernelCallbacks = useCallback(() => ({
+    onSolid: (solid: string) => {
+      if (!solid) return
+      setSolidBlocks(prev => [...prev, {
+        id: Date.now().toString(),
+        content: solid,
+        timestamp: Date.now(),
+      }])
+      setSynthesising(false)
+    },
+    onStatusChange: (status: string) => {
+      setKernelStatus(status)
+      setSynthesising(status === 'resolving' || status === 'domino_responding')
+    },
+    onAccumulate: (_source: string, count: number) => {
+      setAccumulatedCount(prev => prev + count)
+    },
+    onDomino: (source: string, context: string) => {
+      setKernelLogs(prev => [...prev.slice(-50), `💥 Domino from ${source}: ${context.slice(0, 80)}`])
+    },
+    onError: (error: string) => {
+      console.error('[kernel]', error)
+      setKernelLogs(prev => [...prev.slice(-50), `❌ ${error}`])
+      setSynthesising(false)
+    },
+    onLog: (msg: string) => {
+      console.log('[kernel]', msg)
+      setKernelLogs(prev => [...prev.slice(-50), msg])
+    },
+  }), [])
+
+  // --- Create Game ---
+  const handleCreateGame = useCallback((key: string, name: string, state: string, scene: string) => {
     setApiKey(key)
     setCharacterName(name)
-    setWorldId(world)
     setPhase('loading')
-    setStatusMessage('Building your view of the world...')
+    setStatusMessage('Creating game...')
+
+    const code = generateGameCode()
+    setGameCode(code)
+
+    const charId = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const block = createBlock(charId, name, state || `${name}. A newcomer.`, scene, key)
+
+    const kernel = new Kernel(block, code, makeKernelCallbacks())
+    kernelRef.current = kernel
+    kernel.start()
+
+    setStatusMessage('')
+    setPhase('ready')
+  }, [makeKernelCallbacks])
+
+  // --- Join Game ---
+  const handleJoinGame = useCallback(async (key: string, name: string, state: string, code: string) => {
+    setApiKey(key)
+    setCharacterName(name)
+    setGameCode(code)
+    setPhase('loading')
+    setStatusMessage('Joining game...')
 
     try {
-      let knowledge = await readBlock(`${name.toLowerCase()}:knowledge`)
-      if (!knowledge) {
-        knowledge = JSON.parse(JSON.stringify(KNOWLEDGE_TEMPLATE))
-        await writeBlock(`${name.toLowerCase()}:knowledge`, knowledge)
-      }
-      knowledgeRef.current = knowledge
-
-      // Register character
-      const characters = await readBlock(`${world}:characters`)
-      if (characters) {
-        for (let d = 5; d <= 9; d++) {
-          const k = String(d)
-          if (!(k in characters)) {
-            characters[k] = {
-              _: `${name}. A newcomer. Just arrived.`,
-              '1': `Location: 111 (main room of the Salted Dog)`,
-              '2': `Purpose: unknown — they have just arrived.`,
-              '3': `State: standing in the doorway, taking in the room.`,
-            }
-            await writeBlock(`${world}:characters`, characters)
-            break
-          }
+      // Fetch existing game to get the scene
+      const res = await fetch(`/api/relay/${code}?exclude=_nobody_`)
+      let scene = ''
+      if (res.ok) {
+        const blocks = await res.json()
+        if (blocks.length > 0) {
+          scene = blocks[0].scene || ''
         }
       }
 
-      const result = await runHard(key, name, '111', world, 'player', 'entry', knowledge)
-      frameRef.current = result.frame
+      const charId = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const block = createBlock(charId, name, state || `${name}. A newcomer.`, scene, key)
 
-      if (result.knowledgeUpdates.length > 0) {
-        await applyKnowledgeUpdates(result.knowledgeUpdates, name)
-      }
+      const kernel = new Kernel(block, code, makeKernelCallbacks())
+      kernelRef.current = kernel
+      kernel.start()
 
       setStatusMessage('')
       setPhase('ready')
-    } catch (err: any) {
-      console.error('❌ [ENTER] Failed:', err)
-      setStatusMessage(`Error: ${err.message}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to join'
+      setStatusMessage(`Error: ${msg}`)
       setPhase('setup')
     }
-  }, [])
+  }, [makeKernelCallbacks])
 
-  // --- ASK (Soft) ---
+  // --- ASK (Soft — direct call, no kernel needed) ---
   const handleQuery = useCallback(async (text: string) => {
-    if (!frameRef.current || !text.trim()) return
+    if (!text.trim() || !kernelRef.current) return
     setSoftLoading(true)
     setSoftResponse(null)
 
     try {
-      const result = await runSoft(
-        apiKey, text, frameRef.current,
-        knowledgeRef.current, solidBlocks[solidBlocks.length - 1]?.content ?? '', 'player'
-      )
+      const block = kernelRef.current.block
+      const recentSolid = block.character.solid_history.slice(-1)[0] || ''
+      const scene = block.scene || ''
+
+      const prompt = `You are a thinking partner for ${characterName} in this scene:
+${scene}
+
+Recent narrative: ${recentSolid}
+
+The player is thinking: "${text}"
+
+Help them think. Be vivid and brief (1-3 sentences). Don't narrate — suggest, provoke, or clarify. Second person present tense.`
+
+      const response = await callClaude(apiKey, 'claude-haiku-4-5-20251001', prompt, 256)
+
       setSoftResponse({
         id: Date.now().toString(),
         originalInput: text,
-        text: result.text,
+        text: response,
         softType: 'refine',
         face: 'character',
         frameId: null,
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Soft call failed'
       setSoftResponse({
         id: Date.now().toString(),
         originalInput: text,
-        text: `Error: ${err.message}`,
+        text: `Error: ${msg}`,
         softType: 'info',
         face: 'character',
         frameId: null,
@@ -156,11 +207,11 @@ export default function App() {
     } finally {
       setSoftLoading(false)
     }
-  }, [apiKey, solidBlocks])
+  }, [apiKey, characterName])
 
   // --- SUBMIT to Liquid ---
   const handleSubmit = useCallback((text: string) => {
-    if (!text.trim()) return
+    if (!text.trim() || !kernelRef.current) return
     const card: LiquidCard = {
       id: Date.now().toString(),
       userId: 'self',
@@ -169,148 +220,42 @@ export default function App() {
       timestamp: Date.now(),
     }
     setLiquidCards(prev => [...prev, card])
+    // Also set as pending liquid in kernel
+    kernelRef.current.submitLiquid(text)
   }, [characterName])
 
-  // --- COMMIT (Medium) ---
-  const handleCommit = useCallback(async (cardId: string) => {
-    const card = liquidCards.find(c => c.id === cardId)
-    if (!card || !frameRef.current) return
-
+  // --- COMMIT (fires kernel, which fires medium on next cycle) ---
+  const handleCommit = useCallback((_cardId: string) => {
+    if (!kernelRef.current) return
     setSynthesising(true)
-    setSoftResponse(null)
-
-    try {
-      const result = await runMedium(
-        apiKey, card.content, frameRef.current,
-        knowledgeRef.current, worldId, characterName, 'player'
-      )
-
-      // Add to solid
-      setSolidBlocks(prev => [...prev, {
-        id: Date.now().toString(),
-        content: result.solid,
-        timestamp: Date.now(),
-      }])
-
-      // Remove committed card from liquid
-      setLiquidCards(prev => prev.filter(c => c.id !== cardId))
-
-      // Write event
-      if (result.eventEntry) {
-        const events = await readBlock(`${worldId}:events`)
-        if (events) {
-          for (let d = 5; d <= 9; d++) {
-            const k = String(d)
-            if (!(k in events)) {
-              events[k] = { _: result.eventEntry }
-              await writeBlock(`${worldId}:events`, events)
-              break
-            }
-          }
-        }
-      }
-
-      // Knowledge updates
-      if (result.knowledgeUpdates.length > 0) {
-        await applyKnowledgeUpdates(result.knowledgeUpdates, characterName)
-      }
-
-      // Location change
-      if (result.locationChange) {
-        setCoordinates(result.locationChange)
-        const hardResult = await runHard(
-          apiKey, characterName, result.locationChange, worldId, 'player', 'location-change', knowledgeRef.current
-        )
-        frameRef.current = hardResult.frame
-        if (hardResult.knowledgeUpdates.length > 0) {
-          await applyKnowledgeUpdates(hardResult.knowledgeUpdates, characterName)
-        }
-      }
-
-      setSynthesising(false)
-    } catch (err: any) {
-      setSoftResponse({
-        id: Date.now().toString(),
-        originalInput: card.content,
-        text: `Synthesis error: ${err.message}`,
-        softType: 'info',
-        face: 'character',
-        frameId: null,
-      })
-      setSynthesising(false)
-    }
-  }, [apiKey, worldId, characterName, liquidCards])
+    kernelRef.current.commit()
+    // Clear liquid cards — kernel will handle the rest
+    setLiquidCards([])
+  }, [])
 
   // --- Copy liquid card text back to vapor input ---
   const handleCopyToVapor = useCallback((text: string) => {
     setVaporText(text)
   }, [])
 
-  // --- Knowledge helper ---
-  async function applyKnowledgeUpdates(updates: any[], name: string) {
-    if (!knowledgeRef.current) return
-    const knowledge = knowledgeRef.current
-
-    for (const raw of updates) {
-      // Handle both string and {category, update} formats from LLM
-      const update = typeof raw === 'string' ? raw : (raw?.update ?? raw?.description ?? String(raw))
-      const categoryHint = typeof raw === 'object' ? (raw?.category ?? '').toLowerCase() : ''
-
-      let categoryKey = '3' // default: Events
-      if (categoryHint.includes('people') || categoryHint.includes('person')) {
-        categoryKey = '1'
-      } else if (categoryHint.includes('place')) {
-        categoryKey = '2'
-      } else if (categoryHint.includes('event')) {
-        categoryKey = '3'
-      } else if (categoryHint.includes('rumour') || categoryHint.includes('hearsay')) {
-        categoryKey = '4'
-      } else if (categoryHint.includes('possession')) {
-        categoryKey = '5'
-      } else if (categoryHint.includes('relationship')) {
-        categoryKey = '6'
-      } else {
-        // Fallback: guess from content
-        const lower = update.toLowerCase()
-        if (lower.includes('person') || lower.includes('woman') || lower.includes('man') || lower.includes('name')) {
-          categoryKey = '1'
-        } else if (lower.includes('place') || lower.includes('room') || lower.includes('building')) {
-          categoryKey = '2'
-        } else if (lower.includes('rumour') || lower.includes('heard') || lower.includes('apparently')) {
-          categoryKey = '4'
-        }
-      }
-
-      const category = knowledge[categoryKey]
-      if (category && typeof category === 'object') {
-        for (let d = 2; d <= 9; d++) {
-          const k = String(d)
-          if (!(k in category)) {
-            ;(category as any)[k] = update
-            break
-          }
-        }
-      }
-    }
-
-    knowledgeRef.current = knowledge
-    await writeBlock(`${name.toLowerCase()}:knowledge`, knowledge)
-  }
-
   // --- Reset ---
   const handleReset = useCallback(() => {
-    resetWorld()
+    kernelRef.current?.stop()
+    kernelRef.current = null
     setPhase('setup')
     setSolidBlocks([])
     setLiquidCards([])
     setSoftResponse(null)
     setVaporText('')
     setStatusMessage('')
+    setKernelLogs([])
+    setAccumulatedCount(0)
+    setKernelStatus('idle')
   }, [])
 
   // --- Render ---
   if (phase === 'setup') {
-    return <SetupScreen onEnter={handleEnter} />
+    return <SetupScreen onCreateGame={handleCreateGame} onJoinGame={handleJoinGame} />
   }
 
   if (phase === 'loading') {
@@ -325,13 +270,25 @@ export default function App() {
 
   return (
     <div className="app" data-theme={theme} data-face="character">
-      {/* Minimal header */}
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 h-[44px] border-b border-border/50 text-sm shrink-0">
         <span className="text-face-accent font-medium">{characterName}</span>
-        <span className="text-muted-foreground text-xs font-mono">{coordinates}</span>
+        <span className="text-muted-foreground text-xs font-mono"
+              style={{ cursor: 'pointer' }}
+              title="Click to copy game code"
+              onClick={() => navigator.clipboard.writeText(gameCode)}>
+          {gameCode}
+        </span>
+        <span className="text-xs" style={{ opacity: 0.5 }}>
+          {kernelStatus === 'idle' ? '🟢' : kernelStatus === 'resolving' ? '🟡' : kernelStatus === 'domino_responding' ? '💥' : '⚪'}
+        </span>
+        {accumulatedCount > 0 && (
+          <span className="text-xs text-face-accent" title="Accumulated peer events">
+            📥 {accumulatedCount}
+          </span>
+        )}
         <div className="flex-1" />
-        <button onClick={() => downloadLog()} className="text-muted-foreground hover:text-foreground text-xs" title="Download log">📋</button>
-        <button onClick={handleReset} className="text-muted-foreground hover:text-foreground text-xs" title="Reset world">🔄</button>
+        <button onClick={handleReset} className="text-muted-foreground hover:text-foreground text-xs" title="Leave game">🚪</button>
       </div>
 
       {statusMessage && (
