@@ -215,8 +215,11 @@ export class Kernel {
     this.callbacks.onStatusChange('resolving');
   }
 
+  private cycling = false;
+
   private async cycle(): Promise<void> {
-    if (!this.running) return;
+    if (!this.running || this.cycling) return;
+    this.cycling = true;
 
     try {
       // ── STEP 1: Poll peers ──
@@ -289,6 +292,8 @@ export class Kernel {
     } catch (e) {
       console.error('[kernel] Cycle error:', e);
       this.callbacks.onError(e instanceof Error ? e.message : 'Cycle error');
+    } finally {
+      this.cycling = false;
     }
   }
 }
