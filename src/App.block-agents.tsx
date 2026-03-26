@@ -307,6 +307,14 @@ Help them think. Be vivid and brief (1-3 sentences). Don't narrate — suggest, 
           </span>
         )}
         <div className="flex-1" />
+        <button onClick={() => {
+          const text = solidBlocks.map(b => b.content).join('\n\n---\n\n')
+          const blob = new Blob([`${characterName} — ${gameCode}\n${new Date().toLocaleString()}\n\n${text}`], { type: 'text/plain' })
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(blob)
+          a.download = `${characterName.toLowerCase()}-${gameCode}.txt`
+          a.click()
+        }} className="text-muted-foreground hover:text-foreground text-xs" title="Download story">📜</button>
         <button onClick={handleReset} className="text-muted-foreground hover:text-foreground text-xs" title="Leave game">🚪</button>
       </div>
 
